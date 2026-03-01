@@ -10,7 +10,7 @@ import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich } from './enricher.js';
 import { checkConnection, ensureDeck, storeAudio, createNote, getNoteTypes, getNoteFields } from './anki.js';
-import { config } from './config.js';
+import { config, CONFIG_PATH_DISPLAY } from './config.js';
 
 program
   .name('yt2anki')
@@ -45,6 +45,16 @@ program
   .description('Test all integrations (tools, APIs, Anki) without making changes')
   .option('-d, --deck <name>', 'Anki deck name to verify', config.ankiDeck)
   .action(testIntegrations);
+
+program
+  .command('init')
+  .description('Create config file at ~/.yt2anki.json')
+  .action(initConfig);
+
+program
+  .command('config')
+  .description('Show current configuration')
+  .action(showConfig);
 
 program.parse();
 
@@ -320,14 +330,15 @@ async function testIntegrations(options) {
 
   // 4. Test OpenAI API
   console.log(chalk.bold.blue('\n[4/5] OpenAI API'));
-  if (!process.env.OPENAI_API_KEY) {
-    fail('OPENAI_API_KEY not set', 'Add to ~/.zshrc: export OPENAI_API_KEY="sk-..."');
+  const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    fail('OpenAI API key not set', `Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
   } else {
-    pass('OPENAI_API_KEY is set');
+    pass('OpenAI API key found');
 
     try {
       const OpenAI = (await import('openai')).default;
-      const openai = new OpenAI();
+      const openai = new OpenAI({ apiKey });
 
       // Make minimal API call to verify key works
       const response = await openai.chat.completions.create({
@@ -406,4 +417,62 @@ async function ankiConnectRequest(action, params = {}) {
   const result = await response.json();
   if (result.error) throw new Error(result.error);
   return result.result;
+}
+
+async function initConfig() {
+  const { writeFile, access } = await import('fs/promises');
+  const { homedir } = await import('os');
+  const { join } = await import('path');
+
+  const configPath = join(homedir(), '.yt2anki.json');
+
+  // Check if already exists
+  try {
+    await access(configPath);
+    console.log(chalk.yellow(`\nConfig file already exists: ${configPath}`));
+    console.log(chalk.dim('Edit it manually or delete to recreate.\n'));
+    return;
+  } catch {
+    // File doesn't exist, create it
+  }
+
+  const defaultConfig = {
+    openaiApiKey: '',
+    ankiDeck: 'German::YouTube',
+    ankiNoteType: 'Basic (and reversed card)',
+    openaiModel: 'gpt-4o-mini',
+    whisperModel: 'base',
+  };
+
+  await writeFile(configPath, JSON.stringify(defaultConfig, null, 2) + '\n');
+
+  console.log(chalk.green(`\n✓ Created config file: ${configPath}\n`));
+  console.log('Edit it to add your settings:');
+  console.log(chalk.cyan(`  open ${configPath}\n`));
+  console.log('Required:');
+  console.log(chalk.dim('  openaiApiKey  - Your OpenAI API key (from platform.openai.com)\n'));
+  console.log('Optional:');
+  console.log(chalk.dim('  ankiDeck      - Target Anki deck'));
+  console.log(chalk.dim('  ankiNoteType  - Anki note type to use'));
+  console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
+  console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)\n'));
+}
+
+async function showConfig() {
+  const { existsSync } = await import('fs');
+
+  console.log(chalk.bold('\nCurrent Configuration\n'));
+  console.log(chalk.dim(`Config file: ${CONFIG_PATH_DISPLAY}`));
+  console.log(chalk.dim(`Exists: ${existsSync(CONFIG_PATH_DISPLAY) ? 'yes' : 'no'}\n`));
+
+  const displayConfig = { ...config };
+  // Mask API key
+  if (displayConfig.openaiApiKey) {
+    displayConfig.openaiApiKey = displayConfig.openaiApiKey.slice(0, 7) + '...' + displayConfig.openaiApiKey.slice(-4);
+  }
+
+  for (const [key, value] of Object.entries(displayConfig)) {
+    console.log(`  ${chalk.cyan(key)}: ${value || chalk.dim('(not set)')}`);
+  }
+  console.log();
 }
