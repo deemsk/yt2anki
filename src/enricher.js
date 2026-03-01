@@ -51,8 +51,14 @@ Rules:
   const content = response.choices[0].message.content;
   const result = JSON.parse(content);
 
+  // Ensure IPA is always in square brackets
+  let ipa = result.ipa || '';
+  if (ipa && !ipa.startsWith('[')) {
+    ipa = `[${ipa}]`;
+  }
+
   return {
-    ipa: result.ipa || '',
+    ipa,
     russian: result.russian || '',
   };
 }
