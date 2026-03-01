@@ -22,6 +22,7 @@ program
   .description('Process markers file and create Anki cards')
   .argument('<file>', 'Path to markers JSON file')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .option('-n, --dry-run', 'Preview generated content without creating Anki cards')
   .action(processMarkers);
 
 program
@@ -31,17 +32,25 @@ program
   .requiredOption('-s, --start <time>', 'Start timestamp (e.g., 1:23 or 83)')
   .requiredOption('-e, --end <time>', 'End timestamp')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .option('-n, --dry-run', 'Preview generated content without creating Anki card')
   .action(addSingleCard);
 
 program
   .command('check')
-  .description('Check AnkiConnect connection and setup')
+  .description('Quick check of installed tools')
   .action(checkSetup);
+
+program
+  .command('test')
+  .description('Test all integrations (tools, APIs, Anki) without making changes')
+  .option('-d, --deck <name>', 'Anki deck name to verify', config.ankiDeck)
+  .action(testIntegrations);
 
 program.parse();
 
 async function processMarkers(file, options) {
   const spinner = ora();
+  const dryRun = options.dryRun;
 
   try {
     // Read markers file
@@ -50,19 +59,25 @@ async function processMarkers(file, options) {
     const markers = JSON.parse(content);
     spinner.succeed(`Found ${markers.clips.length} clips from ${markers.url}`);
 
-    // Check Anki
-    spinner.start('Checking AnkiConnect...');
-    if (!await checkConnection()) {
-      spinner.fail('AnkiConnect not available. Make sure Anki is running with AnkiConnect add-on.');
-      process.exit(1);
+    if (dryRun) {
+      console.log(chalk.yellow('\n⚡ DRY RUN MODE - No cards will be created\n'));
+    } else {
+      // Check Anki
+      spinner.start('Checking AnkiConnect...');
+      if (!await checkConnection()) {
+        spinner.fail('AnkiConnect not available. Make sure Anki is running with AnkiConnect add-on.');
+        process.exit(1);
+      }
+      await ensureDeck(options.deck);
+      spinner.succeed('AnkiConnect ready');
     }
-    await ensureDeck(options.deck);
-    spinner.succeed('AnkiConnect ready');
 
     // Download audio
     spinner.start('Downloading audio...');
     const audioPath = await downloadAudio(markers.url);
     spinner.succeed(`Downloaded: ${audioPath}`);
+
+    const results = [];
 
     // Process each clip
     for (let i = 0; i < markers.clips.length; i++) {
@@ -81,10 +96,15 @@ async function processMarkers(file, options) {
       const { ipa, russian } = await enrich(german);
       spinner.succeed(`${progress} Enriched: ${ipa} / ${russian}`);
 
-      spinner.start(`${progress} Creating Anki card...`);
-      const audioFilename = await storeAudio(aacPath);
-      await createNote({ german, ipa, russian, audioFilename });
-      spinner.succeed(`${progress} Card created!`);
+      if (dryRun) {
+        results.push({ german, ipa, russian, audioFile: aacPath });
+        spinner.succeed(`${progress} Card preview ready`);
+      } else {
+        spinner.start(`${progress} Creating Anki card...`);
+        const audioFilename = await storeAudio(aacPath);
+        await createNote({ german, ipa, russian, audioFilename });
+        spinner.succeed(`${progress} Card created!`);
+      }
 
       console.log(chalk.dim(`   German:  ${german}`));
       console.log(chalk.dim(`   IPA:     ${ipa}`));
@@ -92,7 +112,12 @@ async function processMarkers(file, options) {
       console.log();
     }
 
-    console.log(chalk.green.bold(`\n✓ Created ${markers.clips.length} cards in deck "${options.deck}"`));
+    if (dryRun) {
+      console.log(chalk.yellow.bold(`\n⚡ DRY RUN: ${markers.clips.length} cards previewed (not created)`));
+      console.log(chalk.dim('Run without --dry-run to create cards in Anki'));
+    } else {
+      console.log(chalk.green.bold(`\n✓ Created ${markers.clips.length} cards in deck "${options.deck}"`));
+    }
   } catch (err) {
     spinner.fail(err.message);
     process.exit(1);
@@ -101,16 +126,21 @@ async function processMarkers(file, options) {
 
 async function addSingleCard(url, options) {
   const spinner = ora();
+  const dryRun = options.dryRun;
 
   try {
-    // Check Anki
-    spinner.start('Checking AnkiConnect...');
-    if (!await checkConnection()) {
-      spinner.fail('AnkiConnect not available. Make sure Anki is running with AnkiConnect add-on.');
-      process.exit(1);
+    if (dryRun) {
+      console.log(chalk.yellow('\n⚡ DRY RUN MODE - No card will be created\n'));
+    } else {
+      // Check Anki
+      spinner.start('Checking AnkiConnect...');
+      if (!await checkConnection()) {
+        spinner.fail('AnkiConnect not available. Make sure Anki is running with AnkiConnect add-on.');
+        process.exit(1);
+      }
+      await ensureDeck(options.deck);
+      spinner.succeed('AnkiConnect ready');
     }
-    await ensureDeck(options.deck);
-    spinner.succeed('AnkiConnect ready');
 
     // Download
     spinner.start('Downloading audio...');
@@ -132,19 +162,31 @@ async function addSingleCard(url, options) {
     const { ipa, russian } = await enrich(german);
     spinner.succeed('Enriched');
 
-    // Create card
-    spinner.start('Creating Anki card...');
-    const audioFilename = await storeAudio(aacPath);
-    await createNote({ german, ipa, russian, audioFilename });
-    spinner.succeed('Card created!');
+    if (dryRun) {
+      console.log();
+      console.log(chalk.yellow.bold('⚡ DRY RUN - Card preview:'));
+      console.log(`  German:  ${german}`);
+      console.log(`  IPA:     ${ipa}`);
+      console.log(`  Russian: ${russian}`);
+      console.log(`  Audio:   ${aacPath}`);
+      console.log(`  Deck:    ${options.deck} (not created)`);
+      console.log();
+      console.log(chalk.dim('Run without --dry-run to create card in Anki'));
+    } else {
+      // Create card
+      spinner.start('Creating Anki card...');
+      const audioFilename = await storeAudio(aacPath);
+      await createNote({ german, ipa, russian, audioFilename });
+      spinner.succeed('Card created!');
 
-    console.log();
-    console.log(chalk.bold('Card details:'));
-    console.log(`  German:  ${german}`);
-    console.log(`  IPA:     ${ipa}`);
-    console.log(`  Russian: ${russian}`);
-    console.log(`  Audio:   ${audioFilename}`);
-    console.log(`  Deck:    ${options.deck}`);
+      console.log();
+      console.log(chalk.bold('Card details:'));
+      console.log(`  German:  ${german}`);
+      console.log(`  IPA:     ${ipa}`);
+      console.log(`  Russian: ${russian}`);
+      console.log(`  Audio:   ${audioFilename}`);
+      console.log(`  Deck:    ${options.deck}`);
+    }
   } catch (err) {
     spinner.fail(err.message);
     process.exit(1);
@@ -195,4 +237,173 @@ async function checkSetup() {
   }
 
   console.log();
+  console.log(chalk.dim('Run "yt2anki test" for full integration testing'));
+  console.log();
+}
+
+async function testIntegrations(options) {
+  console.log(chalk.bold('\n🧪 Testing yt2anki integrations...\n'));
+
+  const { execSync, spawn } = await import('child_process');
+  const results = { passed: 0, failed: 0 };
+
+  function pass(msg) {
+    console.log(chalk.green(`✓ ${msg}`));
+    results.passed++;
+  }
+
+  function fail(msg, hint) {
+    console.log(chalk.red(`✗ ${msg}`));
+    if (hint) console.log(chalk.dim(`  ${hint}`));
+    results.failed++;
+  }
+
+  // 1. Test yt-dlp
+  console.log(chalk.bold.blue('\n[1/5] yt-dlp'));
+  try {
+    const version = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
+    pass(`yt-dlp installed (${version})`);
+
+    // Test that it can fetch video info (using a known short video)
+    try {
+      execSync('yt-dlp --simulate --print title "https://www.youtube.com/watch?v=jNQXAC9IVRw"', {
+        stdio: 'pipe',
+        timeout: 15000,
+      });
+      pass('yt-dlp can access YouTube');
+    } catch (err) {
+      fail('yt-dlp cannot access YouTube', 'Check your internet connection');
+    }
+  } catch {
+    fail('yt-dlp not found', 'Install with: brew install yt-dlp');
+  }
+
+  // 2. Test ffmpeg
+  console.log(chalk.bold.blue('\n[2/5] ffmpeg'));
+  try {
+    const version = execSync('ffmpeg -version', { stdio: 'pipe' }).toString().split('\n')[0];
+    pass(`ffmpeg installed (${version.replace('ffmpeg version ', '').split(' ')[0]})`);
+
+    // Test AAC encoding support
+    const codecs = execSync('ffmpeg -codecs 2>/dev/null | grep aac', { stdio: 'pipe' }).toString();
+    if (codecs.includes('aac')) {
+      pass('ffmpeg has AAC codec support');
+    } else {
+      fail('ffmpeg missing AAC codec', 'Reinstall ffmpeg with: brew reinstall ffmpeg');
+    }
+  } catch {
+    fail('ffmpeg not found', 'Install with: brew install ffmpeg');
+  }
+
+  // 3. Test whisper-cpp
+  console.log(chalk.bold.blue('\n[3/5] whisper-cpp'));
+  try {
+    execSync('which whisper-cpp', { stdio: 'pipe' });
+    pass('whisper-cpp installed');
+
+    // Check if model exists
+    const { existsSync } = await import('fs');
+    const modelPaths = [
+      '/opt/homebrew/share/whisper-cpp/models/ggml-base.bin',
+      `${process.env.HOME}/.cache/whisper.cpp/ggml-base.bin`,
+    ];
+
+    const modelFound = modelPaths.some(p => existsSync(p));
+    if (modelFound) {
+      pass('Whisper base model found');
+    } else {
+      fail('Whisper base model not found', 'Download with: whisper-cpp-download-ggml-model base');
+    }
+  } catch {
+    fail('whisper-cpp not found', 'Install with: brew install whisper-cpp');
+  }
+
+  // 4. Test OpenAI API
+  console.log(chalk.bold.blue('\n[4/5] OpenAI API'));
+  if (!process.env.OPENAI_API_KEY) {
+    fail('OPENAI_API_KEY not set', 'Add to ~/.zshrc: export OPENAI_API_KEY="sk-..."');
+  } else {
+    pass('OPENAI_API_KEY is set');
+
+    try {
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI();
+
+      // Make minimal API call to verify key works
+      const response = await openai.chat.completions.create({
+        model: config.openaiModel,
+        messages: [{ role: 'user', content: 'Reply with just: OK' }],
+        max_tokens: 5,
+      });
+
+      if (response.choices[0].message.content) {
+        pass(`OpenAI API connected (model: ${config.openaiModel})`);
+      }
+    } catch (err) {
+      fail(`OpenAI API error: ${err.message}`, 'Check your API key and billing status');
+    }
+  }
+
+  // 5. Test AnkiConnect
+  console.log(chalk.bold.blue('\n[5/5] AnkiConnect'));
+  if (await checkConnection()) {
+    pass('AnkiConnect is running');
+
+    // Check deck
+    try {
+      const { getDecks } = await import('./anki.js');
+      // We don't have getDecks, let's use ensureDeck logic
+      const decks = await ankiConnectRequest('deckNames');
+      if (decks.includes(options.deck)) {
+        pass(`Deck "${options.deck}" exists`);
+      } else {
+        console.log(chalk.yellow(`⚠ Deck "${options.deck}" not found (will be created on first use)`));
+        console.log(chalk.dim(`  Existing decks: ${decks.slice(0, 5).join(', ')}${decks.length > 5 ? '...' : ''}`));
+      }
+    } catch {
+      // Fallback: just check note type
+    }
+
+    // Check note type
+    const noteTypes = await getNoteTypes();
+    if (noteTypes.includes(config.ankiNoteType)) {
+      pass(`Note type "${config.ankiNoteType}" exists`);
+
+      const fields = await getNoteFields(config.ankiNoteType);
+      if (fields.includes('Front') && fields.includes('Back')) {
+        pass('Note type has required fields (Front, Back)');
+      } else {
+        fail('Note type missing Front/Back fields', `Found fields: ${fields.join(', ')}`);
+      }
+    } else {
+      fail(`Note type "${config.ankiNoteType}" not found`);
+      console.log(chalk.dim(`  Available: ${noteTypes.join(', ')}`));
+    }
+  } else {
+    fail('AnkiConnect not available');
+    console.log(chalk.dim('  1. Open Anki'));
+    console.log(chalk.dim('  2. Install add-on: Tools → Add-ons → Get Add-ons → Code: 2055492159'));
+    console.log(chalk.dim('  3. Restart Anki'));
+  }
+
+  // Summary
+  console.log(chalk.bold('\n' + '─'.repeat(50)));
+  if (results.failed === 0) {
+    console.log(chalk.green.bold(`\n✓ All ${results.passed} tests passed! Ready to use.\n`));
+  } else {
+    console.log(chalk.yellow(`\n${results.passed} passed, ${results.failed} failed`));
+    console.log(chalk.dim('Fix the issues above before using yt2anki\n'));
+    process.exit(1);
+  }
+}
+
+async function ankiConnectRequest(action, params = {}) {
+  const response = await fetch(config.ankiConnectUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, version: 6, params }),
+  });
+  const result = await response.json();
+  if (result.error) throw new Error(result.error);
+  return result.result;
 }
