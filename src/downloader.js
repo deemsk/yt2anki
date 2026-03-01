@@ -11,35 +11,27 @@ import { config } from './config.js';
 export async function downloadAudio(url) {
   await mkdir(config.dataDir, { recursive: true });
 
+  const videoId = extractVideoId(url);
+  const outputPath = join(config.dataDir, `${videoId}.wav`);
   const outputTemplate = join(config.dataDir, '%(id)s.%(ext)s');
 
   return new Promise((resolve, reject) => {
     const args = [
       '-x',
-      '--audio-format', 'wav', // WAV for whisper compatibility
+      '--audio-format', 'wav',
       '-o', outputTemplate,
-      '--print', 'filename',
-      '--no-simulate',
       url,
     ];
 
     const proc = spawn('yt-dlp', args);
-    let outputPath = '';
     let errorOutput = '';
-
-    proc.stdout.on('data', (data) => {
-      const line = data.toString().trim();
-      if (line.endsWith('.wav')) {
-        outputPath = line;
-      }
-    });
 
     proc.stderr.on('data', (data) => {
       errorOutput += data.toString();
     });
 
     proc.on('close', (code) => {
-      if (code === 0 && outputPath) {
+      if (code === 0) {
         resolve(outputPath);
       } else {
         reject(new Error(`yt-dlp failed: ${errorOutput}`));
