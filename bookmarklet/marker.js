@@ -88,7 +88,9 @@
 
   function updateUI() {
     clipsEl.textContent = '';
-    state.clips.forEach((clip, i) => {
+    const reversed = [...state.clips].reverse();
+    reversed.forEach((clip, ri) => {
+      const i = state.clips.length - 1 - ri;
       const div = document.createElement('div');
       div.className = 'clip';
 
