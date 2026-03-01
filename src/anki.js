@@ -71,7 +71,7 @@ export async function storeAudio(audioPath) {
  */
 export async function createNote({ german, ipa, russian, audioFilename }) {
   // Format front: Audio, phrase, IPA
-  const front = `[sound:${audioFilename}] ${german}\n${ipa}`;
+  const front = `[sound:${audioFilename}] ${german}<br>${ipa}`;
   const back = russian;
 
   // Build fields based on note type
