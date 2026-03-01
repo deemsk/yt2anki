@@ -35,7 +35,7 @@ curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
 
 ```bash
 # Clone and install
-git clone https://github.com/USERNAME/yt2anki.git
+git clone https://github.com/deemsk/yt2anki.git
 cd yt2anki
 npm install
 
