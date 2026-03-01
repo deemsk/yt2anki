@@ -9,7 +9,7 @@ const defaults = {
   // AnkiConnect
   ankiConnectUrl: 'http://localhost:8765',
   ankiDeck: 'German::YouTube',
-  ankiNoteType: 'Basic (and reversed card)',
+  ankiNoteType: 'Basic (optional reversed card)',
 
   // Paths
   dataDir: join(tmpdir(), 'yt2anki'),

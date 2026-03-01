@@ -74,14 +74,22 @@ export async function createNote({ german, ipa, russian, audioFilename }) {
   const front = `[sound:${audioFilename}] ${german}\n${ipa}`;
   const back = russian;
 
+  // Build fields based on note type
+  const fields = {
+    Front: front,
+    Back: back,
+  };
+
+  // Support "Basic (optional reversed card)" - needs "Add Reverse" field to be non-empty
+  if (config.ankiNoteType.includes('optional reversed')) {
+    fields['Add Reverse'] = '1';
+  }
+
   await ankiConnect('addNote', {
     note: {
       deckName: config.ankiDeck,
       modelName: config.ankiNoteType,
-      fields: {
-        Front: front,
-        Back: back,
-      },
+      fields,
       options: {
         allowDuplicate: false,
       },
