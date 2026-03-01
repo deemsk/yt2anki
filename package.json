@@ -15,7 +15,8 @@
     "check": "node src/index.js check",
     "config": "node src/index.js config",
     "init": "node src/index.js init",
-    "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Bookmarklet copied to clipboard'"
+    "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Video bookmarklet copied to clipboard'",
+    "bookmarklet:text": "node scripts/build-text-bookmarklet.js && cat bookmarklet/text-bookmarklet.txt | pbcopy && echo 'Text bookmarklet copied to clipboard'"
   },
   "dependencies": {
     "commander": "^12.1.0",

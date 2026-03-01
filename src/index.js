@@ -490,64 +490,121 @@ async function processClipboard(options) {
     // Read from clipboard using pbpaste
     spinner.start('Reading from clipboard...');
     const clipboardData = execSync('pbpaste', { encoding: 'utf-8' });
-    const markers = JSON.parse(clipboardData);
+    const data = JSON.parse(clipboardData);
 
-    if (!markers.url || !markers.clips) {
-      throw new Error('Invalid clipboard data. Copy clips from the browser first.');
-    }
-    spinner.succeed(`Found ${markers.clips.length} clips from ${markers.url}`);
-
-    if (dryRun) {
-      console.log(chalk.yellow('\n⚡ DRY RUN MODE - No cards will be created\n'));
+    // Detect mode: text selection or video clips
+    if (data.type === 'text') {
+      await processTextMode(data, options, spinner, dryRun);
+    } else if (data.url && data.clips) {
+      await processVideoMode(data, options, spinner, dryRun);
     } else {
-      spinner.start('Checking AnkiConnect...');
-      if (!await checkConnection()) {
-        spinner.fail('AnkiConnect not available. Make sure Anki is running.');
-        process.exit(1);
-      }
-      await ensureDeck(options.deck);
-      spinner.succeed('AnkiConnect ready');
-    }
-
-    spinner.start('Downloading audio...');
-    const audioPath = await downloadAudio(markers.url);
-    spinner.succeed(`Downloaded: ${audioPath}`);
-
-    for (let i = 0; i < markers.clips.length; i++) {
-      const clip = markers.clips[i];
-      const progress = `[${i + 1}/${markers.clips.length}]`;
-
-      spinner.start(`${progress} Cutting clip...`);
-      const { wavPath, aacPath } = await cutClip(audioPath, clip.start, clip.end, i + 1);
-      spinner.succeed(`${progress} Cut: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`);
-
-      spinner.start(`${progress} Transcribing...`);
-      const rawGerman = await transcribe(wavPath);
-      spinner.succeed(`${progress} "${rawGerman}"`);
-
-      spinner.start(`${progress} Getting IPA and translation...`);
-      const { german, ipa, russian } = await enrich(rawGerman);
-      spinner.succeed(`${progress} Enriched`);
-
-      if (!dryRun) {
-        spinner.start(`${progress} Creating Anki card...`);
-        const audioFilename = await storeAudio(aacPath);
-        await createNote({ german, ipa, russian, audioFilename });
-        spinner.succeed(`${progress} Card created!`);
-      }
-
-      console.log(chalk.dim(`   German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`));
-      console.log(chalk.dim(`   IPA:     ${ipa}`));
-      console.log(chalk.dim(`   Russian: ${russian}\n`));
-    }
-
-    if (dryRun) {
-      console.log(chalk.yellow.bold(`⚡ DRY RUN: ${markers.clips.length} cards previewed`));
-    } else {
-      console.log(chalk.green.bold(`✓ Created ${markers.clips.length} cards in "${options.deck}"`));
+      throw new Error('Invalid clipboard data. Use yt2anki bookmarklet first.');
     }
   } catch (err) {
     spinner.fail(err.message);
     process.exit(1);
+  }
+}
+
+async function processTextMode(data, options, spinner, dryRun) {
+  const { generateSpeech } = await import('./tts.js');
+  const { join } = await import('path');
+
+  spinner.succeed(`Text mode: "${data.german.slice(0, 50)}${data.german.length > 50 ? '...' : ''}"`);
+
+  if (dryRun) {
+    console.log(chalk.yellow('\n⚡ DRY RUN MODE - No card will be created\n'));
+  } else {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    await ensureDeck(options.deck);
+    spinner.succeed('AnkiConnect ready');
+  }
+
+  spinner.start('Getting IPA and translation...');
+  const { german, ipa, russian } = await enrich(data.german);
+  spinner.succeed('Enriched');
+
+  const timestamp = Date.now();
+  const audioPath = join(config.dataDir, `tts_${timestamp}.m4a`);
+
+  spinner.start('Generating voice-over...');
+  await generateSpeech(german, audioPath);
+  spinner.succeed('Voice-over generated');
+
+  if (!dryRun) {
+    spinner.start('Creating Anki card...');
+    const audioFilename = await storeAudio(audioPath);
+    await createNote({ german, ipa, russian, audioFilename });
+    spinner.succeed('Card created!');
+  }
+
+  console.log();
+  console.log(chalk.dim(`   German:  ${german}${data.german !== german ? ` (was: ${data.german})` : ''}`));
+  console.log(chalk.dim(`   IPA:     ${ipa}`));
+  console.log(chalk.dim(`   Russian: ${russian}`));
+  console.log(chalk.dim(`   Audio:   TTS generated`));
+
+  if (dryRun) {
+    console.log(chalk.yellow.bold('\n⚡ DRY RUN: Card previewed'));
+  } else {
+    console.log(chalk.green.bold(`\n✓ Created card in "${options.deck}"`));
+  }
+}
+
+async function processVideoMode(markers, options, spinner, dryRun) {
+  spinner.succeed(`Video mode: ${markers.clips.length} clips from ${markers.url}`);
+
+  if (dryRun) {
+    console.log(chalk.yellow('\n⚡ DRY RUN MODE - No cards will be created\n'));
+  } else {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    await ensureDeck(options.deck);
+    spinner.succeed('AnkiConnect ready');
+  }
+
+  spinner.start('Downloading audio...');
+  const audioPath = await downloadAudio(markers.url);
+  spinner.succeed(`Downloaded: ${audioPath}`);
+
+  for (let i = 0; i < markers.clips.length; i++) {
+    const clip = markers.clips[i];
+    const progress = `[${i + 1}/${markers.clips.length}]`;
+
+    spinner.start(`${progress} Cutting clip...`);
+    const { wavPath, aacPath } = await cutClip(audioPath, clip.start, clip.end, i + 1);
+    spinner.succeed(`${progress} Cut: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`);
+
+    spinner.start(`${progress} Transcribing...`);
+    const rawGerman = await transcribe(wavPath);
+    spinner.succeed(`${progress} "${rawGerman}"`);
+
+    spinner.start(`${progress} Getting IPA and translation...`);
+    const { german, ipa, russian } = await enrich(rawGerman);
+    spinner.succeed(`${progress} Enriched`);
+
+    if (!dryRun) {
+      spinner.start(`${progress} Creating Anki card...`);
+      const audioFilename = await storeAudio(aacPath);
+      await createNote({ german, ipa, russian, audioFilename });
+      spinner.succeed(`${progress} Card created!`);
+    }
+
+    console.log(chalk.dim(`   German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`));
+    console.log(chalk.dim(`   IPA:     ${ipa}`));
+    console.log(chalk.dim(`   Russian: ${russian}\n`));
+  }
+
+  if (dryRun) {
+    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${markers.clips.length} cards previewed`));
+  } else {
+    console.log(chalk.green.bold(`✓ Created ${markers.clips.length} cards in "${options.deck}"`));
   }
 }

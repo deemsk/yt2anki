@@ -18,6 +18,7 @@ const defaults = {
   // OpenAI
   openaiApiKey: '',
   openaiModel: 'gpt-4o-mini',
+  ttsVoice: 'nova',
 
   // Audio
   audioFormat: 'aac',
