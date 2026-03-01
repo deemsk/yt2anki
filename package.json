@@ -7,7 +7,7 @@
     "yt2anki": "./src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js serve",
+    "start": "node src/index.js clip",
     "clip": "node src/index.js clip",
     "build:bookmarklet": "node scripts/build-bookmarklet.js",
     "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Bookmarklet copied to clipboard'"

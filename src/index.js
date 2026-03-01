@@ -57,15 +57,6 @@ program
   .action(showConfig);
 
 program
-  .command('serve')
-  .description('Start local server to receive clips from browser')
-  .option('-n, --dry-run', 'Preview cards without creating them')
-  .action(async (options) => {
-    const { startServer } = await import('./server.js');
-    await startServer(options);
-  });
-
-program
   .command('clip')
   .description('Process clips from clipboard (copied from browser)')
   .option('-n, --dry-run', 'Preview cards without creating them')
