@@ -48,7 +48,7 @@
 
   const hint = document.createElement('div');
   hint.className = 'hint';
-  hint.textContent = 'M = mark, E = export, H = hide';
+  hint.textContent = 'M = mark, E = copy, H = hide';
   ui.appendChild(hint);
 
   const statusEl = document.createElement('div');
@@ -63,11 +63,11 @@
   const buttons = document.createElement('div');
   buttons.className = 'buttons';
 
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'btn-export';
-  exportBtn.textContent = 'Export JSON';
-  exportBtn.disabled = true;
-  buttons.appendChild(exportBtn);
+  const sendBtn = document.createElement('button');
+  sendBtn.className = 'btn-export';
+  sendBtn.textContent = 'Copy';
+  sendBtn.disabled = true;
+  buttons.appendChild(sendBtn);
 
   const clearBtn = document.createElement('button');
   clearBtn.className = 'btn-clear';
@@ -109,7 +109,7 @@
 
       clipsEl.appendChild(div);
     });
-    exportBtn.disabled = state.clips.length === 0;
+    sendBtn.disabled = state.clips.length === 0;
   }
 
   function mark() {
@@ -134,20 +134,22 @@
     }
   }
 
-  function exportMarkers() {
+  async function copyToClipboard() {
     if (state.clips.length === 0) return;
+
     const data = JSON.stringify({
       url: location.href,
-      exportedAt: new Date().toISOString(),
       clips: state.clips
-    }, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'yt2anki-markers-' + Date.now() + '.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    statusEl.textContent = 'Exported ' + state.clips.length + ' clips';
+    });
+
+    try {
+      await navigator.clipboard.writeText(data);
+      statusEl.textContent = 'Copied ' + state.clips.length + ' clips! Run: npm run clip';
+      state.clips = [];
+      updateUI();
+    } catch (e) {
+      statusEl.textContent = 'Failed to copy: ' + e.message;
+    }
   }
 
   function toggle() {
@@ -159,11 +161,11 @@
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
     if (k === 'm') { e.preventDefault(); e.stopPropagation(); mark(); }
-    else if (k === 'e') { e.preventDefault(); e.stopPropagation(); exportMarkers(); }
+    else if (k === 'e') { e.preventDefault(); e.stopPropagation(); copyToClipboard(); }
     else if (k === 'h') { e.preventDefault(); e.stopPropagation(); toggle(); }
   }, true);
 
-  exportBtn.onclick = exportMarkers;
+  sendBtn.onclick = copyToClipboard;
   clearBtn.onclick = () => {
     state.clips = [];
     state.currentStart = null;

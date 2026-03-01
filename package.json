@@ -7,8 +7,10 @@
     "yt2anki": "./src/index.js"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "build:bookmarklet": "node scripts/build-bookmarklet.js"
+    "start": "node src/index.js serve",
+    "clip": "node src/index.js clip",
+    "build:bookmarklet": "node scripts/build-bookmarklet.js",
+    "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Bookmarklet copied to clipboard'"
   },
   "dependencies": {
     "commander": "^12.1.0",
