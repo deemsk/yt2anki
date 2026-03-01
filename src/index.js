@@ -458,7 +458,8 @@ async function initConfig() {
   console.log(chalk.dim('  ankiDeck      - Target Anki deck'));
   console.log(chalk.dim('  ankiNoteType  - Anki note type to use'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
-  console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)\n'));
+  console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));
+  console.log(chalk.dim('  dataDir       - Cache folder for audio (default: system temp)\n'));
 }
 
 async function showConfig() {

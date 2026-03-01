@@ -107,7 +107,8 @@ Edit `~/.yt2anki.json`:
   "ankiDeck": "German::YouTube",
   "ankiNoteType": "Basic (and reversed card)",
   "openaiModel": "gpt-4o-mini",
-  "whisperModel": "base"
+  "whisperModel": "base",
+  "dataDir": "/tmp/yt2anki"
 }
 ```
 
