@@ -106,12 +106,12 @@ async function processMarkers(file, options) {
       spinner.succeed(`${progress} Cut clip: ${clip.start} - ${clip.end}`);
 
       spinner.start(`${progress} Transcribing...`);
-      const german = await transcribe(wavPath);
-      spinner.succeed(`${progress} Transcribed: "${german}"`);
+      const rawGerman = await transcribe(wavPath);
+      spinner.succeed(`${progress} Transcribed: "${rawGerman}"`);
 
       spinner.start(`${progress} Getting IPA and translation...`);
-      const { ipa, russian } = await enrich(german);
-      spinner.succeed(`${progress} Enriched: ${ipa} / ${russian}`);
+      const { german, ipa, russian } = await enrich(rawGerman);
+      spinner.succeed(`${progress} Enriched`);
 
       if (dryRun) {
         results.push({ german, ipa, russian, audioFile: aacPath });
@@ -123,7 +123,7 @@ async function processMarkers(file, options) {
         spinner.succeed(`${progress} Card created!`);
       }
 
-      console.log(chalk.dim(`   German:  ${german}`));
+      console.log(chalk.dim(`   German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`));
       console.log(chalk.dim(`   IPA:     ${ipa}`));
       console.log(chalk.dim(`   Russian: ${russian}`));
       console.log();
@@ -171,18 +171,18 @@ async function addSingleCard(url, options) {
 
     // Transcribe
     spinner.start('Transcribing with Whisper...');
-    const german = await transcribe(wavPath);
-    spinner.succeed(`Transcribed: "${german}"`);
+    const rawGerman = await transcribe(wavPath);
+    spinner.succeed(`Transcribed: "${rawGerman}"`);
 
     // Enrich
     spinner.start('Getting IPA and Russian translation...');
-    const { ipa, russian } = await enrich(german);
+    const { german, ipa, russian } = await enrich(rawGerman);
     spinner.succeed('Enriched');
 
     if (dryRun) {
       console.log();
       console.log(chalk.yellow.bold('⚡ DRY RUN - Card preview:'));
-      console.log(`  German:  ${german}`);
+      console.log(`  German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`);
       console.log(`  IPA:     ${ipa}`);
       console.log(`  Russian: ${russian}`);
       console.log(`  Audio:   ${aacPath}`);
@@ -522,12 +522,12 @@ async function processClipboard(options) {
       spinner.succeed(`${progress} Cut: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`);
 
       spinner.start(`${progress} Transcribing...`);
-      const german = await transcribe(wavPath);
-      spinner.succeed(`${progress} "${german}"`);
+      const rawGerman = await transcribe(wavPath);
+      spinner.succeed(`${progress} "${rawGerman}"`);
 
       spinner.start(`${progress} Getting IPA and translation...`);
-      const { ipa, russian } = await enrich(german);
-      spinner.succeed(`${progress} ${ipa} / ${russian}`);
+      const { german, ipa, russian } = await enrich(rawGerman);
+      spinner.succeed(`${progress} Enriched`);
 
       if (!dryRun) {
         spinner.start(`${progress} Creating Anki card...`);
@@ -536,7 +536,7 @@ async function processClipboard(options) {
         spinner.succeed(`${progress} Card created!`);
       }
 
-      console.log(chalk.dim(`   German:  ${german}`));
+      console.log(chalk.dim(`   German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`));
       console.log(chalk.dim(`   IPA:     ${ipa}`));
       console.log(chalk.dim(`   Russian: ${russian}\n`));
     }

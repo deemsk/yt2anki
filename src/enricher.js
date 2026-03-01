@@ -15,9 +15,9 @@ function getClient() {
 }
 
 /**
- * Get IPA transcription and Russian translation for German text
- * @param {string} germanText - German word or sentence
- * @returns {Promise<{ipa: string, russian: string}>}
+ * Get corrected German text, IPA transcription, and Russian translation
+ * @param {string} germanText - German word or sentence (possibly with errors)
+ * @returns {Promise<{german: string, ipa: string, russian: string}>}
  */
 export async function enrich(germanText) {
   const client = getClient();
@@ -28,16 +28,19 @@ export async function enrich(germanText) {
       {
         role: 'system',
         content: `You are a German language expert. For the given German text:
-1. Provide the IPA (International Phonetic Alphabet) transcription
-2. Provide Russian translation
+1. Correct any transcription errors (typos, missing letters, wrong words)
+2. Fix punctuation (questions must end with ?, statements with .)
+3. Ensure proper capitalization (sentence start, nouns)
+4. Provide IPA transcription in square brackets
+5. Provide Russian translation
 
 Respond in JSON format only:
-{"ipa": "...", "russian": "..."}
+{"german": "...", "ipa": "[...]", "russian": "..."}
 
-Rules:
-- IPA must be in square brackets, e.g., [ˈbʊntə ˈfaʁbən]
-- Russian translation should be natural, not word-for-word
-- Keep the same register/formality as the original`,
+Examples of corrections:
+- "Bis du verheiratet." → "Bist du verheiratet?"
+- "wie heisst du" → "Wie heißt du?"
+- "ich bin student" → "Ich bin Student."`,
       },
       {
         role: 'user',
@@ -58,6 +61,7 @@ Rules:
   }
 
   return {
+    german: result.german || germanText,
     ipa,
     russian: result.russian || '',
   };
