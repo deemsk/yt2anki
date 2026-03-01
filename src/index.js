@@ -207,7 +207,7 @@ async function checkSetup() {
   console.log(chalk.bold('\nChecking yt2anki setup...\n'));
 
   // Check tools
-  const tools = ['yt-dlp', 'ffmpeg', 'whisper-cpp'];
+  const tools = ['yt-dlp', 'ffmpeg', 'whisper-cli'];
   for (const tool of tools) {
     try {
       const { execSync } = await import('child_process');
@@ -305,27 +305,23 @@ async function testIntegrations(options) {
     fail('ffmpeg not found', 'Install with: brew install ffmpeg');
   }
 
-  // 3. Test whisper-cpp
-  console.log(chalk.bold.blue('\n[3/5] whisper-cpp'));
+  // 3. Test whisper-cli
+  console.log(chalk.bold.blue('\n[3/5] whisper-cli'));
   try {
-    execSync('which whisper-cpp', { stdio: 'pipe' });
-    pass('whisper-cpp installed');
+    execSync('which whisper-cli', { stdio: 'pipe' });
+    pass('whisper-cli installed');
 
     // Check if model exists
-    const { existsSync } = await import('fs');
-    const modelPaths = [
-      '/opt/homebrew/share/whisper-cpp/models/ggml-base.bin',
-      `${process.env.HOME}/.cache/whisper.cpp/ggml-base.bin`,
-    ];
-
-    const modelFound = modelPaths.some(p => existsSync(p));
-    if (modelFound) {
-      pass('Whisper base model found');
+    const { findModelPath } = await import('./transcriber.js');
+    const modelPath = findModelPath();
+    if (modelPath) {
+      pass(`Whisper ${config.whisperModel} model found`);
+      console.log(chalk.dim(`  Path: ${modelPath}`));
     } else {
-      fail('Whisper base model not found', 'Download with: whisper-cpp-download-ggml-model base');
+      fail(`Whisper ${config.whisperModel} model not found`, `Download with: whisper-cpp-download-ggml-model ${config.whisperModel}`);
     }
   } catch {
-    fail('whisper-cpp not found', 'Install with: brew install whisper-cpp');
+    fail('whisper-cli not found', 'Install with: brew install whisper-cpp');
   }
 
   // 4. Test OpenAI API

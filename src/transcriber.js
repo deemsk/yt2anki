@@ -1,25 +1,53 @@
 import { spawn } from 'child_process';
 import { readFile, unlink } from 'fs/promises';
-import { join, dirname, basename } from 'path';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { config } from './config.js';
+
+// Possible model locations
+const MODEL_PATHS = [
+  '/opt/homebrew/share/whisper-cpp',
+  `${process.env.HOME}/.cache/whisper.cpp`,
+  `${process.env.HOME}/Library/Application Support/whisper.cpp`,
+];
 
 /**
- * Transcribe audio using whisper.cpp
+ * Find whisper model file
+ */
+export function findModelPath() {
+  const modelName = `ggml-${config.whisperModel}.bin`;
+
+  for (const dir of MODEL_PATHS) {
+    const path = join(dir, modelName);
+    if (existsSync(path)) return path;
+  }
+
+  return null;
+}
+
+/**
+ * Transcribe audio using whisper-cli
  * @param {string} wavPath - Path to WAV file (16kHz mono)
  * @returns {Promise<string>} - Transcribed German text
  */
 export async function transcribe(wavPath) {
+  const modelPath = findModelPath();
+  if (!modelPath) {
+    throw new Error(`Whisper model not found. Download with: whisper-cpp-download-ggml-model ${config.whisperModel}`);
+  }
+
   const outputBase = wavPath.replace('.wav', '');
 
   return new Promise((resolve, reject) => {
     const args = [
-      '-m', getModelPath(),
+      '-m', modelPath,
       '-l', 'de',         // German language
       '-otxt',            // Output as text file
       '-of', outputBase,  // Output file base name
-      '-f', wavPath,      // Input file
+      wavPath,            // Input file (positional)
     ];
 
-    const proc = spawn('whisper-cpp', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn('whisper-cli', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let errorOutput = '';
 
     proc.stderr.on('data', (data) => {
@@ -28,7 +56,7 @@ export async function transcribe(wavPath) {
 
     proc.on('close', async (code) => {
       if (code !== 0) {
-        reject(new Error(`whisper-cpp failed: ${errorOutput}`));
+        reject(new Error(`whisper-cli failed: ${errorOutput}`));
         return;
       }
 
@@ -43,13 +71,4 @@ export async function transcribe(wavPath) {
       }
     });
   });
-}
-
-function getModelPath() {
-  // whisper.cpp stores models in ~/.cache/whisper.cpp or /opt/homebrew/share/whisper-cpp/models
-  const homeModel = join(process.env.HOME, '.cache', 'whisper.cpp', 'ggml-base.bin');
-  const brewModel = '/opt/homebrew/share/whisper-cpp/models/ggml-base.bin';
-
-  // Try common locations
-  return brewModel;
 }
