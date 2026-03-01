@@ -158,10 +158,10 @@
   document.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
-    if (k === 'm') { e.preventDefault(); mark(); }
-    else if (k === 'e') { e.preventDefault(); exportMarkers(); }
-    else if (k === 'h') { e.preventDefault(); toggle(); }
-  });
+    if (k === 'm') { e.preventDefault(); e.stopPropagation(); mark(); }
+    else if (k === 'e') { e.preventDefault(); e.stopPropagation(); exportMarkers(); }
+    else if (k === 'h') { e.preventDefault(); e.stopPropagation(); toggle(); }
+  }, true);
 
   exportBtn.onclick = exportMarkers;
   clearBtn.onclick = () => {
