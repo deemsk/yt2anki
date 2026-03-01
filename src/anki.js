@@ -70,8 +70,8 @@ export async function storeAudio(audioPath) {
  * @param {string} data.audioFilename - Audio filename in Anki media
  */
 export async function createNote({ german, ipa, russian, audioFilename }) {
-  // Format front: German text with audio and IPA
-  const front = `${german}\n\n[sound:${audioFilename}]\n\n<small>${ipa}</small>`;
+  // Format front: Audio, phrase, IPA
+  const front = `[sound:${audioFilename}] ${german}\n${ipa}`;
   const back = russian;
 
   await ankiConnect('addNote', {
