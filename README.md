@@ -40,13 +40,13 @@ cd yt2anki
 npm install
 
 # Create config file
-node src/index.js init
+npm run init
 
 # Add your OpenAI API key
 open ~/.yt2anki.json
 
 # Verify setup
-node src/index.js test
+npm test
 ```
 
 ## Usage
@@ -81,12 +81,13 @@ npm run clip -- -n    # Dry run (preview only)
 | Command | Description |
 |---------|-------------|
 | `npm start` | Process clips from clipboard |
-| `npm run clip` | Same as above |
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
+| `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
+| `npm run process -- <file.json>` | Process markers JSON file |
+| `npm test` | Test all integrations |
+| `npm run config` | Show current configuration |
+| `npm run init` | Create config file |
 | `npm run bookmarklet` | Copy bookmarklet to clipboard |
-| `node src/index.js test` | Test all integrations |
-| `node src/index.js config` | Show current configuration |
-| `node src/index.js add <url> -s 0:10 -e 0:15` | Add single card manually |
 
 ## Keyboard Shortcuts (bookmarklet)
 

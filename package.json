@@ -9,7 +9,12 @@
   "scripts": {
     "start": "node src/index.js clip",
     "clip": "node src/index.js clip",
-    "build:bookmarklet": "node scripts/build-bookmarklet.js",
+    "add": "node src/index.js add",
+    "process": "node src/index.js process",
+    "test": "node src/index.js test",
+    "check": "node src/index.js check",
+    "config": "node src/index.js config",
+    "init": "node src/index.js init",
     "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Bookmarklet copied to clipboard'"
   },
   "dependencies": {

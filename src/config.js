@@ -1,4 +1,4 @@
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { join } from 'path';
 import { readFileSync, existsSync } from 'fs';
 
@@ -12,7 +12,7 @@ const defaults = {
   ankiNoteType: 'Basic (and reversed card)',
 
   // Paths
-  dataDir: join(process.cwd(), 'data'),
+  dataDir: join(tmpdir(), 'yt2anki'),
   whisperModel: 'base',
 
   // OpenAI
