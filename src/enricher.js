@@ -1,0 +1,57 @@
+import OpenAI from 'openai';
+import { config } from './config.js';
+
+let openai = null;
+
+function getClient() {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is required');
+    }
+    openai = new OpenAI();
+  }
+  return openai;
+}
+
+/**
+ * Get IPA transcription and Russian translation for German text
+ * @param {string} germanText - German word or sentence
+ * @returns {Promise<{ipa: string, russian: string}>}
+ */
+export async function enrich(germanText) {
+  const client = getClient();
+
+  const response = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a German language expert. For the given German text:
+1. Provide the IPA (International Phonetic Alphabet) transcription
+2. Provide Russian translation
+
+Respond in JSON format only:
+{"ipa": "...", "russian": "..."}
+
+Rules:
+- IPA must be in square brackets, e.g., [ˈbʊntə ˈfaʁbən]
+- Russian translation should be natural, not word-for-word
+- Keep the same register/formality as the original`,
+      },
+      {
+        role: 'user',
+        content: germanText,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.3,
+  });
+
+  const content = response.choices[0].message.content;
+  const result = JSON.parse(content);
+
+  return {
+    ipa: result.ipa || '',
+    russian: result.russian || '',
+  };
+}

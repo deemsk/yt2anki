@@ -1,0 +1,19 @@
+{
+  "name": "yt2anki",
+  "version": "1.0.0",
+  "description": "Create Anki cards from YouTube videos for German learning",
+  "type": "module",
+  "bin": {
+    "yt2anki": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "build:bookmarklet": "node scripts/build-bookmarklet.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "openai": "^4.52.0",
+    "ora": "^8.0.1",
+    "chalk": "^5.3.0"
+  }
+}
