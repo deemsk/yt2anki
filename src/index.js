@@ -11,6 +11,7 @@ import { transcribe } from './transcriber.js';
 import { enrich } from './enricher.js';
 import { checkConnection, ensureDeck, storeAudio, createNote, getNoteTypes, getNoteFields } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
+import { confirmCard } from './confirm.js';
 
 program
   .name('yt2anki')
@@ -535,24 +536,38 @@ async function processTextMode(data, options, spinner, dryRun) {
   await generateSpeech(german, audioPath);
   spinner.succeed('Voice-over generated');
 
-  if (!dryRun) {
-    spinner.start('Creating Anki card...');
-    const audioFilename = await storeAudio(audioPath);
-    await createNote({ german, ipa, russian, audioFilename });
-    spinner.succeed('Card created!');
+  if (data.german !== german) {
+    console.log(chalk.dim(`   (corrected from: "${data.german}")`));
   }
-
-  console.log();
-  console.log(chalk.dim(`   German:  ${german}${data.german !== german ? ` (was: ${data.german})` : ''}`));
-  console.log(chalk.dim(`   IPA:     ${ipa}`));
-  console.log(chalk.dim(`   Russian: ${russian}`));
-  console.log(chalk.dim(`   Audio:   TTS generated`));
 
   if (dryRun) {
+    console.log();
+    console.log(chalk.dim(`   German:  ${german}`));
+    console.log(chalk.dim(`   IPA:     ${ipa}`));
+    console.log(chalk.dim(`   Russian: ${russian}`));
     console.log(chalk.yellow.bold('\n⚡ DRY RUN: Card previewed'));
-  } else {
-    console.log(chalk.green.bold(`\n✓ Created card in "${options.deck}"`));
+    return;
   }
+
+  // Interactive confirmation
+  const result = await confirmCard({ german, ipa, russian }, chalk);
+
+  if (result.dismissed) {
+    console.log(chalk.yellow('Card dismissed'));
+    return;
+  }
+
+  spinner.start('Creating Anki card...');
+  const audioFilename = await storeAudio(audioPath);
+  await createNote({
+    german: result.data.german,
+    ipa: result.data.ipa,
+    russian: result.data.russian,
+    audioFilename,
+  });
+  spinner.succeed('Card created!');
+
+  console.log(chalk.green.bold(`\n✓ Created card in "${options.deck}"`));
 }
 
 async function processVideoMode(markers, options, spinner, dryRun) {
@@ -574,6 +589,8 @@ async function processVideoMode(markers, options, spinner, dryRun) {
   const audioPath = await downloadAudio(markers.url);
   spinner.succeed(`Downloaded: ${audioPath}`);
 
+  let cardsCreated = 0;
+
   for (let i = 0; i < markers.clips.length; i++) {
     const clip = markers.clips[i];
     const progress = `[${i + 1}/${markers.clips.length}]`;
@@ -590,21 +607,41 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     const { german, ipa, russian } = await enrich(rawGerman);
     spinner.succeed(`${progress} Enriched`);
 
-    if (!dryRun) {
-      spinner.start(`${progress} Creating Anki card...`);
-      const audioFilename = await storeAudio(aacPath);
-      await createNote({ german, ipa, russian, audioFilename });
-      spinner.succeed(`${progress} Card created!`);
+    if (rawGerman !== german) {
+      console.log(chalk.dim(`   (corrected from: "${rawGerman}")`));
     }
 
-    console.log(chalk.dim(`   German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`));
-    console.log(chalk.dim(`   IPA:     ${ipa}`));
-    console.log(chalk.dim(`   Russian: ${russian}\n`));
+    if (dryRun) {
+      console.log(chalk.dim(`   German:  ${german}`));
+      console.log(chalk.dim(`   IPA:     ${ipa}`));
+      console.log(chalk.dim(`   Russian: ${russian}\n`));
+      cardsCreated++;
+      continue;
+    }
+
+    // Interactive confirmation
+    const result = await confirmCard({ german, ipa, russian }, chalk);
+
+    if (result.dismissed) {
+      console.log(chalk.yellow(`${progress} Card dismissed\n`));
+      continue;
+    }
+
+    spinner.start(`${progress} Creating Anki card...`);
+    const audioFilename = await storeAudio(aacPath);
+    await createNote({
+      german: result.data.german,
+      ipa: result.data.ipa,
+      russian: result.data.russian,
+      audioFilename,
+    });
+    spinner.succeed(`${progress} Card created!\n`);
+    cardsCreated++;
   }
 
   if (dryRun) {
     console.log(chalk.yellow.bold(`⚡ DRY RUN: ${markers.clips.length} cards previewed`));
   } else {
-    console.log(chalk.green.bold(`✓ Created ${markers.clips.length} cards in "${options.deck}"`));
+    console.log(chalk.green.bold(`✓ Created ${cardsCreated} of ${markers.clips.length} cards in "${options.deck}"`));
   }
 }
