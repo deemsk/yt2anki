@@ -27,8 +27,15 @@ brew install yt-dlp ffmpeg whisper-cpp
 curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 
-# Install AnkiConnect add-on
-# Open Anki → Tools → Add-ons → Get Add-ons → Code: 2055492159 → Restart Anki
+# Install Anki desktop app
+# Download from https://apps.ankiweb.net
+
+# Install AnkiConnect add-on (required for API access)
+# 1. Open Anki
+# 2. Tools → Add-ons → Get Add-ons...
+# 3. Enter code: 2055492159
+# 4. Click OK → Restart Anki
+# 5. Keep Anki running while using yt2anki
 ```
 
 ## Setup
