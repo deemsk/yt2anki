@@ -589,6 +589,16 @@ async function processVideoMode(markers, options, spinner, dryRun) {
   const audioPath = await downloadAudio(markers.url);
   spinner.succeed(`Downloaded: ${audioPath}`);
 
+  // Fetch subtitles for context
+  const { fetchSubtitles } = await import('./subtitles.js');
+  spinner.start('Fetching subtitles for context...');
+  const subtitleContext = await fetchSubtitles(markers.url);
+  if (subtitleContext) {
+    spinner.succeed(`Subtitles fetched (${subtitleContext.length} chars)`);
+  } else {
+    spinner.warn('No German subtitles available');
+  }
+
   let cardsCreated = 0;
 
   for (let i = 0; i < markers.clips.length; i++) {
@@ -604,7 +614,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     spinner.succeed(`${progress} "${rawGerman}"`);
 
     spinner.start(`${progress} Getting IPA and translation...`);
-    const { german, ipa, russian } = await enrich(rawGerman);
+    const { german, ipa, russian } = await enrich(rawGerman, subtitleContext);
     spinner.succeed(`${progress} Enriched`);
 
     if (rawGerman !== german) {

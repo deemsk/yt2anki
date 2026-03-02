@@ -17,17 +17,13 @@ function getClient() {
 /**
  * Get corrected German text, IPA transcription, and Russian translation
  * @param {string} germanText - German word or sentence (possibly with errors)
+ * @param {string} [subtitleContext] - Optional subtitle context from the video
  * @returns {Promise<{german: string, ipa: string, russian: string}>}
  */
-export async function enrich(germanText) {
+export async function enrich(germanText, subtitleContext = null) {
   const client = getClient();
 
-  const response = await client.chat.completions.create({
-    model: config.openaiModel,
-    messages: [
-      {
-        role: 'system',
-        content: `You are a German language expert. For the given German text:
+  let systemPrompt = `You are a German language expert. For the given German text:
 1. Correct any transcription errors (typos, missing letters, wrong words)
 2. Fix punctuation (questions must end with ?, statements with .)
 3. Ensure proper capitalization (sentence start, nouns)
@@ -40,7 +36,18 @@ Respond in JSON format only:
 Examples of corrections:
 - "Bis du verheiratet." → "Bist du verheiratet?"
 - "wie heisst du" → "Wie heißt du?"
-- "ich bin student" → "Ich bin Student."`,
+- "ich bin student" → "Ich bin Student."`;
+
+  if (subtitleContext) {
+    systemPrompt += `\n\nVideo subtitle context (use this to better understand and correct the text):\n${subtitleContext.slice(0, 2000)}`;
+  }
+
+  const response = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: systemPrompt,
       },
       {
         role: 'user',
