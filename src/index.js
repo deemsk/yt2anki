@@ -64,6 +64,13 @@ program
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processClipboard);
 
+program
+  .command('text')
+  .description('Create cards from text input (one phrase per line)')
+  .option('-n, --dry-run', 'Preview cards without creating them')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processTextBatch);
+
 program.parse();
 
 async function processMarkers(file, options) {
@@ -663,5 +670,112 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     console.log(chalk.yellow.bold(`⚡ DRY RUN: ${markers.clips.length} cards previewed`));
   } else {
     console.log(chalk.green.bold(`✓ Created ${cardsCreated} of ${markers.clips.length} cards in "${options.deck}"`));
+  }
+}
+
+async function processTextBatch(options) {
+  const { createInterface } = await import('readline');
+  const { generateSpeech } = await import('./tts.js');
+  const { join } = await import('path');
+  const spinner = ora();
+  const dryRun = options.dryRun;
+
+  console.log(chalk.bold('\nEnter German phrases (one per line, empty line to finish):\n'));
+
+  const phrases = [];
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  // Collect phrases
+  await new Promise((resolve) => {
+    rl.on('line', (line) => {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        rl.close();
+        resolve();
+      } else {
+        phrases.push(trimmed);
+        console.log(chalk.dim(`  Added #${phrases.length}: "${trimmed}"`));
+      }
+    });
+  });
+
+  if (phrases.length === 0) {
+    console.log(chalk.yellow('No phrases entered'));
+    return;
+  }
+
+  console.log(chalk.bold(`\nProcessing ${phrases.length} phrases...\n`));
+
+  if (dryRun) {
+    console.log(chalk.yellow('⚡ DRY RUN MODE - No cards will be created\n'));
+  } else {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    await ensureDeck(options.deck);
+    spinner.succeed('AnkiConnect ready\n');
+  }
+
+  let cardsCreated = 0;
+
+  for (let i = 0; i < phrases.length; i++) {
+    const phrase = phrases[i];
+    const progress = `[${i + 1}/${phrases.length}]`;
+
+    spinner.start(`${progress} Enriching...`);
+    const { german, ipa, russian } = await enrich(phrase);
+    spinner.succeed(`${progress} "${german}"`);
+
+    if (phrase !== german) {
+      console.log(chalk.dim(`   (corrected from: "${phrase}")`));
+    }
+
+    if (dryRun) {
+      console.log(chalk.dim(`   IPA:     ${ipa}`));
+      console.log(chalk.dim(`   Russian: ${russian}\n`));
+      cardsCreated++;
+      continue;
+    }
+
+    spinner.start(`${progress} Generating voice-over...`);
+    const timestamp = Date.now();
+    const audioPath = join(config.dataDir, `tts_${timestamp}.m4a`);
+    await generateSpeech(german, audioPath);
+    spinner.succeed(`${progress} Voice-over ready`);
+
+    // Check for similar cards
+    spinner.start(`${progress} Checking for similar cards...`);
+    const similarCards = await findSimilarCards(german);
+    spinner.stop();
+
+    // Interactive confirmation
+    const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
+
+    if (result.dismissed) {
+      console.log(chalk.yellow(`${progress} Card dismissed\n`));
+      continue;
+    }
+
+    spinner.start(`${progress} Creating Anki card...`);
+    const audioFilename = await storeAudio(audioPath);
+    await createNote({
+      german: result.data.german,
+      ipa: result.data.ipa,
+      russian: result.data.russian,
+      audioFilename,
+    });
+    spinner.succeed(`${progress} Card created!\n`);
+    cardsCreated++;
+  }
+
+  if (dryRun) {
+    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${phrases.length} cards previewed`));
+  } else {
+    console.log(chalk.green.bold(`✓ Created ${cardsCreated} of ${phrases.length} cards in "${options.deck}"`));
   }
 }
