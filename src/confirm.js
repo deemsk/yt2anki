@@ -95,12 +95,21 @@ russian: ${cardData.russian}
 
 // Show card preview and ask for confirmation
 // Returns: { confirmed: true, data } or { confirmed: false, dismissed: true } or loops for edit
-export async function confirmCard(cardData, chalk) {
+export async function confirmCard(cardData, chalk, similarCards = null) {
   console.log();
   console.log(chalk.bold('Card preview:'));
   console.log(`  German:  ${cardData.german}`);
   console.log(`  IPA:     ${cardData.ipa}`);
   console.log(`  Russian: ${cardData.russian}`);
+
+  if (similarCards && similarCards.length > 0) {
+    console.log();
+    console.log(chalk.yellow('Similar cards found:'));
+    for (const card of similarCards.slice(0, 3)) {
+      console.log(chalk.yellow(`  ${card.similarity}% "${card.german}"`));
+    }
+  }
+
   console.log();
 
   const action = await askAction();

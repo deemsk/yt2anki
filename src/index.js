@@ -9,7 +9,7 @@ import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, getNoteTypes, getNoteFields } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard } from './confirm.js';
 
@@ -549,8 +549,13 @@ async function processTextMode(data, options, spinner, dryRun) {
     return;
   }
 
+  // Check for similar cards
+  spinner.start('Checking for similar cards...');
+  const similarCards = await findSimilarCards(german);
+  spinner.stop();
+
   // Interactive confirmation
-  const result = await confirmCard({ german, ipa, russian }, chalk);
+  const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
 
   if (result.dismissed) {
     console.log(chalk.yellow('Card dismissed'));
@@ -629,8 +634,13 @@ async function processVideoMode(markers, options, spinner, dryRun) {
       continue;
     }
 
+    // Check for similar cards
+    spinner.start(`${progress} Checking for similar cards...`);
+    const similarCards = await findSimilarCards(german);
+    spinner.stop();
+
     // Interactive confirmation
-    const result = await confirmCard({ german, ipa, russian }, chalk);
+    const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
 
     if (result.dismissed) {
       console.log(chalk.yellow(`${progress} Card dismissed\n`));
