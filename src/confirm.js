@@ -4,34 +4,20 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 
-// Ask yes/no question, returns true/false
-export async function askYesNo(question) {
+// Ask for action: add, edit, or dismiss
+export async function askAction() {
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
   return new Promise((resolve) => {
-    rl.question(`${question} [Y/n] `, (answer) => {
+    rl.question('[A]dd, [E]dit, or [D]ismiss? ', (answer) => {
       rl.close();
       const normalized = answer.trim().toLowerCase();
-      resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
-    });
-  });
-}
-
-// Ask for action: edit or dismiss
-export async function askEditOrDismiss() {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question('  [E]dit or [D]ismiss? ', (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      if (normalized === 'e' || normalized === 'edit') {
+      if (normalized === '' || normalized === 'a' || normalized === 'add') {
+        resolve('add');
+      } else if (normalized === 'e' || normalized === 'edit') {
         resolve('edit');
       } else {
         resolve('dismiss');
@@ -117,14 +103,11 @@ export async function confirmCard(cardData, chalk) {
   console.log(`  Russian: ${cardData.russian}`);
   console.log();
 
-  const confirmed = await askYesNo('Create this card?');
+  const action = await askAction();
 
-  if (confirmed) {
+  if (action === 'add') {
     return { confirmed: true, data: cardData };
   }
-
-  // User said no, ask what to do
-  const action = await askEditOrDismiss();
 
   if (action === 'dismiss') {
     return { confirmed: false, dismissed: true };
