@@ -12,7 +12,8 @@
     "text": "node src/index.js text",
     "add": "node src/index.js add",
     "process": "node src/index.js process",
-    "test": "node src/index.js test",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:integration": "node src/index.js test",
     "check": "node src/index.js check",
     "config": "node src/index.js config",
     "init": "node src/index.js init",
@@ -20,9 +21,12 @@
     "bookmarklet:text": "node scripts/build-text-bookmarklet.js && cat bookmarklet/text-bookmarklet.txt | pbcopy && echo 'Text bookmarklet copied to clipboard'"
   },
   "dependencies": {
+    "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "openai": "^4.52.0",
-    "ora": "^8.0.1",
-    "chalk": "^5.3.0"
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }

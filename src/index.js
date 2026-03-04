@@ -118,16 +118,16 @@ async function processMarkers(file, options) {
       spinner.succeed(`${progress} Transcribed: "${rawGerman}"`);
 
       spinner.start(`${progress} Getting IPA and translation...`);
-      const { german, ipa, russian } = await enrich(rawGerman);
+      const { german, ipa, russian, cefr } = await enrich(rawGerman);
       spinner.succeed(`${progress} Enriched`);
 
       if (dryRun) {
-        results.push({ german, ipa, russian, audioFile: aacPath });
+        results.push({ german, ipa, russian, cefr, audioFile: aacPath });
         spinner.succeed(`${progress} Card preview ready`);
       } else {
         spinner.start(`${progress} Creating Anki card...`);
         const audioFilename = await storeAudio(aacPath);
-        await createNote({ german, ipa, russian, audioFilename });
+        await createNote({ german, ipa, russian, audioFilename, cefr });
         spinner.succeed(`${progress} Card created!`);
       }
 
@@ -184,7 +184,7 @@ async function addSingleCard(url, options) {
 
     // Enrich
     spinner.start('Getting IPA and Russian translation...');
-    const { german, ipa, russian } = await enrich(rawGerman);
+    const { german, ipa, russian, cefr } = await enrich(rawGerman);
     spinner.succeed('Enriched');
 
     if (dryRun) {
@@ -193,6 +193,7 @@ async function addSingleCard(url, options) {
       console.log(`  German:  ${german}${rawGerman !== german ? ` (was: ${rawGerman})` : ''}`);
       console.log(`  IPA:     ${ipa}`);
       console.log(`  Russian: ${russian}`);
+      console.log(`  CEFR:    ${cefr.level}`);
       console.log(`  Audio:   ${aacPath}`);
       console.log(`  Deck:    ${options.deck} (not created)`);
       console.log();
@@ -201,7 +202,7 @@ async function addSingleCard(url, options) {
       // Create card
       spinner.start('Creating Anki card...');
       const audioFilename = await storeAudio(aacPath);
-      await createNote({ german, ipa, russian, audioFilename });
+      await createNote({ german, ipa, russian, audioFilename, cefr });
       spinner.succeed('Card created!');
 
       console.log();
@@ -533,7 +534,7 @@ async function processTextMode(data, options, spinner, dryRun) {
   }
 
   spinner.start('Getting IPA and translation...');
-  const { german, ipa, russian } = await enrich(data.german);
+  const { german, ipa, russian, cefr } = await enrich(data.german);
   spinner.succeed('Enriched');
 
   const timestamp = Date.now();
@@ -552,6 +553,7 @@ async function processTextMode(data, options, spinner, dryRun) {
     console.log(chalk.dim(`   German:  ${german}`));
     console.log(chalk.dim(`   IPA:     ${ipa}`));
     console.log(chalk.dim(`   Russian: ${russian}`));
+    console.log(chalk.dim(`   CEFR:    ${cefr.level}`));
     console.log(chalk.yellow.bold('\n⚡ DRY RUN: Card previewed'));
     return;
   }
@@ -562,7 +564,7 @@ async function processTextMode(data, options, spinner, dryRun) {
   spinner.stop();
 
   // Interactive confirmation
-  const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
+  const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
 
   if (result.dismissed) {
     console.log(chalk.yellow('Card dismissed'));
@@ -577,6 +579,7 @@ async function processTextMode(data, options, spinner, dryRun) {
     russian: result.data.russian,
     audioFilename,
     addReversed: result.addReversed,
+    cefr: result.data.cefr,
   });
   spinner.succeed('Card created!');
 
@@ -627,7 +630,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     spinner.succeed(`${progress} "${rawGerman}"`);
 
     spinner.start(`${progress} Getting IPA and translation...`);
-    const { german, ipa, russian } = await enrich(rawGerman, subtitleContext);
+    const { german, ipa, russian, cefr } = await enrich(rawGerman, subtitleContext);
     spinner.succeed(`${progress} Enriched`);
 
     if (rawGerman !== german) {
@@ -637,7 +640,8 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     if (dryRun) {
       console.log(chalk.dim(`   German:  ${german}`));
       console.log(chalk.dim(`   IPA:     ${ipa}`));
-      console.log(chalk.dim(`   Russian: ${russian}\n`));
+      console.log(chalk.dim(`   Russian: ${russian}`));
+      console.log(chalk.dim(`   CEFR:    ${cefr.level}\n`));
       cardsCreated++;
       continue;
     }
@@ -648,7 +652,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     spinner.stop();
 
     // Interactive confirmation
-    const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
+    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
 
     if (result.dismissed) {
       console.log(chalk.yellow(`${progress} Card dismissed\n`));
@@ -663,6 +667,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
       russian: result.data.russian,
       audioFilename,
       addReversed: result.addReversed,
+      cefr: result.data.cefr,
     });
     spinner.succeed(`${progress} Card created!\n`);
     cardsCreated++;
@@ -730,7 +735,7 @@ async function processTextBatch(options) {
     const progress = `[${i + 1}/${phrases.length}]`;
 
     spinner.start(`${progress} Enriching...`);
-    const { german, ipa, russian } = await enrich(phrase);
+    const { german, ipa, russian, cefr } = await enrich(phrase);
     spinner.succeed(`${progress} "${german}"`);
 
     if (phrase !== german) {
@@ -739,7 +744,8 @@ async function processTextBatch(options) {
 
     if (dryRun) {
       console.log(chalk.dim(`   IPA:     ${ipa}`));
-      console.log(chalk.dim(`   Russian: ${russian}\n`));
+      console.log(chalk.dim(`   Russian: ${russian}`));
+      console.log(chalk.dim(`   CEFR:    ${cefr.level}\n`));
       cardsCreated++;
       continue;
     }
@@ -756,7 +762,7 @@ async function processTextBatch(options) {
     spinner.stop();
 
     // Interactive confirmation
-    const result = await confirmCard({ german, ipa, russian }, chalk, similarCards);
+    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
 
     if (result.dismissed) {
       console.log(chalk.yellow(`${progress} Card dismissed\n`));
@@ -771,6 +777,7 @@ async function processTextBatch(options) {
       russian: result.data.russian,
       audioFilename,
       addReversed: result.addReversed,
+      cefr: result.data.cefr,
     });
     spinner.succeed(`${progress} Card created!\n`);
     cardsCreated++;

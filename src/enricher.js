@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
+import { estimateCEFR } from './cefr.js';
 
 let openai = null;
 
@@ -67,9 +68,13 @@ Examples of corrections:
     ipa = `[${ipa}]`;
   }
 
+  const german = result.german || germanText;
+  const cefr = await estimateCEFR(german);
+
   return {
-    german: result.german || germanText,
+    german,
     ipa,
     russian: result.russian || '',
+    cefr,
   };
 }

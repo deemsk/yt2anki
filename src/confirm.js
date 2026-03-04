@@ -109,6 +109,14 @@ russian: ${cardData.russian}
   return result;
 }
 
+// Format CEFR display with signals
+function formatCEFR(cefr, chalk) {
+  if (!cefr) return '';
+  const { level, signals } = cefr;
+  const details = `freq: ${signals.frequency}, gram: ${signals.grammar}, llm: ${signals.llm}`;
+  return `${level} (${details})`;
+}
+
 // Show card preview and ask for confirmation
 // Returns: { confirmed: true, data } or { confirmed: false, dismissed: true } or loops for edit
 export async function confirmCard(cardData, chalk, similarCards = null) {
@@ -117,6 +125,9 @@ export async function confirmCard(cardData, chalk, similarCards = null) {
   console.log(`  German:  ${cardData.german}`);
   console.log(`  IPA:     ${cardData.ipa}`);
   console.log(`  Russian: ${cardData.russian}`);
+  if (cardData.cefr) {
+    console.log(`  CEFR:    ${formatCEFR(cardData.cefr, chalk)}`);
+  }
 
   if (similarCards && similarCards.length > 0) {
     console.log();

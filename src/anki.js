@@ -69,8 +69,9 @@ export async function storeAudio(audioPath) {
  * @param {string} data.russian - Russian translation
  * @param {string} data.audioFilename - Audio filename in Anki media
  * @param {boolean} data.addReversed - Whether to add reversed card
+ * @param {Object} data.cefr - CEFR estimation result
  */
-export async function createNote({ german, ipa, russian, audioFilename, addReversed = true }) {
+export async function createNote({ german, ipa, russian, audioFilename, addReversed = true, cefr = null }) {
   // Format front: Audio, phrase, IPA
   const front = `[sound:${audioFilename}] ${german}<br>${ipa}`;
   const back = russian;
@@ -86,6 +87,12 @@ export async function createNote({ german, ipa, russian, audioFilename, addRever
     fields['Add Reverse'] = '1';
   }
 
+  // Build tags
+  const tags = ['yt2anki'];
+  if (cefr && cefr.level) {
+    tags.push(`cefr-${cefr.level.toLowerCase()}`);
+  }
+
   await ankiConnect('addNote', {
     note: {
       deckName: config.ankiDeck,
@@ -94,7 +101,7 @@ export async function createNote({ german, ipa, russian, audioFilename, addRever
       options: {
         allowDuplicate: false,
       },
-      tags: ['yt2anki'],
+      tags,
     },
   });
 }
