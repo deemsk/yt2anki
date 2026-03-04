@@ -281,6 +281,18 @@ describe("Lemmatization", () => {
     expect(getFrequencyLevel("Mit meinen Freunden.")).not.toBe("C1")
   })
 
+  test("superlative adjectives are recognized", () => {
+    // "engsten" should map to "eng"
+    expect(getFrequencyLevel("seine engsten Freunde")).not.toBe("C1")
+    expect(getFrequencyLevel("die besten Ideen")).not.toBe("C1")
+  })
+
+  test("common loanwords are recognized", () => {
+    // E-Mail, Internet, etc. should not trigger C1
+    expect(getFrequencyLevel("eine E-Mail schicken")).not.toBe("C1")
+    expect(getFrequencyLevel("im Internet suchen")).not.toBe("C1")
+  })
+
 })
 
 

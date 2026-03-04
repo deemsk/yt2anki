@@ -118,6 +118,15 @@ const IRREGULAR_VERBS = new Map([
 // Noun/adjective endings to strip
 const NOUN_SUFFIXES = ['en', 'er', 'es', 'em', 'e', 's', 'n'];
 
+// Adjective comparative/superlative suffixes
+// engsten → eng, größer → groß, etc.
+const ADJ_SUFFIXES = [
+  { suffix: 'sten', replace: '' },   // superlative: engsten → eng
+  { suffix: 'ste', replace: '' },    // superlative: engste → eng
+  { suffix: 'sten', replace: 'ss' }, // größten → groß (with ß→ss)
+  { suffix: 'er', replace: '' },     // comparative: größer → groß (handled below)
+];
+
 /**
  * Attempt to lemmatize a German word
  * Returns the base form if found, otherwise the original word
@@ -141,6 +150,25 @@ function lemmatize(word) {
         const candidate = stem + replace;
         if (frequencyMap.has(candidate)) {
           lemma = candidate;
+          break;
+        }
+      }
+    }
+  }
+
+  // If still not found, try adjective comparative/superlative
+  if (!frequencyMap.has(lemma) && word.length > 4) {
+    for (const { suffix, replace } of ADJ_SUFFIXES) {
+      if (word.endsWith(suffix)) {
+        const stem = word.slice(0, -suffix.length) + replace;
+        if (frequencyMap.has(stem)) {
+          lemma = stem;
+          break;
+        }
+        // Try with umlaut restoration: ä→a, ö→o, ü→u
+        const withoutUmlaut = stem.replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u');
+        if (withoutUmlaut !== stem && frequencyMap.has(withoutUmlaut)) {
+          lemma = withoutUmlaut;
           break;
         }
       }
@@ -204,12 +232,32 @@ function tokenize(sentence) {
     .filter((w) => w.length > 0);
 }
 
+// Common loanwords/compounds not in frequency list but clearly A1/A2
+const COMMON_WORDS = new Map([
+  ['email', 500],      // E-Mail
+  ['emails', 500],
+  ['internet', 800],
+  ['computer', 600],
+  ['smartphone', 1500],
+  ['app', 2000],
+  ['apps', 2000],
+  ['online', 1000],
+  ['offline', 2000],
+  ['website', 1500],
+  ['download', 2000],
+  ['upload', 2500],
+]);
+
 /**
  * Get word rank with lemmatization fallback
  */
 function getWordRank(word) {
   // Try direct lookup first
   let rank = frequencyMap.get(word);
+  if (rank !== undefined) return rank;
+
+  // Try common loanwords
+  rank = COMMON_WORDS.get(word);
   if (rank !== undefined) return rank;
 
   // Try lemmatized form
