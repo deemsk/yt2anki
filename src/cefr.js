@@ -232,8 +232,9 @@ function tokenize(sentence) {
     .filter((w) => w.length > 0);
 }
 
-// Common loanwords/compounds not in frequency list but clearly A1/A2
+// Common words missing from subtitle frequency list but clearly A1-B1
 const COMMON_WORDS = new Map([
+  // Loanwords
   ['email', 500],      // E-Mail
   ['emails', 500],
   ['internet', 800],
@@ -246,6 +247,15 @@ const COMMON_WORDS = new Map([
   ['website', 1500],
   ['download', 2000],
   ['upload', 2500],
+  // Common adjectives missing from subtitle corpus
+  ['aktuell', 1500],
+  ['aktuelle', 1500],
+  ['aktuellen', 1500],
+  ['aktueller', 1500],
+  ['aktuelles', 1500],
+  // Common nouns/abbreviations
+  ['info', 2000],
+  ['infos', 2000],
 ]);
 
 /**
@@ -265,6 +275,20 @@ function getWordRank(word) {
   if (lemma !== word) {
     rank = frequencyMap.get(lemma);
     if (rank !== undefined) return rank;
+  }
+
+  // Try compound word splitting (German compounds)
+  // Check if the end of the word matches a known word (main component)
+  // e.g., "Irankrieg" → "krieg", "Fußballspiel" → "spiel"
+  if (word.length > 6) {
+    for (let i = 3; i < word.length - 3; i++) {
+      const suffix = word.slice(i);
+      const suffixRank = frequencyMap.get(suffix);
+      if (suffixRank !== undefined && suffix.length >= 4) {
+        // Return the rank of the main component (usually the last part)
+        return suffixRank;
+      }
+    }
   }
 
   return undefined;
@@ -312,15 +336,149 @@ function rankToLevel(rank) {
   return 'C1';
 }
 
+// ============================================================
+// PROPER NOUN DETECTION
+// ============================================================
+
+// Known places (cities, countries, regions) - lowercase for matching
+const KNOWN_PLACES = new Set([
+  // German cities
+  'berlin', 'münchen', 'munich', 'hamburg', 'köln', 'cologne', 'frankfurt',
+  'stuttgart', 'düsseldorf', 'dortmund', 'essen', 'leipzig', 'bremen',
+  'dresden', 'hannover', 'nürnberg', 'nuremberg', 'duisburg', 'bochum',
+  'wuppertal', 'bielefeld', 'bonn', 'münster', 'karlsruhe', 'mannheim',
+  'augsburg', 'wiesbaden', 'gelsenkirchen', 'mönchengladbach', 'braunschweig',
+  'chemnitz', 'kiel', 'aachen', 'halle', 'magdeburg', 'freiburg', 'lübeck',
+  'erfurt', 'rostock', 'mainz', 'kassel', 'hagen', 'hamm', 'saarbrücken',
+  'potsdam', 'ludwigshafen', 'oldenburg', 'leverkusen', 'osnabrück',
+  'heidelberg', 'darmstadt', 'regensburg', 'würzburg', 'wolfsburg',
+  // Austrian cities
+  'wien', 'vienna', 'graz', 'linz', 'salzburg', 'innsbruck',
+  // Swiss cities
+  'zürich', 'zurich', 'genf', 'geneva', 'basel', 'bern', 'lausanne',
+  // Countries
+  'deutschland', 'germany', 'österreich', 'austria', 'schweiz', 'switzerland',
+  'frankreich', 'france', 'italien', 'italy', 'spanien', 'spain',
+  'england', 'großbritannien', 'usa', 'amerika', 'america', 'china',
+  'japan', 'russland', 'russia', 'polen', 'poland', 'niederlande',
+  'belgien', 'belgium', 'tschechien', 'dänemark', 'denmark', 'schweden',
+  'sweden', 'norwegen', 'norway', 'finnland', 'finland', 'griechenland',
+  'greece', 'türkei', 'turkey', 'portugal', 'brasilien', 'brazil',
+  'mexiko', 'mexico', 'kanada', 'canada', 'australien', 'australia',
+  'indien', 'india', 'ägypten', 'egypt', 'iran', 'irak', 'iraq',
+  // Regions
+  'bayern', 'bavaria', 'sachsen', 'saxony', 'hessen', 'baden', 'württemberg',
+  'nordrhein', 'westfalen', 'niedersachsen', 'rheinland', 'pfalz', 'thüringen',
+  'brandenburg', 'schleswig', 'holstein', 'mecklenburg', 'vorpommern',
+  'europa', 'europe', 'asien', 'asia', 'afrika', 'africa',
+]);
+
+// Known brands and companies - lowercase for matching
+const KNOWN_BRANDS = new Set([
+  // German companies
+  'bmw', 'mercedes', 'volkswagen', 'vw', 'audi', 'porsche', 'opel',
+  'siemens', 'sap', 'basf', 'bayer', 'allianz', 'daimler', 'bosch',
+  'adidas', 'puma', 'lufthansa', 'deutsche', 'telekom', 'aldi', 'lidl',
+  'dm', 'rossmann', 'edeka', 'rewe', 'kaufland', 'mediamarkt', 'saturn',
+  // International companies
+  'google', 'apple', 'microsoft', 'amazon', 'facebook', 'meta', 'twitter',
+  'instagram', 'whatsapp', 'youtube', 'netflix', 'spotify', 'uber',
+  'ikea', 'zara', 'nike', 'coca', 'cola', 'pepsi', 'mcdonalds', 'starbucks',
+]);
+
+// Common first names (German and international) - lowercase
+const COMMON_NAMES = new Set([
+  // German male names
+  'hans', 'peter', 'michael', 'thomas', 'andreas', 'stefan', 'christian',
+  'martin', 'markus', 'daniel', 'sebastian', 'matthias', 'alexander',
+  'klaus', 'wolfgang', 'werner', 'helmut', 'gerhard', 'günter', 'karl',
+  'heinz', 'jürgen', 'dieter', 'horst', 'walter', 'manfred', 'rolf',
+  'uwe', 'bernd', 'frank', 'jochen', 'joachim', 'norbert', 'rainer',
+  'jan', 'tim', 'tobias', 'florian', 'max', 'felix', 'paul', 'jonas',
+  'leon', 'lukas', 'luca', 'noah', 'elias', 'ben', 'finn', 'luis',
+  // German female names
+  'maria', 'anna', 'lisa', 'laura', 'julia', 'sarah', 'sabine', 'petra',
+  'monika', 'karin', 'brigitte', 'ursula', 'renate', 'helga', 'ingrid',
+  'gisela', 'christa', 'erika', 'gertrud', 'elfriede', 'hildegard',
+  'katrin', 'claudia', 'susanne', 'birgit', 'andrea', 'nicole', 'sandra',
+  'melanie', 'stefanie', 'christine', 'martina', 'gabriele', 'heike',
+  'emma', 'mia', 'hannah', 'sophia', 'emilia', 'lena', 'marie', 'lea',
+  // International names
+  'john', 'james', 'david', 'robert', 'william', 'richard', 'joseph',
+  'charles', 'george', 'edward', 'henry', 'jack', 'oliver', 'harry',
+  'mary', 'elizabeth', 'jennifer', 'linda', 'susan', 'jessica', 'emily',
+  'angela', 'petr', 'ivan', 'alexei', 'boris', 'vladimir', 'olga', 'natasha',
+  'pierre', 'jean', 'marie', 'sophie', 'mohammed', 'ahmed', 'ali', 'omar',
+]);
+
+// Name-introducing patterns - words after these are likely proper names
+const NAME_PATTERNS = [
+  /\b(heiße|heißt|heißen)\s+(\w+)/gi,        // Ich heiße X, Er heißt X
+  /\bmein name ist\s+(\w+)/gi,               // Mein Name ist X
+  /\bich bin\s+(der\s+)?(\w+)/gi,            // Ich bin (der) X
+  /\bdas ist\s+(der|die|mein|meine)?\s*(\w+)/gi,  // Das ist (der/die) X
+  /\bherr\s+(\w+)/gi,                        // Herr X
+  /\bfrau\s+(\w+)/gi,                        // Frau X
+  /\bbei\s+(\w+)\b/gi,                       // bei SAP, bei BMW (company context)
+  /\bvon\s+(\w+)\b/gi,                       // von Mercedes, von Siemens
+  /\bfür\s+(\w+)\s+(arbeiten|arbeitet)/gi,   // für X arbeiten
+];
+
+/**
+ * Check if a word is likely a proper noun
+ * Returns true if the word should be excluded from frequency analysis
+ */
+function isProperNoun(word, originalWord) {
+  // Check known lists
+  if (KNOWN_PLACES.has(word)) return true;
+  if (KNOWN_BRANDS.has(word)) return true;
+  if (COMMON_NAMES.has(word)) return true;
+
+  // All-caps words (2+ chars) are likely acronyms/brands: SAP, BMW, USA, EU
+  if (originalWord.length >= 2 && originalWord === originalWord.toUpperCase() && /^[A-ZÄÖÜ]+$/.test(originalWord)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Extract proper names from sentence using context patterns
+ */
+function extractContextualNames(sentence) {
+  const names = new Set();
+  for (const pattern of NAME_PATTERNS) {
+    let match;
+    pattern.lastIndex = 0; // Reset regex state
+    while ((match = pattern.exec(sentence)) !== null) {
+      // Get the last capture group (the name)
+      const name = match[match.length - 1]?.toLowerCase();
+      if (name && name.length > 1) names.add(name);
+    }
+  }
+  return names;
+}
+
 /**
  * Analyze word frequencies in a sentence
  * Returns level based on rarest word + adjustment for multiple rare words
+ * Proper nouns (names, places, brands) are excluded from analysis
  */
 export function getFrequencyLevel(sentence) {
+  // Get original tokens (before lowercase) for proper noun detection
+  const originalTokens = sentence.split(/\s+/).map(t => t.replace(/[^\wäöüßÄÖÜ]/g, '')).filter(t => t.length > 0);
   const words = tokenize(sentence);
   const ranks = [];
+  const contextualNames = extractContextualNames(sentence);
 
-  for (const word of words) {
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const originalWord = originalTokens[i] || word;
+
+    // Skip proper nouns: known names/places/brands, contextual names, or all-caps
+    if (isProperNoun(word, originalWord)) continue;
+    if (contextualNames.has(word)) continue;
+
     const rank = getWordRank(word);
     if (rank !== undefined) {
       ranks.push(rank);
@@ -466,6 +624,9 @@ export function getGrammarLevel(sentence) {
   // Perfect tense (tightened regex)
   if (PERFECT_HABEN_PATTERN.test(lower)) return 'A2';
   if (PERFECT_SEIN_PATTERN.test(lower)) return 'A2';
+  // Futur I: werden + infinitive (wird ... machen, werde ... gehen, wird ... dauern)
+  // Infinitives end in -en or -n (dauern, ändern, wandern)
+  if (/\b(werde|wirst|wird|werden|werdet)\b.*\b\w+(en|ern|eln)\b/.test(lower)) return 'A2';
 
   return 'A1';
 }
