@@ -342,6 +342,17 @@ const PLUSQUAMPERFEKT_PATTERN = /\b(hatte|hattest|hatten|hattet|war|warst|waren|
 const PASSIVE_PRESENT_PATTERN = /\b(werde|wirst|wird|werden|werdet)\s+(\w+\s+){0,3}ge\w{3,}(t|en)\b/;
 const PASSIVE_PAST_PATTERN = /\b(wurde|wurdest|wurden|wurdet)\s+(\w+\s+){0,3}ge\w{3,}(t|en)\b/;
 
+// Passive with modal verb: modal + ... + participle + werden (B2)
+// e.g., "konnten überprüft werden", "müssen gemacht werden"
+// Note: Participles can be:
+//   - ge- prefix (gemacht, gesehen)
+//   - inseparable prefix verbs without ge- (überprüft, verstanden, erklärt, besucht)
+//   - -iert verbs without ge- (kontrolliert, organisiert)
+// Note: \w doesn't match umlauts in JS, so we use [\wäöüß]
+const MODAL_VERBS = /\b(kann|kannst|können|könnt|konnte|konntest|konnten|konntet|muss|musst|müssen|müsst|musste|musstest|mussten|musstet|soll|sollst|sollen|sollt|sollte|solltest|sollten|solltet|darf|darfst|dürfen|dürft|durfte|durftest|durften|durftet|will|willst|wollen|wollt|wollte|wolltest|wollten|wolltet|mag|magst|mögen|mögt|mochte|mochtest|mochten|mochtet)\b/;
+const PARTICIPLE_PATTERN = /(ge[\wäöüß]{3,}(t|en)\b|(über|unter|ver|be|er|ent|emp|zer|miss|wider|hinter)[\wäöüß]{2,}(t|en)\b|[\wäöüß]+iert\b)/;
+const PASSIVE_MODAL_PATTERN = new RegExp(MODAL_VERBS.source + '.*' + PARTICIPLE_PATTERN.source + '\\s+werden\\b');
+
 // Genitive prepositions
 const GENITIVE_PATTERN = /\b(wegen|trotz|während|anstatt|aufgrund|innerhalb|außerhalb|oberhalb|unterhalb)\s+(des|der|eines|einer)\b/;
 
@@ -378,6 +389,7 @@ export function getGrammarLevel(sentence) {
   if (/\bwenngleich\b/.test(lower)) return 'B2';
   if (PASSIVE_PRESENT_PATTERN.test(lower)) return 'B2';
   if (PASSIVE_PAST_PATTERN.test(lower)) return 'B2';
+  if (PASSIVE_MODAL_PATTERN.test(lower)) return 'B2'; // Passiv mit Modalverb
   if (GENITIVE_PATTERN.test(lower)) return 'B2';
   // Futur II: wird + participle + haben/sein
   if (/\bwird\s+\w+\s+(haben|sein)\b/.test(lower)) return 'B2';

@@ -349,6 +349,16 @@ describe("Grammar patterns", () => {
     expect(getGrammarLevel("Es wurde gesagt.")).toBe("B2")
   })
 
+  test("detects passive with modal verb", () => {
+    // Inseparable prefix verbs (no ge-)
+    expect(getGrammarLevel("Die Angaben konnten nicht überprüft werden.")).toBe("B2")
+    expect(getGrammarLevel("Das muss erklärt werden.")).toBe("B2")
+    // Regular ge- participles
+    expect(getGrammarLevel("Das kann gemacht werden.")).toBe("B2")
+    // -iert verbs
+    expect(getGrammarLevel("Das muss organisiert werden.")).toBe("B2")
+  })
+
 })
 
 
