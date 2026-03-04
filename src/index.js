@@ -576,6 +576,7 @@ async function processTextMode(data, options, spinner, dryRun) {
     ipa: result.data.ipa,
     russian: result.data.russian,
     audioFilename,
+    addReversed: result.addReversed,
   });
   spinner.succeed('Card created!');
 
@@ -661,6 +662,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
       ipa: result.data.ipa,
       russian: result.data.russian,
       audioFilename,
+      addReversed: result.addReversed,
     });
     spinner.succeed(`${progress} Card created!\n`);
     cardsCreated++;
@@ -768,6 +770,7 @@ async function processTextBatch(options) {
       ipa: result.data.ipa,
       russian: result.data.russian,
       audioFilename,
+      addReversed: result.addReversed,
     });
     spinner.succeed(`${progress} Card created!\n`);
     cardsCreated++;

@@ -68,8 +68,9 @@ export async function storeAudio(audioPath) {
  * @param {string} data.ipa - IPA transcription
  * @param {string} data.russian - Russian translation
  * @param {string} data.audioFilename - Audio filename in Anki media
+ * @param {boolean} data.addReversed - Whether to add reversed card
  */
-export async function createNote({ german, ipa, russian, audioFilename }) {
+export async function createNote({ german, ipa, russian, audioFilename, addReversed = true }) {
   // Format front: Audio, phrase, IPA
   const front = `[sound:${audioFilename}] ${german}<br>${ipa}`;
   const back = russian;
@@ -81,7 +82,7 @@ export async function createNote({ german, ipa, russian, audioFilename }) {
   };
 
   // Support "Basic (optional reversed card)" - needs "Add Reverse" field to be non-empty
-  if (config.ankiNoteType.includes('optional reversed')) {
+  if (config.ankiNoteType.includes('optional reversed') && addReversed) {
     fields['Add Reverse'] = '1';
   }
 

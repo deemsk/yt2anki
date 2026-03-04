@@ -26,6 +26,22 @@ export async function askAction() {
   });
 }
 
+// Ask if reversed card is needed
+export async function askReversed() {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Add reversed card? [Y/n] ', (answer) => {
+      rl.close();
+      const normalized = answer.trim().toLowerCase();
+      resolve(normalized === '' || normalized === 'y' || normalized === 'yes');
+    });
+  });
+}
+
 // Open card data in editor, returns edited data
 export async function editCardData(cardData) {
   const editor = process.env.EDITOR || process.env.VISUAL || 'nano';
@@ -106,7 +122,8 @@ export async function confirmCard(cardData, chalk, similarCards = null) {
     console.log();
     console.log(chalk.yellow('Similar cards found:'));
     for (const card of similarCards.slice(0, 3)) {
-      console.log(chalk.yellow(`  ${card.similarity}% "${card.german}"`));
+      const color = card.similarity === 100 ? chalk.red : chalk.yellow;
+      console.log(color(`  ${card.similarity}% "${card.german}"`));
     }
   }
 
@@ -115,7 +132,8 @@ export async function confirmCard(cardData, chalk, similarCards = null) {
   const action = await askAction();
 
   if (action === 'add') {
-    return { confirmed: true, data: cardData };
+    const addReversed = await askReversed();
+    return { confirmed: true, data: cardData, addReversed };
   }
 
   if (action === 'dismiss') {

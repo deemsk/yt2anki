@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node src/index.js clip",
     "clip": "node src/index.js clip",
+    "text": "node src/index.js text",
     "add": "node src/index.js add",
     "process": "node src/index.js process",
     "test": "node src/index.js test",
