@@ -21,7 +21,10 @@ const defaults = {
   ttsVoice: 'nova',
 
   // Audio
-  audioFormat: 'aac',
+  audioFormat: 'mp3',
+  ttsSpeed: 0.7,      // Slow playback speed (0.7 = 30% slower)
+  ttsPause: 1.0,      // Pause between slow and normal (seconds)
+  ttsVoices: ['nova', 'onyx'],  // Voices to alternate (female, male)
 };
 
 // Load user config from ~/.yt2anki.json

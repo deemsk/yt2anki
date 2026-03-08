@@ -538,7 +538,7 @@ async function processTextMode(data, options, spinner, dryRun) {
   spinner.succeed('Enriched');
 
   const timestamp = Date.now();
-  const audioPath = join(config.dataDir, `tts_${timestamp}.m4a`);
+  const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
 
   spinner.start('Generating voice-over...');
   await generateSpeech(german, audioPath);
@@ -752,7 +752,7 @@ async function processTextBatch(options) {
 
     spinner.start(`${progress} Generating voice-over...`);
     const timestamp = Date.now();
-    const audioPath = join(config.dataDir, `tts_${timestamp}.m4a`);
+    const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
     await generateSpeech(german, audioPath);
     spinner.succeed(`${progress} Voice-over ready`);
 

@@ -179,7 +179,7 @@ function similarity(a, b) {
 
 /**
  * Extract German text from card Front field
- * Front format: [sound:file.m4a] German text<br>[IPA]
+ * Front format: [sound:file.mp3] German text<br>[IPA]
  */
 function extractGermanFromFront(front) {
   return front
