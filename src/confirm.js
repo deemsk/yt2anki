@@ -149,7 +149,7 @@ function formatCEFR(cefr) {
 
 // Show card preview and ask for confirmation
 // Returns: { confirmed: true, data } or { confirmed: false, dismissed: true } or loops for edit
-export async function confirmCard(cardData, chalk, similarCards = null, audioPath = null) {
+export async function confirmCard(cardData, chalk, similarCards = null, audioPath = null, autoPlay = true) {
   console.log();
   console.log(chalk.bold('Card preview:'));
   console.log(`  German:  ${cardData.german}`);
@@ -168,19 +168,29 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
     }
   }
 
-  console.log();
-
-  const action = await askAction(!!audioPath);
-
-  if (action === 'listen' && audioPath) {
-    console.log(chalk.dim('  Playing audio...'));
+  // Auto-play audio on first preview
+  if (autoPlay && audioPath) {
+    console.log();
     try {
       await playAudio(audioPath);
     } catch (err) {
       console.log(chalk.red(`  Could not play audio: ${err.message}`));
     }
-    // After listening, ask again
-    return confirmCard(cardData, chalk, similarCards, audioPath);
+  }
+
+  console.log();
+
+  const action = await askAction(!!audioPath);
+
+  if (action === 'listen' && audioPath) {
+    console.log(chalk.dim('  Replaying audio...'));
+    try {
+      await playAudio(audioPath);
+    } catch (err) {
+      console.log(chalk.red(`  Could not play audio: ${err.message}`));
+    }
+    // After listening, ask again (no auto-play)
+    return confirmCard(cardData, chalk, similarCards, audioPath, false);
   }
 
   if (action === 'add') {
@@ -200,6 +210,6 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
     return { confirmed: false, dismissed: true };
   }
 
-  // Recursively confirm edited data
-  return confirmCard(edited, chalk, similarCards, audioPath);
+  // Recursively confirm edited data (no auto-play after edit)
+  return confirmCard(edited, chalk, similarCards, audioPath, false);
 }
