@@ -74,6 +74,22 @@ export async function askReversed() {
   });
 }
 
+// Ask for optional context
+export async function askContext() {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question('Context (optional, Enter to skip): ', (answer) => {
+      rl.close();
+      const trimmed = answer.trim();
+      resolve(trimmed || null);
+    });
+  });
+}
+
 // Open card data in editor, returns edited data
 export async function editCardData(cardData) {
   const editor = process.env.EDITOR || process.env.VISUAL || 'nano';
@@ -194,8 +210,9 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
   }
 
   if (action === 'add') {
+    const context = await askContext();
     const addReversed = await askReversed();
-    return { confirmed: true, data: cardData, addReversed };
+    return { confirmed: true, data: { ...cardData, context }, addReversed };
   }
 
   if (action === 'dismiss') {

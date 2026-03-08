@@ -63,18 +63,28 @@ export async function storeAudio(audioPath) {
 
 /**
  * Create Anki note with audio
+ * Audio-first format for comprehension:
+ *   Front: audio + optional context
+ *   Back: german + ipa + russian
+ *
  * @param {Object} data
  * @param {string} data.german - German text
  * @param {string} data.ipa - IPA transcription
  * @param {string} data.russian - Russian translation
  * @param {string} data.audioFilename - Audio filename in Anki media
+ * @param {string} data.context - Optional context/situation
  * @param {boolean} data.addReversed - Whether to add reversed card
  * @param {Object} data.cefr - CEFR estimation result
  */
-export async function createNote({ german, ipa, russian, audioFilename, addReversed = true, cefr = null }) {
-  // Format front: Audio, phrase, IPA
-  const front = `[sound:${audioFilename}] ${german}<br>${ipa}`;
-  const back = russian;
+export async function createNote({ german, ipa, russian, audioFilename, context = null, addReversed = true, cefr = null }) {
+  // Format front: Audio + optional context (audio-first for comprehension)
+  let front = `[sound:${audioFilename}]`;
+  if (context) {
+    front += `<br>${context}`;
+  }
+
+  // Format back: German + IPA + Russian
+  const back = `${german}<br>${ipa}<br>${russian}`;
 
   // Build fields based on note type
   const fields = {

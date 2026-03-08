@@ -578,6 +578,7 @@ async function processTextMode(data, options, spinner, dryRun) {
     ipa: result.data.ipa,
     russian: result.data.russian,
     audioFilename,
+    context: result.data.context,
     addReversed: result.addReversed,
     cefr: result.data.cefr,
   });
@@ -666,6 +667,7 @@ async function processVideoMode(markers, options, spinner, dryRun) {
       ipa: result.data.ipa,
       russian: result.data.russian,
       audioFilename,
+      context: result.data.context,
       addReversed: result.addReversed,
       cefr: result.data.cefr,
     });
@@ -776,6 +778,7 @@ async function processTextBatch(options) {
       ipa: result.data.ipa,
       russian: result.data.russian,
       audioFilename,
+      context: result.data.context,
       addReversed: result.addReversed,
       cefr: result.data.cefr,
     });
