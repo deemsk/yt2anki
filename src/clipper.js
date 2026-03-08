@@ -62,10 +62,14 @@ export async function cutClip(sourcePath, start, end, index) {
     wavPath,
   ]);
 
-  // Then convert to AAC/M4A (for Anki)
+  // Then convert to AAC/M4A (for Anki) with lead-in silence
+  const leadIn = config.audioLeadIn || 0.4;
+  const leadInMs = Math.round(leadIn * 1000);
+
   await runFfmpeg([
     '-y',
     '-i', wavPath,
+    '-af', `adelay=${leadInMs}|${leadInMs}`,  // Add silence at start
     '-c:a', 'aac',
     '-b:a', '128k',
     aacPath,

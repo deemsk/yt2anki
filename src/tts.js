@@ -53,33 +53,18 @@ async function generateClip(text, outputPath, voice, speed) {
 }
 
 /**
- * Concatenate audio files with silence between them
+ * Concatenate audio files with lead-in silence and pause between them
  */
-async function concatenateWithPause(files, outputPath, pauseDuration = 1.0) {
-  // Build filter complex for concatenation with silence
-  // Input files + silence between them
-  const inputs = [];
-  const filterParts = [];
+async function concatenateWithPause(files, outputPath, pauseDuration = 1.0, leadIn = 0.4) {
+  // Filter: add lead-in silence + first clip + pause + second clip
+  // adelay adds silence at the start (in milliseconds)
+  const leadInMs = Math.round(leadIn * 1000);
 
-  for (let i = 0; i < files.length; i++) {
-    inputs.push('-i', files[i]);
-  }
-
-  // Create filter: [0]audio + silence + [1]audio + silence + ...
-  let filterComplex = '';
-  for (let i = 0; i < files.length; i++) {
-    filterComplex += `[${i}:a]`;
-    if (i < files.length - 1) {
-      // Add silence after each clip except the last
-      filterComplex += `apad=pad_dur=${pauseDuration},`;
-    }
-  }
-
-  // Simpler approach: use concat filter with silence generator
   const args = [
-    ...inputs,
+    '-i', files[0],
+    '-i', files[1],
     '-filter_complex',
-    `[0:a]apad=pad_dur=${pauseDuration}[a0];[a0][1:a]concat=n=2:v=0:a=1`,
+    `[0:a]adelay=${leadInMs}|${leadInMs},apad=pad_dur=${pauseDuration}[a0];[a0][1:a]concat=n=2:v=0:a=1`,
     '-y',
     outputPath,
   ];
@@ -111,8 +96,9 @@ export async function generateSpeech(text, outputPath) {
   const normalPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_normal.mp3');
   await generateClip(text, normalPath, voice, normalSpeed);
 
-  // Concatenate: slow + pause + normal
-  await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration);
+  // Concatenate: lead-in silence + slow + pause + normal
+  const leadIn = config.audioLeadIn || 0.4;
+  await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration, leadIn);
 
   // Clean up temp files
   await unlink(slowPath);
