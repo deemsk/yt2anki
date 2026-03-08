@@ -80,7 +80,7 @@ export async function createNote({ german, ipa, russian, audioFilename, context 
   // Format front: Audio + optional context (audio-first for comprehension)
   let front = `[sound:${audioFilename}]`;
   if (context) {
-    front += `<br>${context}`;
+    front += `<br>Context: ${context}`;
   }
 
   // Format back: German + IPA + Russian

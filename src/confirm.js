@@ -196,6 +196,9 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
 
   console.log();
 
+  // Ask for context first (shown below card preview)
+  const context = cardData.context || await askContext();
+
   const action = await askAction(!!audioPath);
 
   if (action === 'listen' && audioPath) {
@@ -205,12 +208,11 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
     } catch (err) {
       console.log(chalk.red(`  Could not play audio: ${err.message}`));
     }
-    // After listening, ask again (no auto-play)
-    return confirmCard(cardData, chalk, similarCards, audioPath, false);
+    // After listening, ask again (no auto-play, keep context)
+    return confirmCard({ ...cardData, context }, chalk, similarCards, audioPath, false);
   }
 
   if (action === 'add') {
-    const context = await askContext();
     const addReversed = await askReversed();
     return { confirmed: true, data: { ...cardData, context }, addReversed };
   }
@@ -227,6 +229,6 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
     return { confirmed: false, dismissed: true };
   }
 
-  // Recursively confirm edited data (no auto-play after edit)
-  return confirmCard(edited, chalk, similarCards, audioPath, false);
+  // Recursively confirm edited data (no auto-play after edit, preserve context)
+  return confirmCard({ ...edited, context }, chalk, similarCards, audioPath, false);
 }
