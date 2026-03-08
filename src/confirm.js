@@ -1,24 +1,56 @@
 import { createInterface } from 'readline';
 import { writeFile, readFile, unlink } from 'fs/promises';
 import { join } from 'path';
-import { tmpdir } from 'os';
+import { tmpdir, platform } from 'os';
 import { spawn } from 'child_process';
 
-// Ask for action: add, edit, or dismiss
-export async function askAction() {
+/**
+ * Play audio file using system player
+ */
+export async function playAudio(audioPath) {
+  const os = platform();
+  let cmd, args;
+
+  if (os === 'darwin') {
+    cmd = 'afplay';
+    args = [audioPath];
+  } else if (os === 'win32') {
+    cmd = 'cmd';
+    args = ['/c', 'start', '', audioPath];
+  } else {
+    // Linux - try common players
+    cmd = 'aplay';
+    args = [audioPath];
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: 'ignore' });
+    child.on('close', resolve);
+    child.on('error', reject);
+  });
+}
+
+// Ask for action: add, edit, listen, or dismiss
+export async function askAction(hasAudio = false) {
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
+  const prompt = hasAudio
+    ? '[A]dd, [E]dit, [L]isten, or [D]ismiss? '
+    : '[A]dd, [E]dit, or [D]ismiss? ';
+
   return new Promise((resolve) => {
-    rl.question('[A]dd, [E]dit, or [D]ismiss? ', (answer) => {
+    rl.question(prompt, (answer) => {
       rl.close();
       const normalized = answer.trim().toLowerCase();
       if (normalized === '' || normalized === 'a' || normalized === 'add') {
         resolve('add');
       } else if (normalized === 'e' || normalized === 'edit') {
         resolve('edit');
+      } else if (normalized === 'l' || normalized === 'listen') {
+        resolve('listen');
       } else {
         resolve('dismiss');
       }
@@ -109,24 +141,22 @@ russian: ${cardData.russian}
   return result;
 }
 
-// Format CEFR display with signals
-function formatCEFR(cefr, chalk) {
+// Format CEFR display
+function formatCEFR(cefr) {
   if (!cefr) return '';
-  const { level, signals } = cefr;
-  const details = `freq: ${signals.frequency}, gram: ${signals.grammar}, llm: ${signals.llm}`;
-  return `${level} (${details})`;
+  return cefr.level;
 }
 
 // Show card preview and ask for confirmation
 // Returns: { confirmed: true, data } or { confirmed: false, dismissed: true } or loops for edit
-export async function confirmCard(cardData, chalk, similarCards = null) {
+export async function confirmCard(cardData, chalk, similarCards = null, audioPath = null) {
   console.log();
   console.log(chalk.bold('Card preview:'));
   console.log(`  German:  ${cardData.german}`);
   console.log(`  IPA:     ${cardData.ipa}`);
   console.log(`  Russian: ${cardData.russian}`);
   if (cardData.cefr) {
-    console.log(`  CEFR:    ${formatCEFR(cardData.cefr, chalk)}`);
+    console.log(`  CEFR:    ${formatCEFR(cardData.cefr)}`);
   }
 
   if (similarCards && similarCards.length > 0) {
@@ -140,7 +170,18 @@ export async function confirmCard(cardData, chalk, similarCards = null) {
 
   console.log();
 
-  const action = await askAction();
+  const action = await askAction(!!audioPath);
+
+  if (action === 'listen' && audioPath) {
+    console.log(chalk.dim('  Playing audio...'));
+    try {
+      await playAudio(audioPath);
+    } catch (err) {
+      console.log(chalk.red(`  Could not play audio: ${err.message}`));
+    }
+    // After listening, ask again
+    return confirmCard(cardData, chalk, similarCards, audioPath);
+  }
 
   if (action === 'add') {
     const addReversed = await askReversed();
@@ -160,5 +201,5 @@ export async function confirmCard(cardData, chalk, similarCards = null) {
   }
 
   // Recursively confirm edited data
-  return confirmCard(edited, chalk);
+  return confirmCard(edited, chalk, similarCards, audioPath);
 }

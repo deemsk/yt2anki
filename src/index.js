@@ -563,8 +563,8 @@ async function processTextMode(data, options, spinner, dryRun) {
   const similarCards = await findSimilarCards(german);
   spinner.stop();
 
-  // Interactive confirmation
-  const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
+  // Interactive confirmation (with audio preview)
+  const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, audioPath);
 
   if (result.dismissed) {
     console.log(chalk.yellow('Card dismissed'));
@@ -651,8 +651,8 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     const similarCards = await findSimilarCards(german);
     spinner.stop();
 
-    // Interactive confirmation
-    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
+    // Interactive confirmation (with audio preview)
+    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, aacPath);
 
     if (result.dismissed) {
       console.log(chalk.yellow(`${progress} Card dismissed\n`));
@@ -761,8 +761,8 @@ async function processTextBatch(options) {
     const similarCards = await findSimilarCards(german);
     spinner.stop();
 
-    // Interactive confirmation
-    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards);
+    // Interactive confirmation (with audio preview)
+    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, audioPath);
 
     if (result.dismissed) {
       console.log(chalk.yellow(`${progress} Card dismissed\n`));
