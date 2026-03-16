@@ -289,11 +289,12 @@ async function checkSetup() {
     }
   }
 
-  // Check OpenAI
-  if (process.env.OPENAI_API_KEY) {
-    console.log(chalk.green('✓ OPENAI_API_KEY set'));
+  // Check OpenAI using the same resolution logic as runtime code:
+  // prefer config, then fall back to the environment variable.
+  if (config.openaiApiKey || process.env.OPENAI_API_KEY) {
+    console.log(chalk.green('✓ OpenAI API key configured'));
   } else {
-    console.log(chalk.red('✗ OPENAI_API_KEY not set'));
+    console.log(chalk.red(`✗ OpenAI API key not set (add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY)`));
   }
 
   // Check AnkiConnect
