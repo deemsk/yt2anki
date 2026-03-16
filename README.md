@@ -20,10 +20,17 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 
 ## Card Format
 
-| Front | Back |
-|-------|------|
-| [audio] German phrase | Russian translation |
-| IPA transcription | |
+yt2anki now creates multiple card types from the same source sentence, depending on the analysis result.
+
+| Card Type | Front | Back |
+|-----------|-------|------|
+| Comprehension | `[audio]` + optional context | German + IPA + Russian |
+| Dialogue | `[audio]` + `Antworte` | German reply, optional Russian hint |
+| Production | Russian + optional situation | German + IPA + `[audio]` |
+| Pattern | Pattern label + base example | Multiple example sentences + Russian gloss |
+| Cloze | German sentence with blank + Russian + optional hint | Answer + full German sentence |
+
+The default and most common card is the comprehension card, which is audio-first on the front.
 
 ## Prerequisites
 
@@ -61,7 +68,8 @@ npm run init
 open ~/.yt2anki.json
 
 # Verify setup
-npm test
+npm run check
+npm run test:integration
 ```
 
 ## Usage
@@ -105,7 +113,9 @@ npm run clip -- -n    # Dry run (preview only)
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
 | `npm run process -- <file.json>` | Process markers JSON file |
-| `npm test` | Test all integrations |
+| `npm run check` | Quick check of installed tools, API key, and AnkiConnect |
+| `npm run test:integration` | Test all integrations end-to-end |
+| `npm test` | Run Jest tests |
 | `npm run config` | Show current configuration |
 | `npm run init` | Create config file |
 | `npm run bookmarklet` | Copy video bookmarklet to clipboard |
@@ -130,12 +140,17 @@ Edit `~/.yt2anki.json`:
   "ankiNoteType": "Basic (optional reversed card)",
   "openaiModel": "gpt-4o-mini",
   "whisperModel": "base",
-  "ttsVoice": "nova",
+  "ttsVoices": ["nova", "onyx"],
+  "ttsSpeed": 0.7,
+  "ttsPause": 1.0,
+  "audioLeadIn": 0.4,
   "dataDir": "/tmp/yt2anki"
 }
 ```
 
-TTS voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`
+`ttsVoices` controls which OpenAI TTS voices are rotated when generating speech. Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
+
+`ttsVoice` still exists in the defaults for backward compatibility, but current speech generation reads `ttsVoices`.
 
 ## Tech Stack
 
