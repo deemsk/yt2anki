@@ -4,7 +4,10 @@ import { join } from 'path';
 import { config } from './config.js';
 import { extractVideoId } from './downloader.js';
 
-// Download and parse German subtitles for a YouTube video
+/**
+ * Download German subtitles for a YouTube video.
+ * @returns {Promise<Array<{start: number, end: number, text: string}>|null>}
+ */
 export async function fetchSubtitles(url) {
   const videoId = extractVideoId(url);
   const outputTemplate = join(config.dataDir, `subs_${videoId}`);
@@ -25,12 +28,12 @@ export async function fetchSubtitles(url) {
     for (const filePath of possibleFiles) {
       try {
         const content = await readFile(filePath, 'utf-8');
-        const text = parseSrt(content);
+        const entries = parseSrt(content);
 
         // Clean up file
         try { await unlink(filePath); } catch {}
 
-        return text;
+        return entries;
       } catch {
         // File doesn't exist, try next
       }
@@ -42,51 +45,51 @@ export async function fetchSubtitles(url) {
   }
 }
 
-// Parse SRT format and extract plain text
+// Parse SRT format into timed entries
 function parseSrt(content) {
-  const lines = content.split('\n');
-  const textLines = [];
+  const entries = [];
+  const blocks = content.trim().split(/\n\s*\n/);
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
 
-    // Skip empty lines
-    if (!trimmed) continue;
+    // Find the timestamp line
+    const tsLine = lines.find(l => /^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/.test(l.trim()));
+    if (!tsLine) continue;
 
-    // Skip sequence numbers (just digits)
-    if (/^\d+$/.test(trimmed)) continue;
+    const [startStr, endStr] = tsLine.split('-->').map(s => s.trim());
+    const start = srtTimeToSeconds(startStr);
+    const end = srtTimeToSeconds(endStr);
 
-    // Skip timestamp lines (00:00:00,000 --> 00:00:00,000)
-    if (/^\d{2}:\d{2}:\d{2},\d{3}\s*-->\s*\d{2}:\d{2}:\d{2},\d{3}$/.test(trimmed)) continue;
+    // Remaining lines after the timestamp are the text
+    const textLines = lines
+      .filter(l => l !== tsLine && !/^\d+$/.test(l.trim()))
+      .map(l => l.replace(/<[^>]+>/g, '').replace(/\[.*?\]/g, '').trim())
+      .filter(Boolean);
 
-    // This is actual text - clean up HTML tags and add
-    const cleanText = trimmed
-      .replace(/<[^>]+>/g, '') // Remove HTML tags
-      .replace(/\[.*?\]/g, '') // Remove [Music] etc.
-      .trim();
-
-    if (cleanText) {
-      textLines.push(cleanText);
-    }
+    const text = textLines.join(' ');
+    if (text) entries.push({ start, end, text });
   }
 
-  // Join and deduplicate consecutive identical lines
-  const result = [];
-  let prev = '';
-  for (const line of textLines) {
-    if (line !== prev) {
-      result.push(line);
-      prev = line;
-    }
-  }
-
-  return result.join(' ');
+  // Deduplicate consecutive identical lines (common in auto-generated subs)
+  return entries.filter((e, i) => i === 0 || e.text !== entries[i - 1].text);
 }
 
-// Get subtitle context for a specific time range
-export function getSubtitleContext(fullText, startTime, endTime) {
-  // For now, return the full subtitle text as context
-  // Could be optimized to extract only relevant portion based on timestamps
-  // but full context is usually fine for the LLM
-  return fullText;
+function srtTimeToSeconds(ts) {
+  const [h, m, s] = ts.replace(',', '.').split(':').map(Number);
+  return h * 3600 + m * 60 + s;
+}
+
+/**
+ * Extract CC text overlapping a clip's time window.
+ * @param {Array<{start: number, end: number, text: string}>} entries
+ * @param {number} startTime - clip start in seconds
+ * @param {number} endTime - clip end in seconds
+ * @returns {string|null}
+ */
+export function getSubtitleContext(entries, startTime, endTime) {
+  if (!entries) return null;
+  const relevant = entries.filter(e => e.end > startTime && e.start < endTime);
+  if (!relevant.length) return null;
+  return relevant.map(e => e.text).join(' ');
 }

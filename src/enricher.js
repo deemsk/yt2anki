@@ -18,10 +18,11 @@ function getClient() {
 /**
  * Get corrected German text, IPA transcription, and Russian translation
  * @param {string} germanText - German word or sentence (possibly with errors)
- * @param {string} [subtitleContext] - Optional subtitle context from the video
+ * @param {string} [subtitleContext] - Optional full subtitle context from the video
+ * @param {string} [ccHint] - Optional CC text for this specific clip (authoritative reference)
  * @returns {Promise<{german: string, ipa: string, russian: string}>}
  */
-export async function enrich(germanText, subtitleContext = null) {
+export async function enrich(germanText, subtitleContext = null, ccHint = null) {
   const client = getClient();
 
   let systemPrompt = `You are a German language expert. For the given German text:
@@ -39,8 +40,12 @@ Examples of corrections:
 - "wie heisst du" → "Wie heißt du?"
 - "ich bin student" → "Ich bin Student."`;
 
+  if (ccHint) {
+    systemPrompt += `\n\nClosed captions for this clip (authoritative — prefer this over the whisper transcription when they conflict):\n"${ccHint}"`;
+  }
+
   if (subtitleContext) {
-    systemPrompt += `\n\nVideo subtitle context (use this to better understand and correct the text):\n${subtitleContext.slice(0, 2000)}`;
+    systemPrompt += `\n\nBroader video subtitle context:\n${subtitleContext.slice(0, 2000)}`;
   }
 
   const response = await client.chat.completions.create({

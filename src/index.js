@@ -9,9 +9,48 @@ import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
-import { confirmCard } from './confirm.js';
+import { confirmCard, confirmCardSet } from './confirm.js';
+import { analyzeSentence, selectCards } from './analyzer.js';
+import { generateCards } from './cardTypes.js';
+
+/**
+ * Session state for tracking accepted units and pattern usage.
+ * Used to throttle pattern cards and prevent fatigue.
+ */
+class SessionState {
+  constructor() {
+    this.acceptedUnitsSinceLastPattern = 0;
+    this.recentPatternFamilies = [];
+  }
+
+  /** Record that a unit was accepted (passed gate and cards created) */
+  recordAcceptedUnit() {
+    this.acceptedUnitsSinceLastPattern++;
+  }
+
+  /** Record that a pattern card was used */
+  recordPatternUsed(family) {
+    this.recentPatternFamilies.push(family);
+    // Keep only last 10 families
+    if (this.recentPatternFamilies.length > 10) {
+      this.recentPatternFamilies.shift();
+    }
+    this.acceptedUnitsSinceLastPattern = 0;
+  }
+
+  /** Check if a pattern card should be allowed */
+  shouldAllowPattern(family, strength) {
+    if (strength !== 'strong') return false;
+    if (this.acceptedUnitsSinceLastPattern < 6) return false;
+    if (this.recentPatternFamilies.includes(family)) return false;
+    return true;
+  }
+}
+
+// Global session state (reset each CLI invocation)
+const sessionState = new SessionState();
 
 program
   .name('yt2anki')
@@ -522,7 +561,7 @@ async function processTextMode(data, options, spinner, dryRun) {
   spinner.succeed(`Text mode: "${data.german.slice(0, 50)}${data.german.length > 50 ? '...' : ''}"`);
 
   if (dryRun) {
-    console.log(chalk.yellow('\n⚡ DRY RUN MODE - No card will be created\n'));
+    console.log(chalk.yellow('\n⚡ DRY RUN MODE - No cards will be created\n'));
   } else {
     spinner.start('Checking AnkiConnect...');
     if (!await checkConnection()) {
@@ -537,24 +576,54 @@ async function processTextMode(data, options, spinner, dryRun) {
   const { german, ipa, russian, cefr } = await enrich(data.german);
   spinner.succeed('Enriched');
 
+  if (data.german !== german) {
+    console.log(chalk.dim(`   (corrected from: "${data.german}")`));
+  }
+
+  // Analyze sentence for card types
+  spinner.start('Analyzing for card types...');
+  const enrichedData = { german, ipa, russian, cefr };
+  const analysis = await analyzeSentence(enrichedData, sessionState);
+  spinner.succeed('Analysis complete');
+
+  // Select cards based on analysis
+  const selection = selectCards(analysis, sessionState);
+
+  // Handle rejection
+  if (selection.rejected) {
+    console.log(chalk.yellow(`\nSentence rejected: ${selection.reason}`));
+    return;
+  }
+
+  // Handle split suggestion
+  if (selection.needsSplit) {
+    console.log(chalk.yellow('\nSentence should be split:'));
+    selection.splits.forEach((part, i) => {
+      console.log(chalk.dim(`  ${i + 1}. ${part}`));
+    });
+    console.log(chalk.dim('\nPlease process each part separately.'));
+    return;
+  }
+
+  // Generate audio
   const timestamp = Date.now();
+  const sourceId = `${timestamp}`;
   const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
 
   spinner.start('Generating voice-over...');
   await generateSpeech(german, audioPath);
   spinner.succeed('Voice-over generated');
 
-  if (data.german !== german) {
-    console.log(chalk.dim(`   (corrected from: "${data.german}")`));
-  }
+  // Generate cards
+  const cards = generateCards(enrichedData, selection.cards, sourceId);
 
   if (dryRun) {
     console.log();
-    console.log(chalk.dim(`   German:  ${german}`));
-    console.log(chalk.dim(`   IPA:     ${ipa}`));
-    console.log(chalk.dim(`   Russian: ${russian}`));
-    console.log(chalk.dim(`   CEFR:    ${cefr.level}`));
-    console.log(chalk.yellow.bold('\n⚡ DRY RUN: Card previewed'));
+    console.log(chalk.bold(`Card set (${cards.length} cards):`));
+    cards.forEach((card, i) => {
+      console.log(chalk.dim(`  ${i + 1}. ${card.label}: ${card.reason}`));
+    });
+    console.log(chalk.yellow.bold('\n⚡ DRY RUN: Cards previewed'));
     return;
   }
 
@@ -563,28 +632,31 @@ async function processTextMode(data, options, spinner, dryRun) {
   const similarCards = await findSimilarCards(german);
   spinner.stop();
 
-  // Interactive confirmation (with audio preview)
-  const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, audioPath);
+  // Interactive confirmation (with card set preview)
+  const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, audioPath);
 
   if (result.dismissed) {
-    console.log(chalk.yellow('Card dismissed'));
+    console.log(chalk.yellow('Cards dismissed'));
     return;
   }
 
-  spinner.start('Creating Anki card...');
+  spinner.start(`Creating ${result.cards.length} Anki cards...`);
   const audioFilename = await storeAudio(audioPath);
-  await createNote({
-    german: result.data.german,
-    ipa: result.data.ipa,
-    russian: result.data.russian,
-    audioFilename,
-    context: result.data.context,
-    addReversed: result.addReversed,
-    cefr: result.data.cefr,
+  const noteIds = await createNotes(result.cards, audioFilename, {
+    sourceId,
+    cefr,
+    deck: options.deck,
   });
-  spinner.succeed('Card created!');
+  spinner.succeed(`Created ${noteIds.length} cards!`);
 
-  console.log(chalk.green.bold(`\n✓ Created card in "${options.deck}"`));
+  // Update session state
+  sessionState.recordAcceptedUnit();
+  const patternCard = result.cards.find(c => c.type === 'pattern');
+  if (patternCard) {
+    sessionState.recordPatternUsed(patternCard.reason);
+  }
+
+  console.log(chalk.green.bold(`\n✓ Created ${noteIds.length} cards in "${options.deck}"`));
 }
 
 async function processVideoMode(markers, options, spinner, dryRun) {
@@ -607,16 +679,17 @@ async function processVideoMode(markers, options, spinner, dryRun) {
   spinner.succeed(`Downloaded: ${audioPath}`);
 
   // Fetch subtitles for context
-  const { fetchSubtitles } = await import('./subtitles.js');
+  const { fetchSubtitles, getSubtitleContext } = await import('./subtitles.js');
   spinner.start('Fetching subtitles for context...');
-  const subtitleContext = await fetchSubtitles(markers.url);
-  if (subtitleContext) {
-    spinner.succeed(`Subtitles fetched (${subtitleContext.length} chars)`);
+  const subtitleEntries = await fetchSubtitles(markers.url);
+  if (subtitleEntries) {
+    spinner.succeed(`Subtitles fetched (${subtitleEntries.length} entries)`);
   } else {
     spinner.warn('No German subtitles available');
   }
 
-  let cardsCreated = 0;
+  let totalCardsCreated = 0;
+  let clipsProcessed = 0;
 
   for (let i = 0; i < markers.clips.length; i++) {
     const clip = markers.clips[i];
@@ -626,24 +699,57 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     const { wavPath, aacPath } = await cutClip(audioPath, clip.start, clip.end, i + 1);
     spinner.succeed(`${progress} Cut: ${clip.start.toFixed(1)}s - ${clip.end.toFixed(1)}s`);
 
+    const ccHint = getSubtitleContext(subtitleEntries, clip.start, clip.end);
+    if (ccHint) {
+      console.log(chalk.dim(`   CC: "${ccHint}"`));
+    }
+
     spinner.start(`${progress} Transcribing...`);
-    const rawGerman = await transcribe(wavPath);
+    const rawGerman = await transcribe(wavPath, ccHint);
     spinner.succeed(`${progress} "${rawGerman}"`);
 
     spinner.start(`${progress} Getting IPA and translation...`);
-    const { german, ipa, russian, cefr } = await enrich(rawGerman, subtitleContext);
+    const subtitleContext = subtitleEntries ? subtitleEntries.map(e => e.text).join(' ') : null;
+    const { german, ipa, russian, cefr } = await enrich(rawGerman, subtitleContext, ccHint);
     spinner.succeed(`${progress} Enriched`);
 
     if (rawGerman !== german) {
       console.log(chalk.dim(`   (corrected from: "${rawGerman}")`));
     }
 
+    // Analyze sentence for card types
+    spinner.start(`${progress} Analyzing...`);
+    const enrichedData = { german, ipa, russian, cefr };
+    const analysis = await analyzeSentence(enrichedData, sessionState);
+    const selection = selectCards(analysis, sessionState);
+    spinner.succeed(`${progress} Analysis complete`);
+
+    // Handle rejection
+    if (selection.rejected) {
+      console.log(chalk.yellow(`${progress} Rejected: ${selection.reason}\n`));
+      continue;
+    }
+
+    // Handle split suggestion
+    if (selection.needsSplit) {
+      console.log(chalk.yellow(`${progress} Should be split:`));
+      selection.splits.forEach((part, idx) => {
+        console.log(chalk.dim(`      ${idx + 1}. ${part}`));
+      });
+      console.log();
+      continue;
+    }
+
+    // Generate cards
+    const timestamp = Date.now();
+    const sourceId = `${timestamp}`;
+    const cards = generateCards(enrichedData, selection.cards, sourceId);
+
     if (dryRun) {
-      console.log(chalk.dim(`   German:  ${german}`));
-      console.log(chalk.dim(`   IPA:     ${ipa}`));
-      console.log(chalk.dim(`   Russian: ${russian}`));
-      console.log(chalk.dim(`   CEFR:    ${cefr.level}\n`));
-      cardsCreated++;
+      console.log(chalk.dim(`   ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`));
+      console.log();
+      totalCardsCreated += cards.length;
+      clipsProcessed++;
       continue;
     }
 
@@ -652,33 +758,38 @@ async function processVideoMode(markers, options, spinner, dryRun) {
     const similarCards = await findSimilarCards(german);
     spinner.stop();
 
-    // Interactive confirmation (with audio preview)
-    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, aacPath);
+    // Interactive confirmation (with card set preview)
+    const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, aacPath);
 
     if (result.dismissed) {
-      console.log(chalk.yellow(`${progress} Card dismissed\n`));
+      console.log(chalk.yellow(`${progress} Cards dismissed\n`));
       continue;
     }
 
-    spinner.start(`${progress} Creating Anki card...`);
+    spinner.start(`${progress} Creating ${result.cards.length} Anki cards...`);
     const audioFilename = await storeAudio(aacPath);
-    await createNote({
-      german: result.data.german,
-      ipa: result.data.ipa,
-      russian: result.data.russian,
-      audioFilename,
-      context: result.data.context,
-      addReversed: result.addReversed,
-      cefr: result.data.cefr,
+    const noteIds = await createNotes(result.cards, audioFilename, {
+      sourceId,
+      cefr,
+      deck: options.deck,
     });
-    spinner.succeed(`${progress} Card created!\n`);
-    cardsCreated++;
+    spinner.succeed(`${progress} Created ${noteIds.length} cards!\n`);
+
+    // Update session state
+    sessionState.recordAcceptedUnit();
+    const patternCard = result.cards.find(c => c.type === 'pattern');
+    if (patternCard) {
+      sessionState.recordPatternUsed(patternCard.reason);
+    }
+
+    totalCardsCreated += noteIds.length;
+    clipsProcessed++;
   }
 
   if (dryRun) {
-    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${markers.clips.length} cards previewed`));
+    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${totalCardsCreated} cards from ${clipsProcessed} clips previewed`));
   } else {
-    console.log(chalk.green.bold(`✓ Created ${cardsCreated} of ${markers.clips.length} cards in "${options.deck}"`));
+    console.log(chalk.green.bold(`✓ Created ${totalCardsCreated} cards from ${clipsProcessed} clips in "${options.deck}"`));
   }
 }
 
@@ -730,7 +841,8 @@ async function processTextBatch(options) {
     spinner.succeed('AnkiConnect ready\n');
   }
 
-  let cardsCreated = 0;
+  let totalCardsCreated = 0;
+  let phrasesProcessed = 0;
 
   for (let i = 0; i < phrases.length; i++) {
     const phrase = phrases[i];
@@ -744,51 +856,85 @@ async function processTextBatch(options) {
       console.log(chalk.dim(`   (corrected from: "${phrase}")`));
     }
 
-    if (dryRun) {
-      console.log(chalk.dim(`   IPA:     ${ipa}`));
-      console.log(chalk.dim(`   Russian: ${russian}`));
-      console.log(chalk.dim(`   CEFR:    ${cefr.level}\n`));
-      cardsCreated++;
+    // Analyze sentence for card types
+    spinner.start(`${progress} Analyzing...`);
+    const enrichedData = { german, ipa, russian, cefr };
+    const analysis = await analyzeSentence(enrichedData, sessionState);
+    const selection = selectCards(analysis, sessionState);
+    spinner.succeed(`${progress} Analysis complete`);
+
+    // Handle rejection
+    if (selection.rejected) {
+      console.log(chalk.yellow(`${progress} Rejected: ${selection.reason}\n`));
       continue;
     }
 
-    spinner.start(`${progress} Generating voice-over...`);
+    // Handle split suggestion
+    if (selection.needsSplit) {
+      console.log(chalk.yellow(`${progress} Should be split:`));
+      selection.splits.forEach((part, idx) => {
+        console.log(chalk.dim(`      ${idx + 1}. ${part}`));
+      });
+      console.log();
+      continue;
+    }
+
+    // Generate audio
     const timestamp = Date.now();
+    const sourceId = `${timestamp}`;
     const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
+
+    spinner.start(`${progress} Generating voice-over...`);
     await generateSpeech(german, audioPath);
     spinner.succeed(`${progress} Voice-over ready`);
+
+    // Generate cards
+    const cards = generateCards(enrichedData, selection.cards, sourceId);
+
+    if (dryRun) {
+      console.log(chalk.dim(`   ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`));
+      console.log();
+      totalCardsCreated += cards.length;
+      phrasesProcessed++;
+      continue;
+    }
 
     // Check for similar cards
     spinner.start(`${progress} Checking for similar cards...`);
     const similarCards = await findSimilarCards(german);
     spinner.stop();
 
-    // Interactive confirmation (with audio preview)
-    const result = await confirmCard({ german, ipa, russian, cefr }, chalk, similarCards, audioPath);
+    // Interactive confirmation (with card set preview)
+    const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, audioPath);
 
     if (result.dismissed) {
-      console.log(chalk.yellow(`${progress} Card dismissed\n`));
+      console.log(chalk.yellow(`${progress} Cards dismissed\n`));
       continue;
     }
 
-    spinner.start(`${progress} Creating Anki card...`);
+    spinner.start(`${progress} Creating ${result.cards.length} Anki cards...`);
     const audioFilename = await storeAudio(audioPath);
-    await createNote({
-      german: result.data.german,
-      ipa: result.data.ipa,
-      russian: result.data.russian,
-      audioFilename,
-      context: result.data.context,
-      addReversed: result.addReversed,
-      cefr: result.data.cefr,
+    const noteIds = await createNotes(result.cards, audioFilename, {
+      sourceId,
+      cefr,
+      deck: options.deck,
     });
-    spinner.succeed(`${progress} Card created!\n`);
-    cardsCreated++;
+    spinner.succeed(`${progress} Created ${noteIds.length} cards!\n`);
+
+    // Update session state
+    sessionState.recordAcceptedUnit();
+    const patternCard = result.cards.find(c => c.type === 'pattern');
+    if (patternCard) {
+      sessionState.recordPatternUsed(patternCard.reason);
+    }
+
+    totalCardsCreated += noteIds.length;
+    phrasesProcessed++;
   }
 
   if (dryRun) {
-    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${phrases.length} cards previewed`));
+    console.log(chalk.yellow.bold(`⚡ DRY RUN: ${totalCardsCreated} cards from ${phrasesProcessed} phrases previewed`));
   } else {
-    console.log(chalk.green.bold(`✓ Created ${cardsCreated} of ${phrases.length} cards in "${options.deck}"`));
+    console.log(chalk.green.bold(`✓ Created ${totalCardsCreated} cards from ${phrasesProcessed} phrases in "${options.deck}"`));
   }
 }

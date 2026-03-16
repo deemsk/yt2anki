@@ -28,9 +28,10 @@ export function findModelPath() {
 /**
  * Transcribe audio using whisper-cli
  * @param {string} wavPath - Path to WAV file (16kHz mono)
+ * @param {string} [ccHint] - Optional CC text for this clip window (used as whisper prompt)
  * @returns {Promise<string>} - Transcribed German text
  */
-export async function transcribe(wavPath) {
+export async function transcribe(wavPath, ccHint = null) {
   const modelPath = findModelPath();
   if (!modelPath) {
     throw new Error(`Whisper model not found. Download with: whisper-cpp-download-ggml-model ${config.whisperModel}`);
@@ -44,6 +45,8 @@ export async function transcribe(wavPath) {
       '-l', 'de',         // German language
       '-otxt',            // Output as text file
       '-of', outputBase,  // Output file base name
+      '--beam-size', '5', // Beam search for more accurate transcription
+      '--prompt', ccHint || 'Ein Gespräch auf Deutsch.',  // CC text (or fallback) to reduce hallucinations
       wavPath,            // Input file (positional)
     ];
 
