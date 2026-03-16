@@ -43,7 +43,12 @@ GATE RULES - Reject sentences that are:
 
 CARD TYPES:
 - Comprehension: Default listening card (audio front, text back)
-- Dialogue: For conversational prompts with short natural responses (NOT rhetorical, NOT open-ended)
+- Dialogue: ONLY when ALL of these are true:
+  1. The sentence IS a question or conversational opener (not an answer)
+  2. The response is something a learner would genuinely memorize and reuse — not a throwaway or situational reply
+  3. The exchange is a common social scenario (greetings, opinions, invitations, preferences) — NOT situational navigation ("Where's the traffic light?"), NOT rhetorical, NOT open-ended
+  4. The response does NOT just echo or paraphrase the question
+  Set hasShortNaturalResponse=false and dialogueResponse=null if no genuinely useful response exists.
 - Production: High-value phrases learner will actually speak in real situations
 - Pattern: Strong reusable grammatical structures (only if strong, with 3+ distinct useful examples)
 - Cloze: Grammar features where blank is non-obvious and teaches reusable pattern
@@ -58,6 +63,7 @@ RESPOND IN JSON:
   "splitSuggestion": ["part1", "part2"] or null,
 
   "isConversationalPrompt": true/false,
+  "isAnswer": true/false,
   "hasShortNaturalResponse": true/false,
   "dialogueResponse": {"german": "...", "russian": "..."} or null,
 
@@ -86,7 +92,7 @@ VALUE SCORING GUIDE (0-10):
 - 1-3: Limited use, specific contexts
 - 0: Not applicable or not valuable
 
-For dialogue: High if prompt is common social situation with predictable response
+For dialogue: High (7+) ONLY if the exchange is a high-frequency social scenario with a response the learner will reuse often (e.g. "Wie geht's?" → "Gut, danke!"). Score 0 for situational, navigational, or one-off questions.
 For production: High if learner will say this frequently (greetings, opinions, needs)
 For pattern: High if structure is reusable across many contexts (only rate if strength is "strong")
 For cloze: High if grammar point is tricky but common (articles, prepositions, verb forms)`;
@@ -136,8 +142,8 @@ export function selectCards(analysis, sessionState) {
   // 2. Build candidate pool with values
   const candidates = [];
 
-  // Dialogue card
-  if (analysis.isConversationalPrompt && analysis.hasShortNaturalResponse && analysis.dialogueResponse) {
+  // Dialogue card (min value 7 — only high-frequency social exchanges)
+  if (analysis.isConversationalPrompt && !analysis.isAnswer && analysis.hasShortNaturalResponse && analysis.dialogueResponse && analysis.dialogueValue >= 7) {
     candidates.push({
       type: 'dialogue',
       reason: 'conversational prompt',
