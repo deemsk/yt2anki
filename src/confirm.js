@@ -3,6 +3,7 @@ import { writeFile, readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir, platform } from 'os';
 import { spawn } from 'child_process';
+import { CARD_LABELS } from './cardTypes.js';
 
 /**
  * Play audio file using system player
@@ -161,6 +162,224 @@ russian: ${cardData.russian}
 function formatCEFR(cefr) {
   if (!cefr) return '';
   return cefr.level;
+}
+
+/**
+ * Format card front for preview display
+ */
+function formatCardFront(card) {
+  switch (card.type) {
+    case 'comprehension':
+      let front = '[audio]';
+      if (card.front.context) front += ` (${card.front.context})`;
+      return front;
+    case 'dialogue':
+      return `[audio] ${card.front.prompt}`;
+    case 'production':
+      let prodFront = card.front.russian;
+      if (card.front.situation) prodFront += ` (${card.front.situation})`;
+      return prodFront;
+    case 'pattern':
+      return `${card.front.pattern}: ${card.front.baseExample}`;
+    case 'cloze':
+      return `${card.front.sentence}`;
+    default:
+      return '[audio]';
+  }
+}
+
+/**
+ * Format card back for preview display
+ */
+function formatCardBack(card) {
+  switch (card.type) {
+    case 'comprehension':
+      return `${card.back.german} / ${card.back.russian}`;
+    case 'dialogue':
+      let back = card.back.german;
+      if (card.back.russian) back += ` / ${card.back.russian}`;
+      return back;
+    case 'production':
+      return `${card.back.german} ${card.back.ipa}`;
+    case 'pattern':
+      return card.back.examples.slice(0, 3).join(' | ');
+    case 'cloze':
+      return `${card.back.answer} - ${card.back.german}`;
+    default:
+      return '';
+  }
+}
+
+/**
+ * Ask for card set action with toggle support.
+ * Returns: 'add', 'toggle', 'listen', 'dismiss', or a number (card to toggle)
+ */
+async function askCardSetAction(enabledCount, totalCount, hasAudio = false) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const prompt = hasAudio
+    ? `[A]dd ${enabledCount}, [T]oggle #, [L]isten, [D]ismiss? `
+    : `[A]dd ${enabledCount}, [T]oggle #, [D]ismiss? `;
+
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      const normalized = answer.trim().toLowerCase();
+
+      if (normalized === '' || normalized === 'a' || normalized === 'add') {
+        resolve('add');
+      } else if (normalized === 'l' || normalized === 'listen') {
+        resolve('listen');
+      } else if (normalized === 'd' || normalized === 'dismiss') {
+        resolve('dismiss');
+      } else if (normalized.startsWith('t')) {
+        // Toggle specific card: t1, t2, toggle 1, etc.
+        const num = parseInt(normalized.replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num >= 1 && num <= totalCount) {
+          resolve({ toggle: num });
+        } else {
+          resolve('toggle'); // Invalid number, ask again
+        }
+      } else {
+        // Try parsing as just a number
+        const num = parseInt(normalized, 10);
+        if (!isNaN(num) && num >= 1 && num <= totalCount) {
+          resolve({ toggle: num });
+        } else {
+          resolve('dismiss');
+        }
+      }
+    });
+  });
+}
+
+/**
+ * Show card set preview and ask for confirmation.
+ * Supports toggling individual cards on/off.
+ *
+ * @param {Object[]} cards - Generated card objects
+ * @param {Object} data - Original enriched data (german, ipa, russian, cefr)
+ * @param {Object} chalk - Chalk instance for coloring
+ * @param {Object[]} similarCards - Similar existing cards
+ * @param {string} audioPath - Path to audio file
+ * @param {boolean} autoPlay - Whether to auto-play audio
+ * @returns {Object} { confirmed, cards, dismissed }
+ */
+export async function confirmCardSet(cards, data, chalk, similarCards = null, audioPath = null, autoPlay = true) {
+  // Track which cards are enabled (all enabled by default)
+  const enabled = cards.map(() => true);
+
+  const showPreview = async (playAudio = false) => {
+    console.log();
+
+    // Show sentence info
+    console.log(chalk.bold('Sentence:'), data.german);
+    console.log(chalk.dim(`${data.ipa}  ${data.russian}`));
+    if (data.cefr) {
+      console.log(chalk.dim(`CEFR: ${formatCEFR(data.cefr)}`));
+    }
+
+    // Show similar cards warning
+    if (similarCards && similarCards.length > 0) {
+      console.log();
+      console.log(chalk.yellow('Similar cards found:'));
+      for (const card of similarCards.slice(0, 3)) {
+        const color = card.similarity === 100 ? chalk.red : chalk.yellow;
+        console.log(color(`  ${card.similarity}% "${card.german}"`));
+      }
+    }
+
+    // Play audio if requested
+    if (playAudio && audioPath) {
+      console.log();
+      try {
+        await playAudio(audioPath);
+      } catch (err) {
+        console.log(chalk.red(`  Could not play audio: ${err.message}`));
+      }
+    }
+
+    // Show card set preview
+    const enabledCount = enabled.filter(Boolean).length;
+    console.log();
+    console.log(chalk.bold(`Card set preview (${enabledCount} of ${cards.length} cards):`));
+    console.log();
+
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const num = i + 1;
+      const status = enabled[i] ? chalk.green('✓') : chalk.dim('○');
+      const label = enabled[i] ? chalk.bold(card.label) : chalk.dim(card.label);
+
+      console.log(`${status} [${num}] ${label}`);
+      if (card.reason && card.reason !== 'default') {
+        console.log(chalk.dim(`    Why:   ${card.reason}`));
+      }
+      console.log(chalk.dim(`    Front: ${formatCardFront(card)}`));
+      console.log(chalk.dim(`    Back:  ${formatCardBack(card)}`));
+      console.log();
+    }
+
+    return enabledCount;
+  };
+
+  // Initial preview with auto-play
+  if (autoPlay && audioPath) {
+    console.log();
+    try {
+      await playAudio(audioPath);
+    } catch (err) {
+      // Ignore audio errors on preview
+    }
+  }
+
+  // Main interaction loop
+  while (true) {
+    const enabledCount = await showPreview(false);
+
+    if (enabledCount === 0) {
+      console.log(chalk.yellow('No cards enabled. Toggle cards or dismiss.'));
+    }
+
+    const action = await askCardSetAction(enabledCount, cards.length, !!audioPath);
+
+    if (action === 'add') {
+      if (enabledCount === 0) {
+        console.log(chalk.yellow('Enable at least one card before adding.'));
+        continue;
+      }
+      const selectedCards = cards.filter((_, i) => enabled[i]);
+      return { confirmed: true, cards: selectedCards, dismissed: false };
+    }
+
+    if (action === 'listen' && audioPath) {
+      console.log(chalk.dim('  Playing audio...'));
+      try {
+        await playAudio(audioPath);
+      } catch (err) {
+        console.log(chalk.red(`  Could not play audio: ${err.message}`));
+      }
+      continue;
+    }
+
+    if (action === 'dismiss') {
+      return { confirmed: false, cards: [], dismissed: true };
+    }
+
+    if (typeof action === 'object' && action.toggle) {
+      const idx = action.toggle - 1;
+      enabled[idx] = !enabled[idx];
+      const card = cards[idx];
+      const status = enabled[idx] ? 'enabled' : 'disabled';
+      console.log(chalk.dim(`  Card ${action.toggle} (${card.label}) ${status}`));
+      continue;
+    }
+
+    // Invalid action, show preview again
+  }
 }
 
 // Show card preview and ask for confirmation

@@ -1,6 +1,7 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
+import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
 
 /**
  * Call AnkiConnect API
@@ -62,7 +63,7 @@ export async function storeAudio(audioPath) {
 }
 
 /**
- * Create Anki note with audio
+ * Create Anki note with audio (legacy single-card method)
  * Audio-first format for comprehension:
  *   Front: audio + optional context
  *   Back: german + ipa + russian
@@ -114,6 +115,61 @@ export async function createNote({ german, ipa, russian, audioFilename, context 
       tags,
     },
   });
+}
+
+/**
+ * Create multiple Anki notes from generated cards.
+ * Used by the Fluent Forever card system for batch creation.
+ *
+ * @param {Object[]} cards - Generated card objects from cardTypes.js
+ * @param {string} audioFilename - Audio filename in Anki media
+ * @param {Object} options
+ * @param {string} options.sourceId - Unique ID for grouping related cards
+ * @param {Object} options.cefr - CEFR estimation result
+ * @param {string} options.deck - Override deck name
+ * @returns {Promise<number[]>} Array of created note IDs
+ */
+export async function createNotes(cards, audioFilename, options = {}) {
+  const { sourceId, cefr, deck } = options;
+  const deckName = deck || config.ankiDeck;
+  const noteIds = [];
+
+  for (const card of cards) {
+    const fields = formatCardForAnki(card, audioFilename);
+
+    // Build tags
+    const tags = ['yt2anki', `card-${card.type}`];
+    if (cefr?.level) {
+      tags.push(`cefr-${cefr.level.toLowerCase()}`);
+    }
+    if (sourceId) {
+      tags.push(`source-${sourceId}`);
+    }
+
+    try {
+      const noteId = await ankiConnect('addNote', {
+        note: {
+          deckName,
+          modelName: config.ankiNoteType,
+          fields,
+          options: {
+            allowDuplicate: false,
+          },
+          tags,
+        },
+      });
+      noteIds.push(noteId);
+    } catch (err) {
+      // If duplicate, continue with other cards
+      if (err.message.includes('duplicate')) {
+        console.warn(`Skipped duplicate ${card.type} card`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  return noteIds;
 }
 
 /**
