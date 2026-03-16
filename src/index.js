@@ -141,6 +141,16 @@ async function processMarkers(file, options) {
     const audioPath = await downloadAudio(markers.url);
     spinner.succeed(`Downloaded: ${audioPath}`);
 
+    // Fetch subtitles for CC verification
+    const { fetchSubtitles, getSubtitleContext } = await import('./subtitles.js');
+    spinner.start('Fetching subtitles for context...');
+    const subtitleEntries = await fetchSubtitles(markers.url);
+    if (subtitleEntries) {
+      spinner.succeed(`Subtitles fetched (${subtitleEntries.length} entries)`);
+    } else {
+      spinner.warn('No German subtitles available');
+    }
+
     const results = [];
 
     // Process each clip
@@ -152,12 +162,18 @@ async function processMarkers(file, options) {
       const { wavPath, aacPath } = await cutClip(audioPath, clip.start, clip.end, i + 1);
       spinner.succeed(`${progress} Cut clip: ${clip.start} - ${clip.end}`);
 
+      const ccHint = getSubtitleContext(subtitleEntries, clip.start, clip.end);
+      if (ccHint) {
+        console.log(chalk.dim(`   CC: "${ccHint}"`));
+      }
+
       spinner.start(`${progress} Transcribing...`);
-      const rawGerman = await transcribe(wavPath);
+      const rawGerman = await transcribe(wavPath, ccHint);
       spinner.succeed(`${progress} Transcribed: "${rawGerman}"`);
 
       spinner.start(`${progress} Getting IPA and translation...`);
-      const { german, ipa, russian, cefr } = await enrich(rawGerman);
+      const subtitleContext = subtitleEntries ? subtitleEntries.map(e => e.text).join(' ') : null;
+      const { german, ipa, russian, cefr } = await enrich(rawGerman, subtitleContext, ccHint);
       spinner.succeed(`${progress} Enriched`);
 
       if (dryRun) {
