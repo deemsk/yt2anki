@@ -182,7 +182,7 @@ async function processMarkers(file, options) {
       } else {
         spinner.start(`${progress} Creating Anki card...`);
         const audioFilename = await storeAudio(aacPath);
-        await createNote({ german, ipa, russian, audioFilename, cefr });
+        await createNote({ german, ipa, russian, audioFilename, cefr, deck: options.deck });
         spinner.succeed(`${progress} Card created!`);
       }
 
@@ -257,7 +257,7 @@ async function addSingleCard(url, options) {
       // Create card
       spinner.start('Creating Anki card...');
       const audioFilename = await storeAudio(aacPath);
-      await createNote({ german, ipa, russian, audioFilename, cefr });
+      await createNote({ german, ipa, russian, audioFilename, cefr, deck: options.deck });
       spinner.succeed('Card created!');
 
       console.log();

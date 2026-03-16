@@ -76,8 +76,20 @@ export async function storeAudio(audioPath) {
  * @param {string} data.context - Optional context/situation
  * @param {boolean} data.addReversed - Whether to add reversed card
  * @param {Object} data.cefr - CEFR estimation result
+ * @param {string} data.deck - Optional deck override
  */
-export async function createNote({ german, ipa, russian, audioFilename, context = null, addReversed = true, cefr = null }) {
+export async function createNote({
+  german,
+  ipa,
+  russian,
+  audioFilename,
+  context = null,
+  addReversed = true,
+  cefr = null,
+  deck = null,
+}) {
+  const deckName = deck || config.ankiDeck;
+
   // Format front: Audio + optional context (audio-first for comprehension)
   let front = `[sound:${audioFilename}]`;
   if (context) {
@@ -106,7 +118,7 @@ export async function createNote({ german, ipa, russian, audioFilename, context 
 
   await ankiConnect('addNote', {
     note: {
-      deckName: config.ankiDeck,
+      deckName,
       modelName: config.ankiNoteType,
       fields,
       options: {
@@ -244,14 +256,38 @@ function similarity(a, b) {
 }
 
 /**
- * Extract German text from card Front field
- * Front format: [sound:file.mp3] German text<br>[IPA]
+ * Strip Anki field markup down to plain-text lines.
  */
-function extractGermanFromFront(front) {
-  return front
-    .replace(/\[sound:[^\]]+\]/g, '') // remove sound tag
-    .replace(/<br>.*$/i, '') // remove IPA after <br>
-    .trim();
+function extractFieldLines(field) {
+  return field
+    .replace(/\[sound:[^\]]+\]/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(small|b|i)>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Extract searchable text candidates from a note.
+ * Current cards often keep the German sentence on the back, not the front.
+ */
+function extractSearchableText(note) {
+  const front = note.fields.Front?.value || '';
+  const back = note.fields.Back?.value || '';
+
+  const lines = [...extractFieldLines(front), ...extractFieldLines(back)];
+
+  return lines.filter((line) => {
+    if (!line) return false;
+    if (line === 'Antworte') return false;
+    if (line.startsWith('Context:')) return false;
+    if (/^\[.*\]$/.test(line)) return false; // IPA-only line
+    return true;
+  });
 }
 
 /**
@@ -276,17 +312,21 @@ export async function findSimilarCards(germanText, threshold = 70) {
   const similar = [];
 
   for (const note of notes) {
-    const front = note.fields.Front?.value || '';
-    const existingGerman = extractGermanFromFront(front);
+    const candidates = extractSearchableText(note);
+    if (candidates.length === 0) continue;
 
-    if (!existingGerman) continue;
+    let bestMatch = null;
+    for (const candidate of candidates) {
+      const sim = similarity(germanText, candidate);
+      if (!bestMatch || sim > bestMatch.similarity) {
+        bestMatch = { german: candidate, similarity: sim };
+      }
+    }
 
-    const sim = similarity(germanText, existingGerman);
-
-    if (sim >= threshold) {
+    if (bestMatch && bestMatch.similarity >= threshold) {
       similar.push({
-        german: existingGerman,
-        similarity: sim,
+        german: bestMatch.german,
+        similarity: bestMatch.similarity,
       });
     }
   }
