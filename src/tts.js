@@ -64,7 +64,7 @@ async function concatenateWithPause(files, outputPath, pauseDuration = 1.0, lead
     '-i', files[0],
     '-i', files[1],
     '-filter_complex',
-    `[0:a]adelay=${leadInMs}|${leadInMs},apad=pad_dur=${pauseDuration}[a0];[a0][1:a]concat=n=2:v=0:a=1`,
+    `[0:a]adelay=${leadInMs}|${leadInMs},apad=pad_dur=${pauseDuration}[a0];[a0][1:a]concat=n=2:v=0:a=1,volume=1.2`,
     '-y',
     outputPath,
   ];
@@ -117,6 +117,11 @@ export async function generateSimpleSpeech(text, outputPath, options = {}) {
   const voice = options.voice || getNextVoice();
   const speed = options.speed || config.ttsSpeed || 0.7;
 
-  await generateClip(text, outputPath, voice, speed);
+  const rawPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_raw.mp3');
+  await generateClip(text, rawPath, voice, speed);
+
+  await execFileAsync('ffmpeg', ['-i', rawPath, '-filter:a', 'volume=1.2', '-y', outputPath]);
+  await unlink(rawPath);
+
   return outputPath;
 }
