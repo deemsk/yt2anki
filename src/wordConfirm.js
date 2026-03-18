@@ -292,6 +292,7 @@ export async function confirmWordSelection({
   audioSource,
   audioPath,
   theme,
+  autoPlay = true,
 }) {
   let personalConnection = null;
 
@@ -315,6 +316,14 @@ export async function confirmWordSelection({
       duplicateInfo.headwordMatches.slice(0, 3).forEach((match) => {
         console.log(`  - ${match.canonical}${match.meaning ? ` (${match.meaning})` : ''}`);
       });
+    }
+  }
+
+  if (autoPlay && audioPath) {
+    try {
+      await playAudio(audioPath);
+    } catch {
+      // Ignore audio errors on initial preview, same as sentence preview.
     }
   }
 
