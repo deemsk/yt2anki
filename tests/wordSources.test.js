@@ -1,10 +1,18 @@
+import { config } from "../src/config.js"
 import { buildWordImageSearchTerms, searchWordImages } from "../src/wordSources.js"
 
 describe("word image sources", () => {
   const originalFetch = global.fetch
+  let originalBraveSearchApiKey
+
+  beforeEach(() => {
+    originalBraveSearchApiKey = config.braveSearchApiKey
+    config.braveSearchApiKey = ""
+  })
 
   afterEach(() => {
     global.fetch = originalFetch
+    config.braveSearchApiKey = originalBraveSearchApiKey
   })
 
   test("buildWordImageSearchTerms prefers specific visual queries before broad fallbacks", () => {
@@ -38,6 +46,14 @@ describe("word image sources", () => {
   test("searchWordImages prefers prototypical specific results over scenic broad matches", async () => {
     global.fetch = async (url) => {
       const parsed = new URL(url)
+      if (parsed.hostname === "api.search.brave.com") {
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
       const openverseQuery = parsed.searchParams.get("q")
       const commonsQuery = parsed.searchParams.get("gsrsearch")
       const query = openverseQuery || commonsQuery
@@ -110,6 +126,69 @@ describe("word image sources", () => {
       expect.objectContaining({
         title: "Glass of water on table",
         queryUsed: "glass of water",
+      })
+    )
+  })
+
+  test("searchWordImages includes Brave image results first when configured", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              results: [
+                {
+                  title: "Glass of water in a bottle and cup",
+                  source: "images.example.com",
+                  page_url: "https://images.example.com/water",
+                  thumbnail: {
+                    src: "https://img.example/brave-water-thumb.jpg",
+                  },
+                  properties: {
+                    url: "https://img.example/brave-water.jpg",
+                  },
+                },
+              ],
+            }
+          },
+        }
+      }
+
+      if (parsed.hostname === "api.openverse.org") {
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] } }
+        },
+      }
+    }
+
+    config.braveSearchApiKey = "test-key"
+
+    const results = await searchWordImages(
+      { bareNoun: "Wasser" },
+      {
+        english: "water",
+        imageSearchTerms: ["glass of water", "water"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        source: "Brave Images",
+        title: "Glass of water in a bottle and cup",
       })
     )
   })

@@ -551,6 +551,7 @@ async function initConfig() {
     ankiNoteType: 'Basic (optional reversed card)',
     wordNoteType: '2. Picture Words',
     openaiModel: 'gpt-4o-mini',
+    braveSearchApiKey: '',
     whisperModel: 'base',
   };
 
@@ -566,6 +567,7 @@ async function initConfig() {
   console.log(chalk.dim('  ankiNoteType  - Sentence note type to use'));
   console.log(chalk.dim('  wordNoteType  - Word note type to use (default: 2. Picture Words)'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
+  console.log(chalk.dim('  braveSearchApiKey - Brave Search API key for image search (optional)'));
   console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));
   console.log(chalk.dim('  dataDir       - Cache folder for audio (default: system temp)\n'));
 }
@@ -581,6 +583,9 @@ async function showConfig() {
   // Mask API key
   if (displayConfig.openaiApiKey) {
     displayConfig.openaiApiKey = displayConfig.openaiApiKey.slice(0, 7) + '...' + displayConfig.openaiApiKey.slice(-4);
+  }
+  if (displayConfig.braveSearchApiKey) {
+    displayConfig.braveSearchApiKey = displayConfig.braveSearchApiKey.slice(0, 7) + '...' + displayConfig.braveSearchApiKey.slice(-4);
   }
 
   for (const [key, value] of Object.entries(displayConfig)) {

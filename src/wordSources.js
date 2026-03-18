@@ -53,10 +53,12 @@ function cleanUrl(url) {
   return url.startsWith('//') ? `https:${url}` : url;
 }
 
-async function fetchJson(url) {
+async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: {
+      Accept: 'application/json',
       'User-Agent': 'yt2anki/1.0',
+      ...(options.headers || {}),
     },
   });
 
@@ -83,6 +85,66 @@ async function searchOpenverseImages(query, pageSize = 6) {
     previewUrl: cleanUrl(item.thumbnail || item.url),
     downloadUrl: cleanUrl(item.url || item.thumbnail),
     detailUrl: cleanUrl(item.foreign_landing_url || item.detail_url || item.url),
+  })).filter((item) => item.previewUrl && item.downloadUrl);
+}
+
+function getBraveSearchApiKey() {
+  return config.braveSearchApiKey || process.env.BRAVE_SEARCH_API_KEY || '';
+}
+
+function hasBraveImageConfig() {
+  return Boolean(getBraveSearchApiKey());
+}
+
+async function searchBraveImages(query, pageSize = 6) {
+  if (!hasBraveImageConfig()) {
+    return [];
+  }
+
+  const url = new URL('https://api.search.brave.com/res/v1/images/search');
+  url.searchParams.set('q', query);
+  url.searchParams.set('count', String(Math.min(pageSize, 20)));
+  url.searchParams.set('search_lang', 'en');
+  url.searchParams.set('country', 'us');
+  url.searchParams.set('spellcheck', '1');
+  url.searchParams.set('safesearch', 'strict');
+
+  const payload = await fetchJson(url, {
+    headers: {
+      'Accept-Encoding': 'gzip',
+      'X-Subscription-Token': getBraveSearchApiKey(),
+    },
+  });
+  const results = payload.results || payload.images?.results || [];
+
+  return results.map((item) => ({
+    source: 'Brave Images',
+    title: item.title || query,
+    creator: item.source || item.page_fetched || item.profile?.name || 'Brave Images',
+    license: 'varies',
+    previewUrl: cleanUrl(
+      item.thumbnail?.src ||
+      item.thumbnail?.url ||
+      item.thumbnail_url ||
+      item.thumbnail ||
+      item.properties?.thumbnail ||
+      item.url
+    ),
+    downloadUrl: cleanUrl(
+      item.properties?.url ||
+      item.image_url ||
+      item.url ||
+      item.page_url ||
+      item.thumbnail?.src ||
+      item.thumbnail_url
+    ),
+    detailUrl: cleanUrl(
+      item.page_url ||
+      item.url ||
+      item.source_url ||
+      item.profile?.url ||
+      item.properties?.url
+    ),
   })).filter((item) => item.previewUrl && item.downloadUrl);
 }
 
@@ -208,6 +270,10 @@ function rankImageResult(result) {
     score += 12;
   }
 
+  if (result.source === 'Brave Images') {
+    score += 6;
+  }
+
   return score;
 }
 
@@ -215,12 +281,13 @@ export async function searchWordImages(wordData, selectedMeaning, options = {}) 
   const pageSize = options.pageSize || 6;
   const searchTerms = buildWordImageSearchTerms(wordData, selectedMeaning);
 
-  const [openverse, commons] = await Promise.all([
+  const [brave, openverse, commons] = await Promise.all([
+    searchFirstAvailable(searchBraveImages, searchTerms, pageSize),
     searchFirstAvailable(searchOpenverseImages, searchTerms, pageSize),
     searchFirstAvailable(searchWikimediaImages, searchTerms, pageSize),
   ]);
 
-  const combined = [...openverse, ...commons]
+  const combined = [...brave, ...openverse, ...commons]
     .map((result) => ({
       ...result,
       rankScore: rankImageResult(result),

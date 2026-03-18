@@ -21,6 +21,9 @@ const defaults = {
   openaiModel: 'gpt-4o-mini',
   ttsVoice: 'nova',
 
+  // Brave Search API (optional)
+  braveSearchApiKey: '',
+
   // Audio
   audioFormat: 'mp3',
   ttsSpeed: 0.7,      // Slow playback speed (0.7 = 30% slower)

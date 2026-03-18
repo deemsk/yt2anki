@@ -15,7 +15,7 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 
 **Word mode** (single nouns):
 - Create Fluent Forever-style picture-word notes for German nouns
-- Pick an image manually from Openverse/Wikimedia previews
+- Pick an image manually from Brave/Openverse/Wikimedia previews
 - Prefer Wikimedia pronunciation audio, fall back to OpenAI TTS
 - Store noun with article and gender color, plus plural/back-side info
 
@@ -115,6 +115,9 @@ Word mode is noun-first and uses the `2. Picture Words` note type by default.
 During creation you choose the intended meaning, pick an image, review frequency band,
 and confirm before the note is added.
 
+If `braveSearchApiKey` is configured, Brave image search is queried first and
+Openverse/Wikimedia remain as fallbacks.
+
 ### Options
 
 ```bash
@@ -159,6 +162,7 @@ Edit `~/.yt2anki.json`:
   "ankiNoteType": "Basic (optional reversed card)",
   "wordNoteType": "2. Picture Words",
   "openaiModel": "gpt-4o-mini",
+  "braveSearchApiKey": "",
   "whisperModel": "base",
   "ttsVoices": ["nova", "onyx"],
   "ttsSpeed": 0.7,
@@ -176,6 +180,9 @@ Edit `~/.yt2anki.json`:
 
 `wordNoteType` controls the note type used for noun cards. The v1 word mode assumes a
 Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
+
+`braveSearchApiKey` is optional. If set, word mode queries Brave image search before
+Openverse and Wikimedia.
 
 ## Tech Stack
 
