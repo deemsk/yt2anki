@@ -4,7 +4,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { buildWordExtraInfo, formatGenderColoredWord, formatPluralLabel } from './wordUtils.js';
+import { buildWordExtraInfo, formatGenderColoredWord, formatPluralLabel, getArticleNormalizationWarning } from './wordUtils.js';
 import { canProceedWithWeakWordCard, enrichWord } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, confirmWordSelection } from './wordConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
@@ -20,6 +20,14 @@ import {
 import { generateSimpleSpeech } from './tts.js';
 
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';
+
+function showWordHeader(rawInput) {
+  const label = String(rawInput || '').trim();
+  if (!label) return;
+
+  console.log();
+  console.log(chalk.bold(label));
+}
 
 async function ensureWordSetup(deck, dryRun) {
   if (dryRun) return;
@@ -77,6 +85,7 @@ async function prepareWord(rawInput, options, spinner) {
   spinner.start('Analyzing noun...');
   const wordData = await enrichWord(rawInput);
   const recoverableWeakCandidate = canProceedWithWeakWordCard(wordData);
+  const articleNormalizationWarning = getArticleNormalizationWarning(rawInput, wordData.canonical);
 
   if (!wordData.shouldCreateWordCard && !recoverableWeakCandidate) {
     spinner.warn(`Rejected: ${wordData.rejectionReason}`);
@@ -94,6 +103,10 @@ async function prepareWord(rawInput, options, spinner) {
   }
 
   spinner.succeed(`Ready: ${wordData.canonical}`);
+
+  if (articleNormalizationWarning) {
+    console.log(chalk.yellow(articleNormalizationWarning));
+  }
 
   const frequencyInfo = getWordFrequencyInfo(wordData.bareNoun);
   const selectedMeaning = await chooseMeaning(wordData, options.meaning);
@@ -226,6 +239,7 @@ async function processWord(rawInput, options = {}) {
   const spinner = ora();
 
   try {
+    showWordHeader(rawInput);
     await ensureWordSetup(options.deck || config.ankiDeck, options.dryRun);
     const prepared = await prepareWord(rawInput, options, spinner);
     if (!prepared || prepared.rejected) {

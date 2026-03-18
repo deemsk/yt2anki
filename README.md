@@ -168,7 +168,7 @@ Edit `~/.yt2anki.json`:
   "ttsSpeed": 0.7,
   "ttsPause": 1.0,
   "audioLeadIn": 0.4,
-  "wordImagePreviewCount": 6,
+  "wordImagePreviewCount": 9,
   "wordImageSearchResults": 12,
   "dataDir": "/tmp/yt2anki"
 }

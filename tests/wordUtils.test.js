@@ -1,8 +1,10 @@
 import {
   buildWordExtraInfo,
+  extractLeadingArticle,
   extractCanonicalWord,
   extractWordMeaning,
   formatGenderColoredWord,
+  getArticleNormalizationWarning,
   normalizeWordIpa,
   normalizeGermanForCompare,
   toTagSlug,
@@ -35,6 +37,14 @@ describe("word helpers", () => {
   test("normalization and tag slug keep canonical noun comparisons stable", () => {
     expect(normalizeGermanForCompare("<span>das Wasser</span>")).toBe("das wasser")
     expect(toTagSlug("das Wasser")).toBe("das-wasser")
+  })
+
+  test("article helpers detect and report corrected articles", () => {
+    expect(extractLeadingArticle("das Montag")).toBe("das")
+    expect(extractLeadingArticle("Montag")).toBe(null)
+    expect(getArticleNormalizationWarning("das Montag", "der Montag")).toBe('Normalized "das Montag" to "der Montag"')
+    expect(getArticleNormalizationWarning("der Montag", "der Montag")).toBe(null)
+    expect(getArticleNormalizationWarning("Montag", "der Montag")).toBe(null)
   })
 
   test("normalizeWordIpa keeps noun IPA aligned with the canonical article", () => {

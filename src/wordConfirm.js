@@ -51,10 +51,13 @@ async function openFile(filePath) {
 }
 
 function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) {
-  const desktopColumns = 3;
+  const desktopColumns = 4;
   const mobileColumns = 2;
   const desktopRows = Math.max(1, Math.ceil(candidates.length / desktopColumns));
   const mobileRows = Math.max(1, Math.ceil(candidates.length / mobileColumns));
+  const pageSize = config.wordImagePreviewCount || candidates.length || 1;
+  const startIndex = page * pageSize + 1;
+  const endIndex = startIndex + candidates.length - 1;
   const items = candidates.map((candidate, index) => `
     <figure class="tile">
       <div class="num">${index + 1}</div>
@@ -186,7 +189,7 @@ function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) 
 <body>
   <div class="chrome">
     <h1>${escapeHtml(wordData.canonical)} (${escapeHtml(meaning.russian)})</h1>
-    <p>Choose image ${page * 6 + 1}-${page * 6 + candidates.length}. Page ${page + 1}/${totalPages}. Press the same number in the terminal.</p>
+    <p>Choose image ${startIndex}-${endIndex}. Page ${page + 1}/${totalPages}. Press the same number in the terminal.</p>
   </div>
   <div class="grid">${items}</div>
 </body>
@@ -294,7 +297,7 @@ export async function chooseImage(wordData, meaning, candidates) {
     return null;
   }
 
-  const pageSize = config.wordImagePreviewCount || 6;
+    const pageSize = config.wordImagePreviewCount || 12;
   let page = 0;
 
   while (true) {
@@ -310,7 +313,7 @@ export async function chooseImage(wordData, meaning, candidates) {
       console.log(`  ${index + 1}. image ${index + 1}`);
     });
 
-    const answer = await ask('[1-6] select, [N]ext, [B]ack, [U]rl/path, [S]kip: ');
+    const answer = await ask(`[1-${pageCandidates.length}] select, [N]ext, [B]ack, [U]rl/path, [S]kip: `);
     const normalized = answer.toLowerCase();
 
     if (normalized === 's' || normalized === 'skip') {

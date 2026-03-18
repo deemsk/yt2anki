@@ -20,11 +20,11 @@ describe("word image sources", () => {
       { bareNoun: "Wasser" },
       {
         english: "water",
-        imageSearchTerms: ["water", "glass of water"],
+        imageSearchTerms: ["Wasser", "Glas Wasser"],
       }
     )
 
-    expect(terms.slice(0, 4)).toEqual(["glass of water", "bottle of water", "tap water", "drinking water"])
+    expect(terms.slice(0, 4)).toEqual(["Glas Wasser", "Flasche Wasser", "Trinkwasser", "Leitungswasser"])
     expect(terms).toContain("water")
     expect(terms).toContain("Wasser")
   })
@@ -34,16 +34,74 @@ describe("word image sources", () => {
       { bareNoun: "Milch" },
       {
         english: "milk",
-        imageSearchTerms: ["milk"],
+        imageSearchTerms: ["Milch"],
       }
     )
 
-    expect(terms.slice(0, 2)).toEqual(["glass of milk", "bottle of milk"])
-    expect(terms).toContain("milk carton")
-    expect(terms).toContain("drinking milk")
-    expect(terms).toContain("cow milk")
+    expect(terms.slice(0, 3)).toEqual(["Glas Milch", "Milchpackung", "Milchkarton"])
+    expect(terms).toContain("Milch trinken")
+    expect(terms).toContain("Milchkuh")
     expect(terms).toContain("milk")
     expect(terms).toContain("Milch")
+  })
+
+  test("buildWordImageSearchTerms adds German place-specific queries for Apotheke", () => {
+    const terms = buildWordImageSearchTerms(
+      { bareNoun: "Apotheke" },
+      {
+        english: "pharmacy",
+        imageSearchTerms: ["Apotheke"],
+      }
+    )
+
+    expect(terms).toContain("Apotheke Schild")
+    expect(terms).toContain("Apotheke Eingang")
+    expect(terms).toContain("Apotheke innen")
+    expect(terms).toContain("deutsche Apotheke")
+  })
+
+  test("buildWordImageSearchTerms separates Wohnung from Zimmer with different visual anchors", () => {
+    const wohnungTerms = buildWordImageSearchTerms(
+      { bareNoun: "Wohnung" },
+      {
+        english: "apartment",
+        imageSearchTerms: ["Wohnung"],
+      }
+    )
+
+    const zimmerTerms = buildWordImageSearchTerms(
+      { bareNoun: "Zimmer" },
+      {
+        english: "room",
+        imageSearchTerms: ["Zimmer"],
+      }
+    )
+
+    expect(wohnungTerms).toContain("Wohnung Klingel")
+    expect(wohnungTerms).toContain("Wohnung Grundriss")
+    expect(zimmerTerms).toContain("leeres Zimmer")
+    expect(zimmerTerms).toContain("Zimmer Tür")
+    expect(wohnungTerms).not.toContain("leeres Wohnung")
+    expect(zimmerTerms).not.toContain("Wohnung Grundriss")
+  })
+
+  test("buildWordImageSearchTerms biases calendar words toward German calendar views", () => {
+    const terms = buildWordImageSearchTerms(
+      { bareNoun: "Montag" },
+      {
+        english: "monday",
+        imageSearchTerms: ["Montag"],
+      }
+    )
+
+    expect(terms.slice(0, 4)).toEqual([
+      "Montag Kalender deutsch",
+      "Montag Wochenplan deutsch",
+      "Montag Kalenderblatt",
+      "Montag Datum",
+    ])
+    expect(terms).toContain("Montag in Deutschland")
+    expect(terms).toContain("monday")
   })
 
   test("searchWordImages prefers prototypical specific results over scenic broad matches", async () => {
@@ -62,7 +120,7 @@ describe("word image sources", () => {
       const query = openverseQuery || commonsQuery
 
       if (openverseQuery) {
-        if (query === "glass of water") {
+        if (query === "Glas Wasser") {
           return {
             ok: true,
             async json() {
@@ -81,7 +139,7 @@ describe("word image sources", () => {
           }
         }
 
-        if (query === "water") {
+        if (query === "Wasser") {
           return {
             ok: true,
             async json() {
@@ -120,7 +178,7 @@ describe("word image sources", () => {
       { bareNoun: "Wasser" },
       {
         english: "water",
-        imageSearchTerms: ["glass of water", "water"],
+        imageSearchTerms: ["Glas Wasser", "Wasser"],
       },
       { pageSize: 6, total: 6 }
     )
@@ -128,7 +186,7 @@ describe("word image sources", () => {
     expect(results[0]).toEqual(
       expect.objectContaining({
         title: "Glass of water on table",
-        queryUsed: "glass of water",
+        queryUsed: "Glas Wasser",
       })
     )
   })
@@ -183,7 +241,7 @@ describe("word image sources", () => {
       { bareNoun: "Wasser" },
       {
         english: "water",
-        imageSearchTerms: ["glass of water", "water"],
+        imageSearchTerms: ["Glas Wasser", "Wasser"],
       },
       { pageSize: 6, total: 6 }
     )
@@ -192,6 +250,189 @@ describe("word image sources", () => {
       expect.objectContaining({
         source: "Brave Images",
         title: "Glass of water in a bottle and cup",
+      })
+    )
+  })
+
+  test("searchWordImages uses German Brave locale for German Apotheke queries", async () => {
+    const braveRequests = []
+
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        braveRequests.push({
+          q: parsed.searchParams.get("q"),
+          search_lang: parsed.searchParams.get("search_lang"),
+          country: parsed.searchParams.get("country"),
+        })
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] }, results: [] }
+        },
+      }
+    }
+
+    config.braveSearchApiKey = "test-key"
+
+    await searchWordImages(
+      { bareNoun: "Apotheke" },
+      {
+        english: "pharmacy",
+        imageSearchTerms: ["Apotheke"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    const apothekeRequest = braveRequests.find((request) => request.q === "Apotheke Schild")
+    expect(apothekeRequest).toEqual({
+      q: "Apotheke Schild",
+      search_lang: "de",
+      country: "de",
+    })
+  })
+
+  test("searchWordImages prefers German Apotheke imagery over generic pharmacy results", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        const query = parsed.searchParams.get("q")
+
+        if (query === "Apotheke Schild") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Apotheke Schild in Berlin",
+                    source: "apotheke.de",
+                    page_url: "https://www.apotheke.de/berlin",
+                    thumbnail: { src: "https://img.example/apotheke-sign.jpg" },
+                    properties: { url: "https://img.example/apotheke-sign-full.jpg" },
+                  },
+                  {
+                    title: "Pharmacy storefront",
+                    source: "walgreens.com",
+                    page_url: "https://www.walgreens.com/storelocator",
+                    thumbnail: { src: "https://img.example/pharmacy-store.jpg" },
+                    properties: { url: "https://img.example/pharmacy-store-full.jpg" },
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] }, results: [] }
+        },
+      }
+    }
+
+    config.braveSearchApiKey = "test-key"
+
+    const results = await searchWordImages(
+      { bareNoun: "Apotheke" },
+      {
+        english: "pharmacy",
+        imageSearchTerms: ["Apotheke"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        title: "Apotheke Schild in Berlin",
+        queryUsed: "Apotheke Schild",
+      })
+    )
+  })
+
+  test("searchWordImages prefers German Montag calendar imagery over English Monday calendars", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        const query = parsed.searchParams.get("q")
+
+        if (query === "Montag Kalender deutsch") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Montag Kalenderblatt auf deutsch",
+                    source: "kalender.example.de",
+                    page_url: "https://kalender.example.de/montag",
+                    thumbnail: { src: "https://img.example/montag.jpg" },
+                    properties: { url: "https://img.example/montag-full.jpg" },
+                  },
+                  {
+                    title: "Monday calendar page printable",
+                    source: "calendar.example.com",
+                    page_url: "https://calendar.example.com/monday",
+                    thumbnail: { src: "https://img.example/monday.jpg" },
+                    properties: { url: "https://img.example/monday-full.jpg" },
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] }, results: [] }
+        },
+      }
+    }
+
+    config.braveSearchApiKey = "test-key"
+
+    const results = await searchWordImages(
+      { bareNoun: "Montag" },
+      {
+        english: "monday",
+        imageSearchTerms: ["Montag"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        title: "Montag Kalenderblatt auf deutsch",
+        queryUsed: "Montag Kalender deutsch",
       })
     )
   })
@@ -212,7 +453,7 @@ describe("word image sources", () => {
       if (parsed.hostname === "api.openverse.org") {
         const query = parsed.searchParams.get("q")
 
-        if (query === "glass of milk") {
+        if (query === "Glas Milch") {
           return {
             ok: true,
             async json() {
@@ -231,7 +472,7 @@ describe("word image sources", () => {
           }
         }
 
-        if (query === "milk carton") {
+        if (query === "Milchpackung") {
           return {
             ok: true,
             async json() {
@@ -250,7 +491,7 @@ describe("word image sources", () => {
           }
         }
 
-        if (query === "drinking milk") {
+        if (query === "Milch trinken") {
           return {
             ok: true,
             async json() {
@@ -269,7 +510,7 @@ describe("word image sources", () => {
           }
         }
 
-        if (query === "cow milk") {
+        if (query === "Milchkuh") {
           return {
             ok: true,
             async json() {
@@ -308,7 +549,7 @@ describe("word image sources", () => {
       { bareNoun: "Milch" },
       {
         english: "milk",
-        imageSearchTerms: ["milk"],
+        imageSearchTerms: ["Milch"],
       },
       { pageSize: 6, total: 6 }
     )

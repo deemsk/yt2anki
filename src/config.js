@@ -30,7 +30,7 @@ const defaults = {
   ttsPause: 1.0,      // Pause between slow and normal (seconds)
   ttsVoices: ['nova', 'onyx'],  // Voices to alternate (female, male)
   audioLeadIn: 0.4,   // Silence at start of audio (seconds) for brain to tune in
-  wordImagePreviewCount: 6,
+  wordImagePreviewCount: 12,
   wordImageSearchResults: 12,
 };
 

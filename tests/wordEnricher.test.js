@@ -42,7 +42,21 @@ describe("word enricher retries", () => {
     ).toBe(true)
   })
 
-  test("does not allow non-noun rejections through the weak-candidate path", () => {
+  test("allows weekday nouns through the weak-candidate path when noun analysis exists", () => {
+    expect(
+      canProceedWithWeakWordCard({
+        shouldCreateWordCard: false,
+        rejectionReason: "Not a noun that produces a clear image-based card; it is a day of the week.",
+        canonical: "der Montag",
+        bareNoun: "Montag",
+        article: "der",
+        gender: "masculine",
+        meanings: [{ russian: "понедельник", english: "monday" }],
+      })
+    ).toBe(true)
+  })
+
+  test("does not allow non-noun rejections through the weak-candidate path when noun analysis is missing", () => {
     expect(
       canProceedWithWeakWordCard({
         shouldCreateWordCard: false,

@@ -4,9 +4,211 @@ import { extname, join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
-import { normalizeWordIpa, stripHtml } from './wordUtils.js';
+import { normalizeGermanForCompare, normalizeWordIpa, stripHtml } from './wordUtils.js';
 
 const execFileAsync = promisify(execFile);
+
+const SUBSTANCE_GERMAN = new Set([
+  'wasser',
+  'milch',
+  'saft',
+  'wein',
+  'bier',
+  'kaffee',
+  'tee',
+  'oel',
+  'blut',
+]);
+
+const SUBSTANCE_ENGLISH = [
+  'water',
+  'milk',
+  'juice',
+  'wine',
+  'beer',
+  'coffee',
+  'tea',
+  'oil',
+  'blood',
+];
+
+const DWELLING_GERMAN = new Set([
+  'wohnung',
+  'haus',
+  'buero',
+  'heim',
+]);
+
+const DWELLING_ENGLISH = [
+  'apartment',
+  'flat',
+  'house',
+  'home',
+  'office',
+];
+
+const ROOM_GERMAN = new Set([
+  'zimmer',
+  'schlafzimmer',
+  'wohnzimmer',
+  'kueche',
+  'bad',
+  'badezimmer',
+  'keller',
+  'dachboden',
+]);
+
+const ROOM_ENGLISH = [
+  'room',
+  'bedroom',
+  'living room',
+  'kitchen',
+  'bathroom',
+  'cellar',
+  'attic',
+];
+
+const PLACE_OR_INSTITUTION_ENGLISH = [
+  'pharmacy',
+  'school',
+  'station',
+  'hospital',
+  'office',
+  'restaurant',
+  'cafe',
+  'bakery',
+  'bank',
+  'university',
+  'post office',
+  'church',
+  'museum',
+  'supermarket',
+  'store',
+  'shop',
+  'library',
+  'hotel',
+  'airport',
+  'clinic',
+  'apartment',
+];
+
+const PLACE_OR_INSTITUTION_GERMAN = new Set([
+  'apotheke',
+  'schule',
+  'bahnhof',
+  'krankenhaus',
+  'buero',
+  'restaurant',
+  'cafe',
+  'baeckerei',
+  'bank',
+  'universitaet',
+  'post',
+  'kirche',
+  'museum',
+  'supermarkt',
+  'geschaeft',
+  'bibliothek',
+  'hotel',
+  'flughafen',
+  'klinik',
+  'wohnung',
+]);
+
+const CALENDAR_GERMAN = new Set([
+  'montag',
+  'dienstag',
+  'mittwoch',
+  'donnerstag',
+  'freitag',
+  'samstag',
+  'sonntag',
+  'termin',
+  'datum',
+  'woche',
+  'monat',
+  'jahr',
+]);
+
+const CALENDAR_ENGLISH = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+  'appointment',
+  'date',
+  'week',
+  'month',
+  'year',
+];
+
+const MEASURE_GERMAN = new Set([
+  'preis',
+  'betrag',
+  'kosten',
+  'rabatt',
+]);
+
+const MEASURE_ENGLISH = [
+  'price',
+  'amount',
+  'cost',
+  'discount',
+];
+
+const DOCUMENT_GERMAN = new Set([
+  'formular',
+  'antrag',
+  'rechnung',
+  'vertrag',
+  'ticket',
+  'ausweis',
+  'pass',
+  'brief',
+]);
+
+const DOCUMENT_ENGLISH = [
+  'form',
+  'application',
+  'invoice',
+  'contract',
+  'ticket',
+  'id',
+  'passport',
+  'letter',
+  'document',
+];
+
+const SCENE_GERMAN = new Set([
+  'himmel',
+  'sonne',
+  'mond',
+  'wolke',
+  'stern',
+  'regenbogen',
+  'meer',
+  'see',
+  'fluss',
+  'berg',
+  'wald',
+]);
+
+const SCENE_ENGLISH = [
+  'sky',
+  'sun',
+  'moon',
+  'cloud',
+  'star',
+  'rainbow',
+  'sea',
+  'lake',
+  'river',
+  'mountain',
+  'forest',
+];
 
 function uniqueBy(items, keyFn) {
   const seen = new Set();
@@ -111,7 +313,7 @@ function hasBraveImageConfig() {
   return Boolean(getBraveSearchApiKey());
 }
 
-async function searchBraveImages(query, pageSize = 6) {
+async function searchBraveImages(query, pageSize = 6, queryEntry = {}) {
   if (!hasBraveImageConfig()) {
     return [];
   }
@@ -119,8 +321,9 @@ async function searchBraveImages(query, pageSize = 6) {
   const url = new URL('https://api.search.brave.com/res/v1/images/search');
   url.searchParams.set('q', query);
   url.searchParams.set('count', String(Math.min(pageSize, 20)));
-  url.searchParams.set('search_lang', 'en');
-  url.searchParams.set('country', 'us');
+  const locale = queryEntry.locale || 'en';
+  url.searchParams.set('search_lang', locale === 'de' ? 'de' : 'en');
+  url.searchParams.set('country', locale === 'de' ? 'de' : 'us');
   url.searchParams.set('spellcheck', '1');
   url.searchParams.set('safesearch', 'strict');
 
@@ -205,12 +408,13 @@ async function searchFirstAvailable(searchFn, queries, pageSize) {
     if (!query) continue;
 
     try {
-      const results = await searchFn(query, pageSize);
+      const results = await searchFn(query, pageSize, queryEntry);
       batches.push(
         ...results.map((result, resultIndex) => ({
           ...result,
           queryUsed: query,
           queryBucket: queryEntry.bucket || 'generic',
+          queryLocale: queryEntry.locale || 'en',
           queryPriority: index,
           resultPriority: resultIndex,
         }))
@@ -227,16 +431,52 @@ function classifyImageQueryBucket(term, englishGloss = '') {
   const lower = String(term || '').toLowerCase();
   const english = String(englishGloss || '').toLowerCase();
 
-  if (/drink|drinking|pouring|holding|eating|using|washing/.test(lower)) {
+  if (/drink|drinking|pouring|holding|eating|using|washing|trinken|gie[ßs]en|waschen|benutzen|ausfuellen|ausfüllen|unterschreiben/.test(lower)) {
     return 'action';
   }
 
-  if (/cow|goat|farm|tree|forest|sea|ocean|mountain|sky|sun|moon|cloud/.test(lower)) {
+  if (/schild|logo|zeichen|symbol/.test(lower)) {
+    return 'sign';
+  }
+
+  if (/eingang|geb[aä]ude|fassade|front|outside|exterior|aussen|außen/.test(lower)) {
+    return 'exterior';
+  }
+
+  if (/innen|interior|inside|leer(?:es|e|er)?|wand|fenster|tuer|tür/.test(lower)) {
+    return 'interior';
+  }
+
+  if (/theke|schalter|counter|service/.test(lower)) {
+    return 'service';
+  }
+
+  if (/deutschland|deutsche|deutscher|deutsches|germany|berlin|muenchen|münchen|hamburg/.test(lower)) {
+    return 'context';
+  }
+
+  if (/cow|goat|farm|tree|forest|sea|ocean|mountain|sky|sun|moon|cloud|kuh|bauernhof|wald|meer|berg|himmel/.test(lower)) {
     return 'source';
   }
 
-  if (/glass of|bottle of|cup of|mug of|carton of|milk carton|package of|packet of|tap water/.test(lower)) {
+  if (/glass of|bottle of|cup of|mug of|carton of|milk carton|package of|packet of|tap water|glas |flasche |tasse |becher |packung|karton|leitungswasser|trinkwasser/.test(lower)) {
     return 'container';
+  }
+
+  if (/grundriss|klingel|schluessel|schlüssel|wohnungstu[eü]r|haustu[eü]r/.test(lower)) {
+    return 'context';
+  }
+
+  if (/kalender|wochenplan|datum/.test(lower)) {
+    return 'calendar';
+  }
+
+  if (/etikett|preisschild|preisetikett|speisekarte|rechnung|anzeige/.test(lower)) {
+    return 'measure';
+  }
+
+  if (/papier|vorlage|formular|antrag|vertrag|ticket|ausweis|pass/.test(lower)) {
+    return 'document';
   }
 
   if (english && lower === english) {
@@ -246,59 +486,258 @@ function classifyImageQueryBucket(term, englishGloss = '') {
   return 'prototype';
 }
 
+function isPlaceOrInstitution(wordData, selectedMeaning) {
+  const bare = normalizeGermanForCompare(wordData?.bareNoun || '');
+  const english = normalizeGermanForCompare(selectedMeaning?.english || '');
+
+  if (PLACE_OR_INSTITUTION_GERMAN.has(bare)) {
+    return true;
+  }
+
+  return PLACE_OR_INSTITUTION_ENGLISH.some((term) => english.includes(term));
+}
+
+function hasAnyTerm(text, terms) {
+  return terms.some((term) => text.includes(term));
+}
+
+function getGermanArticleAdjective(article = '') {
+  const normalizedArticle = normalizeGermanForCompare(article);
+  if (normalizedArticle === 'der') return 'deutscher';
+  if (normalizedArticle === 'das') return 'deutsches';
+  return 'deutsche';
+}
+
+function classifyWordConcept(wordData, selectedMeaning) {
+  const bare = normalizeGermanForCompare(wordData?.bareNoun || '');
+  const english = normalizeGermanForCompare(selectedMeaning?.english || '');
+
+  if (SUBSTANCE_GERMAN.has(bare) || hasAnyTerm(english, SUBSTANCE_ENGLISH)) {
+    return 'substance';
+  }
+
+  if (ROOM_GERMAN.has(bare) || hasAnyTerm(english, ROOM_ENGLISH)) {
+    return 'room';
+  }
+
+  if (DWELLING_GERMAN.has(bare) || hasAnyTerm(english, DWELLING_ENGLISH)) {
+    return 'dwelling';
+  }
+
+  if (isPlaceOrInstitution(wordData, selectedMeaning)) {
+    return 'institution';
+  }
+
+  if (CALENDAR_GERMAN.has(bare) || hasAnyTerm(english, CALENDAR_ENGLISH)) {
+    return 'calendar';
+  }
+
+  if (MEASURE_GERMAN.has(bare) || hasAnyTerm(english, MEASURE_ENGLISH)) {
+    return 'measure';
+  }
+
+  if (DOCUMENT_GERMAN.has(bare) || hasAnyTerm(english, DOCUMENT_ENGLISH)) {
+    return 'document';
+  }
+
+  if (SCENE_GERMAN.has(bare) || hasAnyTerm(english, SCENE_ENGLISH)) {
+    return 'scene';
+  }
+
+  return 'object';
+}
+
+function looksGermanQueryTerm(term, bareNoun = '') {
+  const normalizedTerm = normalizeGermanForCompare(term);
+  const normalizedBare = normalizeGermanForCompare(bareNoun);
+
+  return Boolean(
+    (normalizedBare && normalizedTerm.includes(normalizedBare)) ||
+    /[äöüß]/i.test(term) ||
+    /\b(deutschland|deutsche|berlin|muenchen|münchen|hamburg)\b/i.test(normalizedTerm)
+  );
+}
+
+function pushQueryEntries(entries, terms, bucket, locale = 'de') {
+  dedupeTerms(terms).forEach((term) => {
+    entries.push({ term, bucket, locale });
+  });
+}
+
+function buildSubstanceEntries(wordData, selectedMeaning) {
+  const bareWord = wordData?.bareNoun || '';
+  const lowerEnglish = normalizeGermanForCompare(selectedMeaning?.english || '');
+  const entries = [];
+
+  if (lowerEnglish === 'water' || normalizeGermanForCompare(bareWord) === 'wasser') {
+    pushQueryEntries(entries, ['Glas Wasser', 'Flasche Wasser', 'Trinkwasser', 'Leitungswasser'], 'container');
+    pushQueryEntries(entries, ['Wasser trinken'], 'action');
+  } else if (lowerEnglish === 'milk' || normalizeGermanForCompare(bareWord) === 'milch') {
+    pushQueryEntries(entries, ['Glas Milch', 'Milchpackung', 'Milchkarton'], 'container');
+    pushQueryEntries(entries, ['Milch trinken'], 'action');
+    pushQueryEntries(entries, ['Milchkuh', 'Kuh Milch'], 'source');
+  } else if (lowerEnglish === 'coffee' || normalizeGermanForCompare(bareWord) === 'kaffee') {
+    pushQueryEntries(entries, ['Tasse Kaffee', 'Becher Kaffee'], 'container');
+    pushQueryEntries(entries, ['Kaffee trinken'], 'action');
+  } else if (lowerEnglish === 'tea' || normalizeGermanForCompare(bareWord) === 'tee') {
+    pushQueryEntries(entries, ['Tasse Tee', 'Becher Tee'], 'container');
+    pushQueryEntries(entries, ['Tee trinken'], 'action');
+  } else {
+    pushQueryEntries(entries, [`Glas ${bareWord}`, `Flasche ${bareWord}`], 'container');
+    pushQueryEntries(entries, [`${bareWord} trinken`], 'action');
+  }
+
+  pushQueryEntries(entries, [bareWord], 'prototype');
+  return entries;
+}
+
+function buildInstitutionEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const adjective = getGermanArticleAdjective(wordData?.article);
+  const entries = [];
+
+  pushQueryEntries(entries, [`${bareWord} Schild`, `${bareWord} Logo`, `${adjective} ${bareWord}`], 'sign');
+  pushQueryEntries(entries, [`${bareWord} Eingang`, `${bareWord} außen`], 'exterior');
+  pushQueryEntries(entries, [`${bareWord} innen`], 'interior');
+  pushQueryEntries(entries, [`${bareWord} Schalter`, `${bareWord} Theke`], 'service');
+  pushQueryEntries(entries, [`${bareWord} in Deutschland`], 'context');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildDwellingEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const entries = [];
+
+  pushQueryEntries(entries, [`${bareWord} Eingang`, `${bareWord} außen`], 'exterior');
+  pushQueryEntries(entries, [`${bareWord} Klingel`, `${bareWord} Schlüssel`, `${bareWord} Grundriss`], 'context');
+  pushQueryEntries(entries, [`${bareWord} innen`], 'interior');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildRoomEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const entries = [];
+
+  pushQueryEntries(entries, [`leeres ${bareWord}`, `${bareWord} innen`], 'interior');
+  pushQueryEntries(entries, [`${bareWord} Tür`, `${bareWord} Fenster`, `${bareWord} Wand`], 'context');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildCalendarEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const entries = [];
+
+  pushQueryEntries(
+    entries,
+    [
+      `${bareWord} Kalender deutsch`,
+      `${bareWord} Wochenplan deutsch`,
+      `${bareWord} Kalenderblatt`,
+      `${bareWord} Datum`,
+      `${bareWord} Kalender`,
+    ],
+    'calendar'
+  );
+  pushQueryEntries(entries, [`${bareWord} in Deutschland`], 'context');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildMeasureEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const normalizedBare = normalizeGermanForCompare(bareWord);
+  const entries = [];
+
+  if (normalizedBare === 'preis') {
+    pushQueryEntries(entries, ['Preisschild', 'Preisetikett'], 'measure');
+  }
+
+  pushQueryEntries(entries, [`${bareWord} Etikett`, `${bareWord} auf Speisekarte`, `${bareWord} auf Rechnung`, `${bareWord} Anzeige`], 'measure');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildDocumentEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  const entries = [];
+
+  pushQueryEntries(entries, [`${bareWord} ausfüllen`, `${bareWord} unterschreiben`], 'action');
+  pushQueryEntries(entries, [`${bareWord} Papier`, `${bareWord} Vorlage`], 'document');
+  pushQueryEntries(entries, [bareWord], 'prototype');
+
+  return entries;
+}
+
+function buildSceneEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  return [
+    { term: bareWord, bucket: 'prototype', locale: 'de' },
+    { term: `${bareWord} Landschaft`, bucket: 'context', locale: 'de' },
+  ];
+}
+
+function buildObjectEntries(wordData) {
+  const bareWord = wordData?.bareNoun || '';
+  return [
+    { term: bareWord, bucket: 'prototype', locale: 'de' },
+  ];
+}
+
 function buildWordImageQueryEntries(wordData, selectedMeaning) {
   const englishGlossValue = selectedMeaning?.english ? String(selectedMeaning.english).trim() : '';
   const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
-  const englishGloss = englishGlossValue ? [englishGlossValue] : [];
-  const bareWord = wordData?.bareNoun ? [wordData.bareNoun] : [];
+  const englishFallbackTerms = englishGlossValue ? [englishGlossValue] : [];
+  const conceptClass = classifyWordConcept(wordData, selectedMeaning);
+  const entries = [];
 
-  const prototypeTerms = [];
-  const actionTerms = [];
-  const sourceTerms = [];
-  const lowerEnglish = englishGlossValue.toLowerCase();
-
-  if ([
-    'water',
-    'milk',
-    'juice',
-    'wine',
-    'beer',
-  ].includes(lowerEnglish)) {
-    prototypeTerms.push(`glass of ${lowerEnglish}`, `bottle of ${lowerEnglish}`);
+  if (conceptClass === 'substance') {
+    entries.push(...buildSubstanceEntries(wordData, selectedMeaning));
+  } else if (conceptClass === 'institution') {
+    entries.push(...buildInstitutionEntries(wordData));
+  } else if (conceptClass === 'dwelling') {
+    entries.push(...buildDwellingEntries(wordData));
+  } else if (conceptClass === 'room') {
+    entries.push(...buildRoomEntries(wordData));
+  } else if (conceptClass === 'calendar') {
+    entries.push(...buildCalendarEntries(wordData));
+  } else if (conceptClass === 'measure') {
+    entries.push(...buildMeasureEntries(wordData));
+  } else if (conceptClass === 'document') {
+    entries.push(...buildDocumentEntries(wordData));
+  } else if (conceptClass === 'scene') {
+    entries.push(...buildSceneEntries(wordData));
+  } else {
+    entries.push(...buildObjectEntries(wordData));
   }
 
-  if (lowerEnglish === 'milk') {
-    prototypeTerms.push('milk carton', 'carton of milk');
-    actionTerms.push('drinking milk');
-    sourceTerms.push('cow milk', 'cow with milk pail');
-  }
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => looksGermanQueryTerm(term, wordData?.bareNoun || '')),
+    null,
+    'de'
+  );
 
-  if (lowerEnglish === 'water') {
-    prototypeTerms.push('tap water', 'drinking water');
-    actionTerms.push('drinking water');
-  }
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => !looksGermanQueryTerm(term, wordData?.bareNoun || '')),
+    null,
+    'en'
+  );
 
-  if (['coffee', 'tea'].includes(lowerEnglish)) {
-    prototypeTerms.push(`cup of ${lowerEnglish}`, `mug of ${lowerEnglish}`);
-    actionTerms.push(`drinking ${lowerEnglish}`);
-  }
-
-  const orderedTerms = dedupeTerms([
-    ...prototypeTerms,
-    ...actionTerms,
-    ...sourceTerms,
-    ...specificTerms,
-    ...englishGloss,
-    ...bareWord,
-  ]).sort((left, right) => (
-    scoreSearchTerm(right, englishGlossValue || wordData?.bareNoun || '') -
-    scoreSearchTerm(left, englishGlossValue || wordData?.bareNoun || '')
-  ));
+  pushQueryEntries(entries, englishFallbackTerms, 'generic', 'en');
 
   return dedupeBy(
-    orderedTerms.map((term) => ({
-      term,
-      bucket: classifyImageQueryBucket(term, englishGlossValue),
+    entries.map((entry) => ({
+      ...entry,
+      bucket: entry.bucket || classifyImageQueryBucket(entry.term, englishGlossValue),
     })),
     (entry) => `${entry.bucket}:${entry.term.toLowerCase()}`
   );
@@ -308,11 +747,18 @@ export function buildWordImageSearchTerms(wordData, selectedMeaning) {
   return buildWordImageQueryEntries(wordData, selectedMeaning).map((entry) => entry.term);
 }
 
-function rankImageResult(result) {
+function rankImageResult(result, context = {}) {
   const query = result.queryUsed || '';
   const wordCount = query.split(/\s+/).filter(Boolean).length;
   const title = (result.title || '').toLowerCase();
   const queryLower = query.toLowerCase();
+  const detailUrl = (result.detailUrl || '').toLowerCase();
+  const downloadUrl = (result.downloadUrl || '').toLowerCase();
+  const combinedText = `${title} ${detailUrl} ${downloadUrl}`;
+  const normalizedCombinedText = normalizeGermanForCompare(combinedText);
+  const bareWord = normalizeGermanForCompare(context.wordData?.bareNoun || '');
+  const englishGloss = normalizeGermanForCompare(context.selectedMeaning?.english || '');
+  const conceptClass = classifyWordConcept(context.wordData, context.selectedMeaning);
 
   let score = 0;
 
@@ -324,7 +770,8 @@ function rankImageResult(result) {
     score += 8;
   }
 
-  if (title.includes('glass of water') || title.includes('bottle of water') || title.includes('tap water')) {
+  if (title.includes('glass of water') || title.includes('bottle of water') || title.includes('tap water') ||
+      /glas wasser|flasche wasser|leitungswasser|trinkwasser/.test(normalizedCombinedText)) {
     score += 16;
   }
 
@@ -332,12 +779,94 @@ function rankImageResult(result) {
     score -= 35;
   }
 
-  if (/glass|bottle|tap|drink|drinking|cup|mug|kitchen|sink/.test(title)) {
+  if (/glass|bottle|tap|drink|drinking|cup|mug|kitchen|sink/.test(title) ||
+      /glas|flasche|trinken|tasse|becher|kueche|waschbecken|spuele/.test(normalizedCombinedText)) {
     score += 12;
   }
 
   if (result.source === 'Brave Images') {
     score += 6;
+  }
+
+  if (result.queryLocale === 'de') {
+    score += 8;
+  }
+
+  if (bareWord && normalizedCombinedText.includes(bareWord)) {
+    score += 14;
+  }
+
+  if ((conceptClass === 'institution' || conceptClass === 'dwelling' || conceptClass === 'calendar') &&
+      /deutsch|deutschland|germany|\.de\b/.test(combinedText)) {
+    score += 10;
+  }
+
+  if ((conceptClass === 'institution' || conceptClass === 'dwelling' || conceptClass === 'room') &&
+      englishGloss &&
+      normalizedCombinedText.includes(englishGloss) &&
+      !normalizedCombinedText.includes(bareWord)) {
+    score -= 6;
+  }
+
+  const bucket = result.queryBucket || 'generic';
+  const bucketWeights = {
+    substance: { container: 18, action: 10, source: 6, prototype: 8, generic: -2 },
+    institution: { sign: 18, exterior: 16, service: 12, interior: 8, context: 8, prototype: 6, generic: -4 },
+    dwelling: { exterior: 16, context: 14, interior: 8, prototype: 6, generic: -4 },
+    room: { interior: 18, context: 10, prototype: 8, exterior: -16, generic: -2 },
+    calendar: { calendar: 20, context: 8, prototype: 6, generic: -2 },
+    measure: { measure: 20, context: 6, prototype: 4, generic: -2 },
+    document: { action: 16, document: 18, prototype: 6, generic: -2 },
+    scene: { prototype: 12, context: 8 },
+    object: { prototype: 10, context: 4, generic: 0 },
+  };
+
+  score += bucketWeights[conceptClass]?.[bucket] || 0;
+
+  if (conceptClass === 'institution') {
+    if (/walgreens|cvs|rite aid|drugstore|chemist/.test(combinedText) && !/apotheke|schule|bahnhof|krankenhaus|restaurant|museum/.test(combinedText)) {
+      score -= 28;
+    }
+  }
+
+  if (conceptClass === 'dwelling') {
+    if (/hotel room|bedroom|children'?s room|kinderzimmer|schlafzimmer/.test(combinedText)) {
+      score -= 26;
+    }
+    if (/grundriss|klingel|schluessel|schlüssel|wohnung|apartment|flat|building|fassade|eingang/.test(combinedText)) {
+      score += 12;
+    }
+  }
+
+  if (conceptClass === 'room') {
+    if (/apartment|flat|building exterior|fassade|grundriss|klingel|wohnung|hausfassade/.test(combinedText)) {
+      score -= 24;
+    }
+    if (/zimmer|room|innen|interior|wand|fenster|tuer|tür|leer/.test(combinedText)) {
+      score += 12;
+    }
+  }
+
+  if (conceptClass === 'calendar' && /kalender|wochenplan|date|datum|schedule/.test(combinedText)) {
+    score += 12;
+  }
+
+  if (conceptClass === 'calendar') {
+    if (englishGloss && normalizedCombinedText.includes(englishGloss) && !normalizedCombinedText.includes(bareWord)) {
+      score -= 18;
+    }
+
+    if (/montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|kalenderblatt|wochenplan/.test(normalizedCombinedText)) {
+      score += 12;
+    }
+  }
+
+  if (conceptClass === 'measure' && /preis|price|etikett|label|receipt|rechnung|menu|speisekarte|tag/.test(combinedText)) {
+    score += 12;
+  }
+
+  if (conceptClass === 'document' && /formular|form|document|papier|template|vorlage|sign|signature/.test(combinedText)) {
+    score += 12;
   }
 
   return score;
@@ -477,7 +1006,7 @@ export async function searchWordImages(wordData, selectedMeaning, options = {}) 
   const combined = [...brave, ...openverse, ...commons]
     .map((result) => ({
       ...result,
-      rankScore: rankImageResult(result),
+      rankScore: rankImageResult(result, { wordData, selectedMeaning }),
     }))
     .sort((a, b) => b.rankScore - a.rankScore);
 

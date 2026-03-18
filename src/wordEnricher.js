@@ -22,8 +22,6 @@ const VISUAL_SCENE_NOUNS = new Set([
   'wiese',
 ]);
 
-const NON_NOUN_REJECTION_PATTERN = /not a noun|kein substantiv|not suitable as a noun|phrase|verb|adjective|adjektiv|sentence|satz|cannot be normalized|nicht zu einem substantiv/i;
-
 function getClient() {
   if (!openai) {
     const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
@@ -51,13 +49,17 @@ Rules:
 - Reject non-nouns, phrases, verbs, adjectives, and abstract nouns that do not produce clear image-based cards.
 - Visible natural things and scene nouns such as "der Himmel", "die Sonne", "der Mond", "die Wolke", "der Stern", "der Regenbogen", "das Meer", and "der Wald" are imageable and should usually be accepted.
 - Basic everyday nouns that can be represented with stable visual proxies or familiar situations should also usually be accepted.
-- Examples: "der Preis" with a price tag, "der Termin" with a calendar entry, "das Datum" with a marked date, "die Frage" with a person asking or a question mark.
+- Examples: "der Preis" with a price tag, "der Termin" with a calendar entry, "das Datum" with a marked date, "der Montag" with a calendar page, "die Frage" with a person asking or a question mark.
+- Do not reject nouns just because they need a proxy image like a calendar, sign, label, document, or interface.
+- For place or institution nouns in German culture, prefer target-language visual anchors and German search terms.
+- Example: for "die Apotheke", prefer "Apotheke Schild", "Apotheke Eingang", "Apotheke innen", or "deutsche Apotheke" over generic English "pharmacy" images.
 - For nouns with multiple meanings, provide up to 3 short meaning options.
 - Russian glosses should be concise and represent a single intended sense.
-- English glosses are used for image search and should be concrete.
-- imageSearchTerms must be ordered from best visual search to broadest fallback.
+- English glosses are metadata and may be used only as a fallback for search.
+- imageSearchTerms must be written primarily in German, ordered from best visual search to broadest fallback.
+- Use English search phrases only as a last resort when there is no natural German phrase.
 - Prefer prototypical everyday depictions over scenic/background scenes, unless the noun itself is a scene or natural phenomenon like "der Himmel".
-- For substances like water, milk, coffee, beer, etc., prefer container/use views such as "glass of water", "bottle of water", or "tap water", not landscapes or lakes.
+- For substances like water, milk, coffee, beer, etc., prefer container/use views such as "Glas Wasser", "Flasche Wasser", or "Leitungswasser", not landscapes or lakes.
 - IPA must be in square brackets.
 - For plural, return the plain plural noun without article. If the noun usually has no plural, set noPlural=true.
 - If you reject an identifiable noun, still return best-effort values for canonical, bareNoun, article, gender, meanings, and imageability fields.
@@ -81,7 +83,7 @@ Respond in JSON only:
     {
       "russian": "вода",
       "english": "water",
-      "imageSearchTerms": ["glass of water", "tap water", "water"]
+      "imageSearchTerms": ["Glas Wasser", "Trinkwasser", "Wasser"]
     }
   ]
 }
@@ -123,16 +125,7 @@ function hasStructuredNounAnalysis(result = {}) {
 }
 
 export function canProceedWithWeakWordCard(result = {}) {
-  if (!hasStructuredNounAnalysis(result)) {
-    return false;
-  }
-
-  const reason = `${result.rejectionReason || ''} ${result.imageabilityReason || ''}`.trim();
-  if (NON_NOUN_REJECTION_PATTERN.test(reason)) {
-    return false;
-  }
-
-  return result.shouldCreateWordCard === false || result.isImageable === false;
+  return hasStructuredNounAnalysis(result);
 }
 
 export function shouldRetryImageableNounRejection(input, result = {}) {
