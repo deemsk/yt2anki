@@ -212,7 +212,7 @@ async function finalizeWord(prepared, options, spinner) {
   spinner.start('Creating Anki note...');
   const imageFilename = await storeMedia(imagePath);
   const audioFilename = await storeAudio(audio.audioPath);
-  const pronunciationField = `[sound:${audioFilename}]<br>${wordData.ipa}`;
+  const pronunciationField = `[sound:${audioFilename}]<br>${wordData.ipa || ''}`;
 
   await createPictureWordNote({
     canonical: wordData.canonical,
@@ -275,13 +275,14 @@ export async function processWordBatch(options = {}) {
         const trimmed = line.trim();
         if (trimmed === '') {
           rl.close();
-          resolve(entries);
           return;
         }
 
         entries.push(trimmed);
         console.log(chalk.dim(`  Added #${entries.length}: "${trimmed}"`));
       });
+
+      rl.on('close', () => resolve(entries));
     });
 
     if (words.length === 0) {

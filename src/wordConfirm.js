@@ -373,7 +373,7 @@ export async function confirmWordSelection({
   async function showPreview() {
     console.log();
     console.log(`Word: ${wordData.canonical}`);
-    console.log(`${wordData.ipa}  ${selectedMeaning.russian}`);
+    console.log(`${wordData.ipa || ''}  ${selectedMeaning.russian}`.trim());
     console.log(`Plural: ${formatPluralLabel(wordData)}`);
     console.log(`Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`Audio: ${audioSource}`);
