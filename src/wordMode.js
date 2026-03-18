@@ -5,9 +5,9 @@ import chalk from 'chalk';
 import { config } from './config.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import { buildWordExtraInfo, formatGenderColoredWord, formatPluralLabel } from './wordUtils.js';
-import { enrichWord } from './wordEnricher.js';
+import { canProceedWithWeakWordCard, enrichWord } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, confirmWordSelection } from './wordConfirm.js';
-import { resolveImageAsset, resolveWordAudio, searchWordImages } from './wordSources.js';
+import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
 import {
   checkConnection,
   createPictureWordNote,
@@ -40,12 +40,23 @@ async function ensureWordSetup(deck, dryRun) {
 
 async function buildWordAudio(wordData, spinner) {
   spinner.start('Resolving pronunciation audio...');
+  let wiktionaryIpa = null;
 
   try {
-    const humanAudio = await resolveWordAudio(wordData);
-    if (humanAudio) {
-      spinner.succeed('Using Wikimedia human audio');
-      return humanAudio;
+    const pronunciation = await resolveWordPronunciation(wordData);
+    if (pronunciation?.ipa) {
+      wordData.ipa = pronunciation.ipa;
+      wiktionaryIpa = pronunciation.ipa;
+    }
+
+    if (pronunciation?.audioPath) {
+      spinner.succeed(wiktionaryIpa
+        ? 'Using Wikimedia human audio and Wiktionary IPA'
+        : 'Using Wikimedia human audio');
+      return {
+        audioPath: pronunciation.audioPath,
+        source: pronunciation.source,
+      };
     }
   } catch {
     // Fall back to TTS below.
@@ -53,7 +64,9 @@ async function buildWordAudio(wordData, spinner) {
 
   const audioPath = join(config.dataDir, `word_tts_${Date.now()}.mp3`);
   await generateSimpleSpeech(wordData.canonical, audioPath, { speed: 0.9 });
-  spinner.succeed('Using OpenAI TTS fallback audio');
+  spinner.succeed(wiktionaryIpa
+    ? 'Using OpenAI TTS fallback audio (IPA from Wiktionary)'
+    : 'Using OpenAI TTS fallback audio');
   return {
     audioPath,
     source: 'OpenAI TTS',
@@ -63,15 +76,21 @@ async function buildWordAudio(wordData, spinner) {
 async function prepareWord(rawInput, options, spinner) {
   spinner.start('Analyzing noun...');
   const wordData = await enrichWord(rawInput);
+  const recoverableWeakCandidate = canProceedWithWeakWordCard(wordData);
 
-  if (!wordData.shouldCreateWordCard) {
+  if (!wordData.shouldCreateWordCard && !recoverableWeakCandidate) {
     spinner.warn(`Rejected: ${wordData.rejectionReason}`);
     return { rejected: true };
   }
 
-  if (!wordData.isImageable) {
+  if (!wordData.isImageable && !recoverableWeakCandidate) {
     spinner.warn(`Rejected: ${wordData.imageabilityReason || 'not imageable enough for picture-word cards'}`);
     return { rejected: true };
+  }
+
+  if (recoverableWeakCandidate && (!wordData.shouldCreateWordCard || !wordData.isImageable)) {
+    const warning = wordData.rejectionReason || wordData.imageabilityReason || 'weak picture candidate';
+    console.log(chalk.yellow(`Weak picture candidate: ${warning}. Continuing anyway.`));
   }
 
   spinner.succeed(`Ready: ${wordData.canonical}`);

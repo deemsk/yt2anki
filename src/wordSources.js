@@ -4,6 +4,7 @@ import { extname, join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
+import { normalizeWordIpa, stripHtml } from './wordUtils.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -26,6 +27,20 @@ function dedupeTerms(terms) {
     terms.filter(Boolean).map((term) => String(term).trim()).filter(Boolean),
     (term) => term.toLowerCase()
   );
+}
+
+function dedupeBy(items, keyFn) {
+  const seen = new Set();
+  const result = [];
+
+  for (const item of items) {
+    const key = keyFn(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
 }
 
 function scoreSearchTerm(term, baseWord = '') {
@@ -183,7 +198,10 @@ async function searchFirstAvailable(searchFn, queries, pageSize) {
   const batches = [];
 
   for (let index = 0; index < queries.length; index++) {
-    const query = queries[index];
+    const queryEntry = typeof queries[index] === 'string'
+      ? { term: queries[index], bucket: 'generic' }
+      : queries[index];
+    const query = queryEntry?.term;
     if (!query) continue;
 
     try {
@@ -192,6 +210,7 @@ async function searchFirstAvailable(searchFn, queries, pageSize) {
         ...results.map((result, resultIndex) => ({
           ...result,
           queryUsed: query,
+          queryBucket: queryEntry.bucket || 'generic',
           queryPriority: index,
           resultPriority: resultIndex,
         }))
@@ -204,13 +223,38 @@ async function searchFirstAvailable(searchFn, queries, pageSize) {
   return batches;
 }
 
-export function buildWordImageSearchTerms(wordData, selectedMeaning) {
+function classifyImageQueryBucket(term, englishGloss = '') {
+  const lower = String(term || '').toLowerCase();
+  const english = String(englishGloss || '').toLowerCase();
+
+  if (/drink|drinking|pouring|holding|eating|using|washing/.test(lower)) {
+    return 'action';
+  }
+
+  if (/cow|goat|farm|tree|forest|sea|ocean|mountain|sky|sun|moon|cloud/.test(lower)) {
+    return 'source';
+  }
+
+  if (/glass of|bottle of|cup of|mug of|carton of|milk carton|package of|packet of|tap water/.test(lower)) {
+    return 'container';
+  }
+
+  if (english && lower === english) {
+    return 'generic';
+  }
+
+  return 'prototype';
+}
+
+function buildWordImageQueryEntries(wordData, selectedMeaning) {
   const englishGlossValue = selectedMeaning?.english ? String(selectedMeaning.english).trim() : '';
   const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
   const englishGloss = englishGlossValue ? [englishGlossValue] : [];
   const bareWord = wordData?.bareNoun ? [wordData.bareNoun] : [];
 
   const prototypeTerms = [];
+  const actionTerms = [];
+  const sourceTerms = [];
   const lowerEnglish = englishGlossValue.toLowerCase();
 
   if ([
@@ -223,16 +267,26 @@ export function buildWordImageSearchTerms(wordData, selectedMeaning) {
     prototypeTerms.push(`glass of ${lowerEnglish}`, `bottle of ${lowerEnglish}`);
   }
 
+  if (lowerEnglish === 'milk') {
+    prototypeTerms.push('milk carton', 'carton of milk');
+    actionTerms.push('drinking milk');
+    sourceTerms.push('cow milk', 'cow with milk pail');
+  }
+
   if (lowerEnglish === 'water') {
     prototypeTerms.push('tap water', 'drinking water');
+    actionTerms.push('drinking water');
   }
 
   if (['coffee', 'tea'].includes(lowerEnglish)) {
     prototypeTerms.push(`cup of ${lowerEnglish}`, `mug of ${lowerEnglish}`);
+    actionTerms.push(`drinking ${lowerEnglish}`);
   }
 
-  return dedupeTerms([
+  const orderedTerms = dedupeTerms([
     ...prototypeTerms,
+    ...actionTerms,
+    ...sourceTerms,
     ...specificTerms,
     ...englishGloss,
     ...bareWord,
@@ -240,6 +294,18 @@ export function buildWordImageSearchTerms(wordData, selectedMeaning) {
     scoreSearchTerm(right, englishGlossValue || wordData?.bareNoun || '') -
     scoreSearchTerm(left, englishGlossValue || wordData?.bareNoun || '')
   ));
+
+  return dedupeBy(
+    orderedTerms.map((term) => ({
+      term,
+      bucket: classifyImageQueryBucket(term, englishGlossValue),
+    })),
+    (entry) => `${entry.bucket}:${entry.term.toLowerCase()}`
+  );
+}
+
+export function buildWordImageSearchTerms(wordData, selectedMeaning) {
+  return buildWordImageQueryEntries(wordData, selectedMeaning).map((entry) => entry.term);
 }
 
 function rankImageResult(result) {
@@ -277,9 +343,130 @@ function rankImageResult(result) {
   return score;
 }
 
+function getResultDomain(result) {
+  const candidates = [result.detailUrl, result.downloadUrl, result.previewUrl];
+
+  for (const candidate of candidates) {
+    try {
+      return new URL(candidate).hostname.replace(/^www\./, '');
+    } catch {
+      // Try the next URL.
+    }
+  }
+
+  return result.source || 'unknown';
+}
+
+function buildDiverseResultSet(results, {
+  total = 12,
+  firstPageCount = config.wordImagePreviewCount || 6,
+  maxPerDomainFirstPage = 1,
+} = {}) {
+  const deduped = uniqueBy(results, (item) => item.previewUrl)
+    .map((item) => ({
+      ...item,
+      resultDomain: getResultDomain(item),
+    }));
+
+  const bucketOrder = [];
+  const bucketMap = new Map();
+
+  for (const result of deduped) {
+    const bucket = result.queryBucket || 'generic';
+    if (!bucketMap.has(bucket)) {
+      bucketMap.set(bucket, []);
+      bucketOrder.push(bucket);
+    }
+    bucketMap.get(bucket).push(result);
+  }
+
+  for (const bucket of bucketOrder) {
+    bucketMap.get(bucket).sort((left, right) => right.rankScore - left.rankScore);
+  }
+
+  const selected = [];
+  const selectedKeys = new Set();
+  const domainCounts = new Map();
+  const firstPageTarget = Math.min(firstPageCount, total, deduped.length);
+
+  const trySelectFromBucket = (bucket, enforceDomainCap) => {
+    const queue = bucketMap.get(bucket) || [];
+    let deferredIndex = -1;
+
+    for (let index = 0; index < queue.length; index++) {
+      const candidate = queue[index];
+      const key = candidate.previewUrl;
+      if (!key || selectedKeys.has(key)) continue;
+
+      const domain = candidate.resultDomain || 'unknown';
+      if (enforceDomainCap && (domainCounts.get(domain) || 0) >= maxPerDomainFirstPage) {
+        if (deferredIndex === -1) {
+          deferredIndex = index;
+        }
+        continue;
+      }
+
+      queue.splice(index, 1);
+      selected.push(candidate);
+      selectedKeys.add(key);
+      domainCounts.set(domain, (domainCounts.get(domain) || 0) + 1);
+      return true;
+    }
+
+    if (!enforceDomainCap && deferredIndex >= 0) {
+      const [candidate] = queue.splice(deferredIndex, 1);
+      const key = candidate.previewUrl;
+      if (!key || selectedKeys.has(key)) return false;
+      selected.push(candidate);
+      selectedKeys.add(key);
+      return true;
+    }
+
+    return false;
+  };
+
+  while (selected.length < firstPageTarget) {
+    let madeProgress = false;
+    for (const bucket of bucketOrder) {
+      if (selected.length >= firstPageTarget) break;
+      if (trySelectFromBucket(bucket, true)) {
+        madeProgress = true;
+      }
+    }
+
+    if (!madeProgress) {
+      break;
+    }
+  }
+
+  while (selected.length < firstPageTarget) {
+    let madeProgress = false;
+    for (const bucket of bucketOrder) {
+      if (selected.length >= firstPageTarget) break;
+      if (trySelectFromBucket(bucket, false)) {
+        madeProgress = true;
+      }
+    }
+
+    if (!madeProgress) {
+      break;
+    }
+  }
+
+  for (const result of deduped) {
+    if (selected.length >= total) break;
+    const key = result.previewUrl;
+    if (!key || selectedKeys.has(key)) continue;
+    selected.push(result);
+    selectedKeys.add(key);
+  }
+
+  return selected.slice(0, total);
+}
+
 export async function searchWordImages(wordData, selectedMeaning, options = {}) {
   const pageSize = options.pageSize || 6;
-  const searchTerms = buildWordImageSearchTerms(wordData, selectedMeaning);
+  const searchTerms = buildWordImageQueryEntries(wordData, selectedMeaning);
 
   const [brave, openverse, commons] = await Promise.all([
     searchFirstAvailable(searchBraveImages, searchTerms, pageSize),
@@ -294,7 +481,10 @@ export async function searchWordImages(wordData, selectedMeaning, options = {}) 
     }))
     .sort((a, b) => b.rankScore - a.rankScore);
 
-  return uniqueBy(combined, (item) => item.previewUrl).slice(0, options.total || 12);
+  return buildDiverseResultSet(combined, {
+    total: options.total || 12,
+    firstPageCount: pageSize,
+  });
 }
 
 function inferExtension(url, contentType, fallbackExt) {
@@ -399,7 +589,13 @@ async function convertAudioToMp3(inputPath, outputPath) {
   return outputPath;
 }
 
-async function getWiktionaryAudioUrls(word) {
+function extractWiktionaryIpa(html = '') {
+  const plainText = stripHtml(html);
+  const match = plainText.match(/IPA\s*:\s*\[([^\]]+)\]/i);
+  return match ? `[${match[1].trim()}]` : null;
+}
+
+async function getWiktionaryPronunciationData(word) {
   const url = new URL('https://de.wiktionary.org/w/api.php');
   url.searchParams.set('action', 'parse');
   url.searchParams.set('page', word);
@@ -413,28 +609,47 @@ async function getWiktionaryAudioUrls(word) {
     const html = payload.parse?.text || '';
     const matches = html.match(/(?:https?:)?\/\/upload\.wikimedia\.org[^"'\\\s]+?\.(?:ogg|oga|mp3|wav)/gi) || [];
 
-    return uniqueBy(
-      matches.map((match) => cleanUrl(match)),
-      (audioUrl) => audioUrl
-    );
+    return {
+      ipa: extractWiktionaryIpa(html),
+      audioUrls: uniqueBy(
+        matches.map((match) => cleanUrl(match)),
+        (audioUrl) => audioUrl
+      ),
+    };
   } catch {
-    return [];
+    return {
+      ipa: null,
+      audioUrls: [],
+    };
   }
 }
 
-export async function resolveWordAudio(wordData) {
-  const audioUrls = await getWiktionaryAudioUrls(wordData.bareNoun);
-  if (audioUrls.length === 0) {
+export async function resolveWordPronunciation(wordData) {
+  const pronunciationData = await getWiktionaryPronunciationData(wordData.bareNoun);
+  const normalizedIpa = pronunciationData.ipa
+    ? normalizeWordIpa(wordData.canonical, pronunciationData.ipa)
+    : null;
+
+  if (pronunciationData.audioUrls.length === 0 && !normalizedIpa) {
     return null;
   }
 
-  const downloadedPath = await downloadRemoteAsset(audioUrls[0], 'word_audio_human', '.ogg');
+  if (pronunciationData.audioUrls.length === 0) {
+    return {
+      ipa: normalizedIpa,
+      audioPath: null,
+      source: 'Wiktionary',
+    };
+  }
+
+  const downloadedPath = await downloadRemoteAsset(pronunciationData.audioUrls[0], 'word_audio_human', '.ogg');
   const mp3Path = join(config.dataDir, `word_audio_human_${Date.now()}.mp3`);
 
   await mkdir(config.dataDir, { recursive: true });
 
   if (extname(downloadedPath).toLowerCase() === '.mp3') {
     return {
+      ipa: normalizedIpa,
       audioPath: downloadedPath,
       source: 'Wiktionary/Wikimedia',
     };
@@ -443,8 +658,21 @@ export async function resolveWordAudio(wordData) {
   await convertAudioToMp3(downloadedPath, mp3Path);
 
   return {
+    ipa: normalizedIpa,
     audioPath: mp3Path,
     source: 'Wiktionary/Wikimedia',
+  };
+}
+
+export async function resolveWordAudio(wordData) {
+  const pronunciation = await resolveWordPronunciation(wordData);
+  if (!pronunciation?.audioPath) {
+    return null;
+  }
+
+  return {
+    audioPath: pronunciation.audioPath,
+    source: pronunciation.source,
   };
 }
 

@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
-import { normalizeGermanForCompare } from './wordUtils.js';
+import { normalizeGermanForCompare, normalizeWordIpa } from './wordUtils.js';
 
 let openai = null;
 
@@ -21,6 +21,8 @@ const VISUAL_SCENE_NOUNS = new Set([
   'strand',
   'wiese',
 ]);
+
+const NON_NOUN_REJECTION_PATTERN = /not a noun|kein substantiv|not suitable as a noun|phrase|verb|adjective|adjektiv|sentence|satz|cannot be normalized|nicht zu einem substantiv/i;
 
 function getClient() {
   if (!openai) {
@@ -48,6 +50,8 @@ Rules:
 - Always normalize accepted nouns into canonical singular form with article.
 - Reject non-nouns, phrases, verbs, adjectives, and abstract nouns that do not produce clear image-based cards.
 - Visible natural things and scene nouns such as "der Himmel", "die Sonne", "der Mond", "die Wolke", "der Stern", "der Regenbogen", "das Meer", and "der Wald" are imageable and should usually be accepted.
+- Basic everyday nouns that can be represented with stable visual proxies or familiar situations should also usually be accepted.
+- Examples: "der Preis" with a price tag, "der Termin" with a calendar entry, "das Datum" with a marked date, "die Frage" with a person asking or a question mark.
 - For nouns with multiple meanings, provide up to 3 short meaning options.
 - Russian glosses should be concise and represent a single intended sense.
 - English glosses are used for image search and should be concrete.
@@ -90,8 +94,8 @@ If rejected, set shouldCreateWordCard=false and explain why.`;
 function sanitizeWordAnalysis(result = {}) {
   const sanitized = { ...result };
 
-  if (sanitized.ipa && !String(sanitized.ipa).startsWith('[')) {
-    sanitized.ipa = `[${sanitized.ipa}]`;
+  if (sanitized.ipa) {
+    sanitized.ipa = normalizeWordIpa(sanitized.canonical, sanitized.ipa);
   }
 
   sanitized.meanings = Array.isArray(sanitized.meanings)
@@ -105,6 +109,30 @@ function extractRetryCandidate(input, result = {}) {
   const candidate = result.bareNoun || result.canonical || input || '';
   const normalized = normalizeGermanForCompare(candidate).replace(/^(der|die|das)\s+/, '');
   return normalized;
+}
+
+function hasStructuredNounAnalysis(result = {}) {
+  return Boolean(
+    result.canonical &&
+    result.bareNoun &&
+    result.article &&
+    result.gender &&
+    Array.isArray(result.meanings) &&
+    result.meanings.length > 0
+  );
+}
+
+export function canProceedWithWeakWordCard(result = {}) {
+  if (!hasStructuredNounAnalysis(result)) {
+    return false;
+  }
+
+  const reason = `${result.rejectionReason || ''} ${result.imageabilityReason || ''}`.trim();
+  if (NON_NOUN_REJECTION_PATTERN.test(reason)) {
+    return false;
+  }
+
+  return result.shouldCreateWordCard === false || result.isImageable === false;
 }
 
 export function shouldRetryImageableNounRejection(input, result = {}) {

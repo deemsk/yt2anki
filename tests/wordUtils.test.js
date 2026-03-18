@@ -3,6 +3,7 @@ import {
   extractCanonicalWord,
   extractWordMeaning,
   formatGenderColoredWord,
+  normalizeWordIpa,
   normalizeGermanForCompare,
   toTagSlug,
 } from "../src/wordUtils.js"
@@ -34,6 +35,12 @@ describe("word helpers", () => {
   test("normalization and tag slug keep canonical noun comparisons stable", () => {
     expect(normalizeGermanForCompare("<span>das Wasser</span>")).toBe("das wasser")
     expect(toTagSlug("das Wasser")).toBe("das-wasser")
+  })
+
+  test("normalizeWordIpa keeps noun IPA aligned with the canonical article", () => {
+    expect(normalizeWordIpa("die Wohnung", "[ˈvoːnʊŋ]")).toBe("[diː ˈvoːnʊŋ]")
+    expect(normalizeWordIpa("die Apotheke", "[diː apɔˈteːkə]")).toBe("[diː apɔˈteːkə]")
+    expect(normalizeWordIpa("das Bad", "baːt")).toBe("[das baːt]")
   })
 
   test("frequency info uses configured learner bands", () => {

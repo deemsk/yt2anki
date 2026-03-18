@@ -1,4 +1,4 @@
-import { shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
+import { canProceedWithWeakWordCard, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -24,6 +24,32 @@ describe("word enricher retries", () => {
       shouldRetryImageableNounRejection("Himmel", {
         shouldCreateWordCard: true,
         isImageable: true,
+      })
+    ).toBe(false)
+  })
+
+  test("allows recoverable abstract-style rejections for usable noun cards like Preis", () => {
+    expect(
+      canProceedWithWeakWordCard({
+        shouldCreateWordCard: false,
+        rejectionReason: "The noun 'der Preis' (the price) is abstract and does not produce a clear image-based card.",
+        canonical: "der Preis",
+        bareNoun: "Preis",
+        article: "der",
+        gender: "masculine",
+        meanings: [{ russian: "цена", english: "price" }],
+      })
+    ).toBe(true)
+  })
+
+  test("does not allow non-noun rejections through the weak-candidate path", () => {
+    expect(
+      canProceedWithWeakWordCard({
+        shouldCreateWordCard: false,
+        rejectionReason: "The input is a verb, not a noun.",
+        canonical: "gehen",
+        bareNoun: "gehen",
+        meanings: [{ russian: "идти", english: "go" }],
       })
     ).toBe(false)
   })

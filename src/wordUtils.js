@@ -4,6 +4,12 @@ const GENDER_COLORS = {
   neuter: '#111111',
 };
 
+const ARTICLE_IPA = {
+  der: 'deːɐ̯',
+  die: 'diː',
+  das: 'das',
+};
+
 const ENTITY_MAP = {
   '&nbsp;': ' ',
   '&amp;': '&',
@@ -55,6 +61,32 @@ export function toTagSlug(text = '') {
 export function formatGenderColoredWord(canonical, gender) {
   const color = GENDER_COLORS[gender] || GENDER_COLORS.neuter;
   return `<span style="color:${color};font-weight:600;">${escapeHtml(canonical)}</span>`;
+}
+
+export function normalizeWordIpa(canonical = '', ipa = '') {
+  const raw = String(ipa || '').trim();
+  if (!raw) return '';
+
+  const body = raw.replace(/^\[/, '').replace(/\]$/, '').trim();
+  if (!body) return '';
+
+  const article = normalizeGermanForCompare(canonical).split(' ')[0];
+  const articleIpa = ARTICLE_IPA[article];
+
+  if (!articleIpa) {
+    return `[${body}]`;
+  }
+
+  if (
+    body.startsWith(`${articleIpa} `) ||
+    body === articleIpa ||
+    body.startsWith(`${article} `) ||
+    body === article
+  ) {
+    return `[${body}]`;
+  }
+
+  return `[${articleIpa} ${body}]`;
 }
 
 export function buildWordMetadataComment(metadata) {

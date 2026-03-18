@@ -51,9 +51,14 @@ async function openFile(filePath) {
 }
 
 function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) {
+  const desktopColumns = 3;
+  const mobileColumns = 2;
+  const desktopRows = Math.max(1, Math.ceil(candidates.length / desktopColumns));
+  const mobileRows = Math.max(1, Math.ceil(candidates.length / mobileColumns));
   const items = candidates.map((candidate, index) => `
     <figure class="tile">
       <div class="num">${index + 1}</div>
+      <div class="source">${escapeHtml(candidate.source || 'image')}</div>
       <img src="${escapeHtml(candidate.previewDisplayUrl || candidate.previewUrl)}" alt="${escapeHtml(candidate.title)}" />
     </figure>
   `).join('');
@@ -64,46 +69,68 @@ function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) 
   <meta charset="utf-8" />
   <title>${escapeHtml(wordData.canonical)} image preview</title>
   <style>
-    :root { color-scheme: light; }
+    :root {
+      color-scheme: light;
+      --desktop-rows: ${desktopRows};
+      --mobile-rows: ${mobileRows};
+    }
+    html, body {
+      height: 100%;
+    }
     body {
       margin: 0;
+      min-height: 100dvh;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #ffffff;
       color: #111827;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
     }
     .chrome {
-      padding: 18px 20px 12px;
+      padding: 14px 16px 10px;
     }
     h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: clamp(20px, 2.4vw, 24px);
       font-weight: 650;
       letter-spacing: -0.03em;
     }
     p {
-      margin: 6px 0 0;
+      margin: 4px 0 0;
       color: #6b7280;
-      font-size: 14px;
+      font-size: 13px;
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      min-height: 0;
+      height: 100%;
+      grid-template-columns: repeat(${desktopColumns}, minmax(0, 1fr));
+      grid-template-rows: repeat(var(--desktop-rows), minmax(0, 1fr));
       gap: 4px;
       padding: 0 4px 4px;
+      box-sizing: border-box;
     }
     .tile {
       margin: 0;
       position: relative;
       overflow: hidden;
       border-radius: 12px;
-      background: #eceff3;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(242,244,247,0.96)),
+        repeating-conic-gradient(from 45deg, #eef1f4 0% 25%, #f8fafc 0% 50%) 50% / 18px 18px;
+      min-height: 0;
+      box-shadow:
+        inset 0 0 0 1px rgba(17, 24, 39, 0.06),
+        inset 0 -24px 48px rgba(17, 24, 39, 0.03);
     }
     .tile img {
       width: 100%;
-      aspect-ratio: 1 / 1;
+      height: 100%;
       object-fit: cover;
       display: block;
-      background: #e5e7eb;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
     }
     .num {
       position: absolute;
@@ -120,15 +147,46 @@ function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) 
       font-size: 13px;
       backdrop-filter: blur(8px);
     }
+    .source {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      z-index: 1;
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      text-transform: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(17, 24, 39, 0.45);
+    }
     @media (max-width: 900px) {
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chrome {
+        padding: 12px 14px 8px;
+      }
+      .grid {
+        grid-template-columns: repeat(${mobileColumns}, minmax(0, 1fr));
+        grid-template-rows: repeat(var(--mobile-rows), minmax(0, 1fr));
+      }
+      .num {
+        top: 8px;
+        left: 8px;
+      }
+      .source {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+      }
     }
   </style>
 </head>
 <body>
   <div class="chrome">
     <h1>${escapeHtml(wordData.canonical)} (${escapeHtml(meaning.russian)})</h1>
-    <p>Choose image ${page * 6 + 1}-${page * 6 + candidates.length}. Press the same number in the terminal.</p>
+    <p>Choose image ${page * 6 + 1}-${page * 6 + candidates.length}. Page ${page + 1}/${totalPages}. Press the same number in the terminal.</p>
   </div>
   <div class="grid">${items}</div>
 </body>
@@ -247,20 +305,33 @@ export async function chooseImage(wordData, meaning, candidates) {
     await openImagePreview(wordData, meaning, pageCandidates, page, totalPages);
 
     console.log();
-    console.log(`Image options for ${wordData.canonical} (${meaning.russian}):`);
+    console.log(`Image options for ${wordData.canonical} (${meaning.russian}) - page ${page + 1}/${totalPages}:`);
     pageCandidates.forEach((candidate, index) => {
       console.log(`  ${index + 1}. image ${index + 1}`);
     });
 
-    const answer = await ask('[1-6] select, [M]ore, [U]rl/path, [S]kip: ');
+    const answer = await ask('[1-6] select, [N]ext, [B]ack, [U]rl/path, [S]kip: ');
     const normalized = answer.toLowerCase();
 
     if (normalized === 's' || normalized === 'skip') {
       return null;
     }
 
-    if (normalized === 'm' || normalized === 'more') {
-      page = (page + 1) % totalPages;
+    if (normalized === 'n' || normalized === 'next' || normalized === 'm' || normalized === 'more') {
+      if (page >= totalPages - 1) {
+        console.log('Already on the last page.');
+        continue;
+      }
+      page += 1;
+      continue;
+    }
+
+    if (normalized === 'b' || normalized === 'back' || normalized === 'prev' || normalized === 'previous') {
+      if (page <= 0) {
+        console.log('Already on the first page.');
+        continue;
+      }
+      page -= 1;
       continue;
     }
 

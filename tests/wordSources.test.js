@@ -1,5 +1,5 @@
 import { config } from "../src/config.js"
-import { buildWordImageSearchTerms, searchWordImages } from "../src/wordSources.js"
+import { buildWordImageSearchTerms, resolveWordPronunciation, searchWordImages } from "../src/wordSources.js"
 
 describe("word image sources", () => {
   const originalFetch = global.fetch
@@ -39,6 +39,9 @@ describe("word image sources", () => {
     )
 
     expect(terms.slice(0, 2)).toEqual(["glass of milk", "bottle of milk"])
+    expect(terms).toContain("milk carton")
+    expect(terms).toContain("drinking milk")
+    expect(terms).toContain("cow milk")
     expect(terms).toContain("milk")
     expect(terms).toContain("Milch")
   })
@@ -191,5 +194,169 @@ describe("word image sources", () => {
         title: "Glass of water in a bottle and cup",
       })
     )
+  })
+
+  test("searchWordImages diversifies first-page milk results across visual archetypes", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      if (parsed.hostname === "api.openverse.org") {
+        const query = parsed.searchParams.get("q")
+
+        if (query === "glass of milk") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Glass of milk on table",
+                    thumbnail: "https://img.example/milk-glass.jpg",
+                    url: "https://img.example/milk-glass-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        if (query === "milk carton") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Milk carton on breakfast table",
+                    thumbnail: "https://img.example/milk-carton.jpg",
+                    url: "https://img.example/milk-carton-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        if (query === "drinking milk") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Child drinking milk",
+                    thumbnail: "https://img.example/milk-drinking.jpg",
+                    url: "https://img.example/milk-drinking-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        if (query === "cow milk") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Cow with milk pail",
+                    thumbnail: "https://img.example/milk-cow.jpg",
+                    url: "https://img.example/milk-cow-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] } }
+        },
+      }
+    }
+
+    const results = await searchWordImages(
+      { bareNoun: "Milch" },
+      {
+        english: "milk",
+        imageSearchTerms: ["milk"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results.slice(0, 4)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Glass of milk on table", queryBucket: "container" }),
+        expect.objectContaining({ title: "Milk carton on breakfast table", queryBucket: "container" }),
+        expect.objectContaining({ title: "Child drinking milk", queryBucket: "action" }),
+        expect.objectContaining({ title: "Cow with milk pail", queryBucket: "source" }),
+      ])
+    )
+  })
+
+  test("resolveWordPronunciation uses Wiktionary IPA even when no audio is available", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "de.wiktionary.org") {
+        return {
+          ok: true,
+          async json() {
+            return {
+              parse: {
+                text: `
+                  <div>
+                    <p>Aussprache:</p>
+                    <p><a>IPA</a>: [ˈvoːnʊŋ]</p>
+                  </div>
+                `,
+              },
+            }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected URL: ${url}`)
+    }
+
+    const pronunciation = await resolveWordPronunciation({
+      canonical: "die Wohnung",
+      bareNoun: "Wohnung",
+    })
+
+    expect(pronunciation).toEqual({
+      ipa: "[diː ˈvoːnʊŋ]",
+      audioPath: null,
+      source: "Wiktionary",
+    })
   })
 })
