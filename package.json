@@ -10,6 +10,8 @@
     "start": "node src/index.js clip",
     "clip": "node src/index.js clip",
     "text": "node src/index.js text",
+    "word": "node src/index.js word",
+    "words": "node src/index.js words",
     "add": "node src/index.js add",
     "process": "node src/index.js process",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",

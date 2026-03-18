@@ -14,6 +14,7 @@ import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
+import { processSingleWord, processWordBatch } from './wordMode.js';
 
 /**
  * Session state for tracking accepted units and pattern usage.
@@ -109,6 +110,24 @@ program
   .option('-n, --dry-run', 'Preview cards without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processTextBatch);
+
+program
+  .command('word')
+  .description('Create a Fluent Forever noun note')
+  .argument('<word>', 'German noun, with or without article')
+  .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
+  .option('-t, --theme <name>', 'Optional theme tag')
+  .option('-n, --dry-run', 'Preview the noun note without creating it')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processSingleWord);
+
+program
+  .command('words')
+  .description('Create Fluent Forever noun notes from text input (one noun per line)')
+  .option('-t, --theme <name>', 'Optional theme tag for all nouns in the batch')
+  .option('-n, --dry-run', 'Preview noun notes without creating them')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processWordBatch);
 
 program.parse();
 
@@ -306,12 +325,21 @@ async function checkSetup() {
     console.log(chalk.dim(`  Note types: ${noteTypes.slice(0, 5).join(', ')}...`));
 
     if (noteTypes.includes(config.ankiNoteType)) {
-      console.log(chalk.green(`✓ Note type "${config.ankiNoteType}" exists`));
+      console.log(chalk.green(`✓ Sentence note type "${config.ankiNoteType}" exists`));
       const fields = await getNoteFields(config.ankiNoteType);
       console.log(chalk.dim(`  Fields: ${fields.join(', ')}`));
     } else {
-      console.log(chalk.yellow(`⚠ Note type "${config.ankiNoteType}" not found`));
+      console.log(chalk.yellow(`⚠ Sentence note type "${config.ankiNoteType}" not found`));
       console.log(chalk.dim(`  Available: ${noteTypes.join(', ')}`));
+    }
+
+    const wordNoteType = config.wordNoteType || '2. Picture Words';
+    if (noteTypes.includes(wordNoteType)) {
+      console.log(chalk.green(`✓ Word note type "${wordNoteType}" exists`));
+      const fields = await getNoteFields(wordNoteType);
+      console.log(chalk.dim(`  Word fields: ${fields.join(', ')}`));
+    } else {
+      console.log(chalk.yellow(`⚠ Word note type "${wordNoteType}" not found`));
     }
   } else {
     console.log(chalk.red('✗ AnkiConnect not available'));
@@ -446,17 +474,30 @@ async function testIntegrations(options) {
     // Check note type
     const noteTypes = await getNoteTypes();
     if (noteTypes.includes(config.ankiNoteType)) {
-      pass(`Note type "${config.ankiNoteType}" exists`);
+      pass(`Sentence note type "${config.ankiNoteType}" exists`);
 
       const fields = await getNoteFields(config.ankiNoteType);
       if (fields.includes('Front') && fields.includes('Back')) {
-        pass('Note type has required fields (Front, Back)');
+        pass('Sentence note type has required fields (Front, Back)');
       } else {
         fail('Note type missing Front/Back fields', `Found fields: ${fields.join(', ')}`);
       }
     } else {
       fail(`Note type "${config.ankiNoteType}" not found`);
       console.log(chalk.dim(`  Available: ${noteTypes.join(', ')}`));
+    }
+
+    const wordNoteType = config.wordNoteType || '2. Picture Words';
+    if (noteTypes.includes(wordNoteType)) {
+      pass(`Word note type "${wordNoteType}" exists`);
+      const wordFields = await getNoteFields(wordNoteType);
+      if (wordFields.includes('Word') && wordFields.includes('Picture')) {
+        pass('Word note type has required fields (Word, Picture)');
+      } else {
+        fail('Word note type missing Word/Picture fields', `Found fields: ${wordFields.join(', ')}`);
+      }
+    } else {
+      fail(`Word note type "${wordNoteType}" not found`);
     }
   } else {
     fail('AnkiConnect not available');
@@ -507,7 +548,8 @@ async function initConfig() {
   const defaultConfig = {
     openaiApiKey: '',
     ankiDeck: 'German::YouTube',
-    ankiNoteType: 'Basic (and reversed card)',
+    ankiNoteType: 'Basic (optional reversed card)',
+    wordNoteType: '2. Picture Words',
     openaiModel: 'gpt-4o-mini',
     whisperModel: 'base',
   };
@@ -521,7 +563,8 @@ async function initConfig() {
   console.log(chalk.dim('  openaiApiKey  - Your OpenAI API key (from platform.openai.com)\n'));
   console.log('Optional:');
   console.log(chalk.dim('  ankiDeck      - Target Anki deck'));
-  console.log(chalk.dim('  ankiNoteType  - Anki note type to use'));
+  console.log(chalk.dim('  ankiNoteType  - Sentence note type to use'));
+  console.log(chalk.dim('  wordNoteType  - Word note type to use (default: 2. Picture Words)'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
   console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));
   console.log(chalk.dim('  dataDir       - Cache folder for audio (default: system temp)\n'));

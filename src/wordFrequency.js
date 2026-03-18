@@ -1,0 +1,46 @@
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { normalizeGermanForCompare } from './wordUtils.js';
+
+const DATA_PATH = join(dirname(fileURLToPath(import.meta.url)), 'data', 'german-frequency.json');
+const FREQUENCY_MAP = JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
+
+function bandForRank(rank) {
+  if (rank >= 1 && rank <= 500) {
+    return { key: 'essential', label: 'Essential' };
+  }
+
+  if (rank >= 501 && rank <= 1500) {
+    return { key: 'core', label: 'Core' };
+  }
+
+  if (rank >= 1501 && rank <= 3000) {
+    return { key: 'everyday', label: 'Everyday' };
+  }
+
+  if (rank >= 3001 && rank <= 5000) {
+    return { key: 'extended', label: 'Extended' };
+  }
+
+  return { key: 'rare', label: 'Rare' };
+}
+
+export function getWordFrequencyInfo(word) {
+  const normalized = normalizeGermanForCompare(word);
+  const rank = FREQUENCY_MAP[normalized] || null;
+  const band = bandForRank(rank);
+
+  return {
+    lemma: normalized,
+    rank,
+    bandKey: band.key,
+    bandLabel: band.label,
+  };
+}
+
+export function isStrongWordCandidate(frequencyInfo) {
+  return frequencyInfo.bandKey === 'essential' ||
+    frequencyInfo.bandKey === 'core' ||
+    frequencyInfo.bandKey === 'everyday';
+}

@@ -10,6 +10,7 @@ const defaults = {
   ankiConnectUrl: 'http://localhost:8765',
   ankiDeck: 'German::YouTube',
   ankiNoteType: 'Basic (optional reversed card)',
+  wordNoteType: '2. Picture Words',
 
   // Paths
   dataDir: join(tmpdir(), 'yt2anki'),
@@ -26,6 +27,8 @@ const defaults = {
   ttsPause: 1.0,      // Pause between slow and normal (seconds)
   ttsVoices: ['nova', 'onyx'],  // Voices to alternate (female, male)
   audioLeadIn: 0.4,   // Silence at start of audio (seconds) for brain to tune in
+  wordImagePreviewCount: 6,
+  wordImageSearchResults: 12,
 };
 
 // Load user config from ~/.yt2anki.json

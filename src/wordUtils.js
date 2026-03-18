@@ -1,0 +1,131 @@
+const GENDER_COLORS = {
+  masculine: '#2563eb',
+  feminine: '#dc2626',
+  neuter: '#111111',
+};
+
+const ENTITY_MAP = {
+  '&nbsp;': ' ',
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+};
+
+export function escapeHtml(text = '') {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function stripHtml(text = '') {
+  return String(text)
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/div>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (entity) => ENTITY_MAP[entity] || ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeGermanForCompare(text = '') {
+  return stripHtml(text)
+    .toLowerCase()
+    .replace(/ß/g, 'ss')
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function toTagSlug(text = '') {
+  return normalizeGermanForCompare(text)
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export function formatGenderColoredWord(canonical, gender) {
+  const color = GENDER_COLORS[gender] || GENDER_COLORS.neuter;
+  return `<span style="color:${color};font-weight:600;">${escapeHtml(canonical)}</span>`;
+}
+
+export function buildWordMetadataComment(metadata) {
+  const encoded = encodeURIComponent(JSON.stringify(metadata));
+  return `<!-- yt2anki-word:${encoded} -->`;
+}
+
+export function parseWordMetadataComment(text = '') {
+  const match = String(text).match(/<!--\s*yt2anki-word:(.*?)\s*-->/i);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(decodeURIComponent(match[1]));
+  } catch {
+    return null;
+  }
+}
+
+export function buildWordExtraInfo({
+  meaning,
+  plural,
+  personalConnection = null,
+  metadata,
+}) {
+  const lines = [];
+
+  if (meaning) {
+    lines.push(`<div>Meaning: ${escapeHtml(meaning)}</div>`);
+  }
+
+  if (plural) {
+    lines.push(`<div>Plural: ${escapeHtml(plural)}</div>`);
+  }
+
+  if (personalConnection) {
+    lines.push(`<div>Personal Connection: ${escapeHtml(personalConnection)}</div>`);
+  }
+
+  lines.push(buildWordMetadataComment(metadata));
+
+  return lines.join('');
+}
+
+export function extractWordMeaning(extraInfo = '') {
+  const metadata = parseWordMetadataComment(extraInfo);
+  if (metadata?.meaning) {
+    return metadata.meaning;
+  }
+
+  const stripped = stripHtml(extraInfo);
+  const match = stripped.match(/Meaning:\s*(.+?)(?:Plural:|Personal Connection:|$)/i);
+  return match ? match[1].trim() : null;
+}
+
+export function extractCanonicalWord(wordField = '', extraInfo = '') {
+  const metadata = parseWordMetadataComment(extraInfo);
+  if (metadata?.canonical) {
+    return metadata.canonical;
+  }
+
+  return stripHtml(wordField);
+}
+
+export function formatPluralLabel(wordData) {
+  if (wordData.noPlural) {
+    return 'usually no plural';
+  }
+
+  if (wordData.plural) {
+    return wordData.plural;
+  }
+
+  return 'plural unknown';
+}

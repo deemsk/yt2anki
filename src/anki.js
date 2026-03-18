@@ -2,6 +2,21 @@ import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
 import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
+import {
+  extractCanonicalWord,
+  extractWordMeaning,
+  normalizeGermanForCompare,
+  toTagSlug,
+} from './wordUtils.js';
+
+const PICTURE_WORD_MODEL = '2. Picture Words';
+const PICTURE_WORD_FIELDS = {
+  word: 'Word',
+  picture: 'Picture',
+  extra: 'Gender, Personal Connection, Extra Info (Back side)',
+  pronunciation: 'Pronunciation (Recording and/or IPA)',
+  spelling: 'Test Spelling? (y = yes, blank = no)',
+};
 
 /**
  * Call AnkiConnect API
@@ -49,10 +64,10 @@ export async function ensureDeck(deckName = config.ankiDeck) {
  * @param {string} audioPath - Path to audio file
  * @returns {Promise<string>} - Filename in Anki media
  */
-export async function storeAudio(audioPath) {
-  const audioData = await readFile(audioPath);
-  const base64 = audioData.toString('base64');
-  const filename = basename(audioPath);
+export async function storeMedia(mediaPath) {
+  const mediaData = await readFile(mediaPath);
+  const base64 = mediaData.toString('base64');
+  const filename = basename(mediaPath);
 
   await ankiConnect('storeMediaFile', {
     filename,
@@ -60,6 +75,10 @@ export async function storeAudio(audioPath) {
   });
 
   return filename;
+}
+
+export async function storeAudio(audioPath) {
+  return storeMedia(audioPath);
 }
 
 /**
@@ -184,6 +203,60 @@ export async function createNotes(cards, audioFilename, options = {}) {
   return noteIds;
 }
 
+export async function createPictureWordNote({
+  canonical,
+  coloredWord,
+  imageFilename,
+  pronunciationField,
+  extraInfoField,
+  gender,
+  frequencyBand,
+  lemma,
+  imageSource,
+  audioSource,
+  theme = null,
+  deck = null,
+  modelName = config.wordNoteType || PICTURE_WORD_MODEL,
+}) {
+  const deckName = deck || config.ankiDeck;
+
+  const fields = {
+    [PICTURE_WORD_FIELDS.word]: coloredWord,
+    [PICTURE_WORD_FIELDS.picture]: `<img src="${imageFilename}" />`,
+    [PICTURE_WORD_FIELDS.extra]: extraInfoField,
+    [PICTURE_WORD_FIELDS.pronunciation]: pronunciationField,
+    [PICTURE_WORD_FIELDS.spelling]: '',
+  };
+
+  const tags = [
+    'yt2anki',
+    'mode-word',
+    'word-noun',
+    `gender-${gender}`,
+    `freq-${frequencyBand}`,
+    `lemma-${toTagSlug(lemma)}`,
+    `canonical-${toTagSlug(canonical)}`,
+    `img-${toTagSlug(imageSource)}`,
+    `audio-${toTagSlug(audioSource)}`,
+  ];
+
+  if (theme) {
+    tags.push(`theme-${toTagSlug(theme)}`);
+  }
+
+  return ankiConnect('addNote', {
+    note: {
+      deckName,
+      modelName,
+      fields,
+      options: {
+        allowDuplicate: false,
+      },
+      tags,
+    },
+  });
+}
+
 /**
  * Get available note types
  */
@@ -202,15 +275,7 @@ export async function getNoteFields(modelName) {
  * Normalize German text for comparison
  */
 function normalizeGerman(text) {
-  return text
-    .toLowerCase()
-    .replace(/ß/g, 'ss')
-    .replace(/ä/g, 'ae')
-    .replace(/ö/g, 'oe')
-    .replace(/ü/g, 'ue')
-    .replace(/[^\w\s]/g, '') // remove punctuation
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizeGermanForCompare(text);
 }
 
 /**
@@ -335,4 +400,48 @@ export async function findSimilarCards(germanText, threshold = 70) {
   similar.sort((a, b) => b.similarity - a.similarity);
 
   return similar;
+}
+
+export async function findWordDuplicates({
+  canonical,
+  meaning,
+  modelName = config.wordNoteType || PICTURE_WORD_MODEL,
+}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: `note:"${modelName}"`,
+  });
+
+  if (noteIds.length === 0) {
+    return { exactMatches: [], headwordMatches: [] };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const normalizedCanonical = normalizeGerman(canonical);
+  const normalizedMeaning = normalizeGerman(meaning);
+  const exactMatches = [];
+  const headwordMatches = [];
+
+  for (const note of notes) {
+    const wordField = note.fields?.[PICTURE_WORD_FIELDS.word]?.value || '';
+    const extraField = note.fields?.[PICTURE_WORD_FIELDS.extra]?.value || '';
+    const existingCanonical = extractCanonicalWord(wordField, extraField);
+
+    if (!existingCanonical) continue;
+    if (normalizeGerman(existingCanonical) !== normalizedCanonical) continue;
+
+    const duplicate = {
+      noteId: note.noteId,
+      canonical: existingCanonical,
+      meaning: extractWordMeaning(extraField),
+    };
+
+    if (duplicate.meaning && normalizeGerman(duplicate.meaning) === normalizedMeaning) {
+      exactMatches.push(duplicate);
+      continue;
+    }
+
+    headwordMatches.push(duplicate);
+  }
+
+  return { exactMatches, headwordMatches };
 }

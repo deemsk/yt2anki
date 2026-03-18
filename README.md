@@ -13,6 +13,12 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 - Select German text on any webpage
 - Generate voice-over using OpenAI TTS
 
+**Word mode** (single nouns):
+- Create Fluent Forever-style picture-word notes for German nouns
+- Pick an image manually from Openverse/Wikimedia previews
+- Prefer Wikimedia pronunciation audio, fall back to OpenAI TTS
+- Store noun with article and gender color, plus plural/back-side info
+
 **Both modes:**
 - Generate IPA transcription and Russian translation
 - Auto-correct transcription errors and punctuation
@@ -98,6 +104,17 @@ Create Safari bookmarks, edit them, and paste the bookmarklet URLs.
 2. Click **yt2anki Text** bookmarklet
 3. Run `npm start`
 
+### Word Mode
+
+```bash
+npm run word -- "das Wasser"
+npm run words
+```
+
+Word mode is noun-first and uses the `2. Picture Words` note type by default.
+During creation you choose the intended meaning, pick an image, review frequency band,
+and confirm before the note is added.
+
 ### Options
 
 ```bash
@@ -111,6 +128,8 @@ npm run clip -- -n    # Dry run (preview only)
 |---------|-------------|
 | `npm start` | Process clips from clipboard |
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
+| `npm run word -- <noun>` | Create one Fluent Forever noun note |
+| `npm run words` | Create multiple noun notes interactively |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
 | `npm run process -- <file.json>` | Process markers JSON file |
 | `npm run check` | Quick check of installed tools, API key, and AnkiConnect |
@@ -138,12 +157,15 @@ Edit `~/.yt2anki.json`:
   "openaiApiKey": "sk-...",
   "ankiDeck": "German::YouTube",
   "ankiNoteType": "Basic (optional reversed card)",
+  "wordNoteType": "2. Picture Words",
   "openaiModel": "gpt-4o-mini",
   "whisperModel": "base",
   "ttsVoices": ["nova", "onyx"],
   "ttsSpeed": 0.7,
   "ttsPause": 1.0,
   "audioLeadIn": 0.4,
+  "wordImagePreviewCount": 6,
+  "wordImageSearchResults": 12,
   "dataDir": "/tmp/yt2anki"
 }
 ```
@@ -151,6 +173,9 @@ Edit `~/.yt2anki.json`:
 `ttsVoices` controls which OpenAI TTS voices are rotated when generating speech. Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
 
 `ttsVoice` still exists in the defaults for backward compatibility, but current speech generation reads `ttsVoices`.
+
+`wordNoteType` controls the note type used for noun cards. The v1 word mode assumes a
+Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
 
 ## Tech Stack
 
