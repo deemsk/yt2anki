@@ -19,7 +19,10 @@ const defaults = {
   // OpenAI
   openaiApiKey: '',
   openaiModel: 'gpt-4o-mini',
-  ttsVoice: 'nova',
+
+  // Google TTS
+  googleTtsKeyFile: '',                                      // path to service account JSON; falls back to GOOGLE_APPLICATION_CREDENTIALS
+  googleTtsVoices: ['de-DE-Neural2-B', 'de-DE-Neural2-C'],  // Male, Female
 
   // Brave Search API (optional)
   braveSearchApiKey: '',
@@ -28,7 +31,6 @@ const defaults = {
   audioFormat: 'mp3',
   ttsSpeed: 0.7,      // Slow playback speed (0.7 = 30% slower)
   ttsPause: 1.0,      // Pause between slow and normal (seconds)
-  ttsVoices: ['nova', 'onyx'],  // Voices to alternate (female, male)
   audioLeadIn: 0.4,   // Silence at start of audio (seconds) for brain to tune in
   wordImagePreviewCount: 12,
   wordImageSearchResults: 12,

@@ -1,55 +1,77 @@
-import OpenAI from 'openai';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
 
 const execFileAsync = promisify(execFile);
-
-let openai = null;
+let ttsClient = null;
 let voiceIndex = 0;
-
-// Available voices for variety (alternating male/female)
-const VOICES = ['nova', 'onyx', 'shimmer', 'echo', 'alloy', 'fable'];
-const DEFAULT_VOICES = ['nova', 'onyx'];  // Female, Male
+const DEFAULT_VOICES = ['de-DE-Neural2-B', 'de-DE-Neural2-C'];
 
 function getClient() {
-  if (!openai) {
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not set');
-    }
-    openai = new OpenAI({ apiKey });
+  if (!ttsClient) {
+    const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const clientOptions = keyFile ? { keyFilename: keyFile } : {};
+    ttsClient = new TextToSpeechClient(clientOptions);
   }
-  return openai;
+  return ttsClient;
 }
 
-/**
- * Get next voice (alternates between configured voices)
- */
 function getNextVoice() {
-  const voices = config.ttsVoices || DEFAULT_VOICES;
+  const voices = config.googleTtsVoices || DEFAULT_VOICES;
   const voice = voices[voiceIndex % voices.length];
   voiceIndex++;
   return voice;
 }
 
-/**
- * Generate single audio clip
- */
-async function generateClip(text, outputPath, voice, speed) {
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function buildSsml(text, { ipa = null, slow = false } = {}) {
+  const escapedText = escapeXml(text);
+  let inner = ipa
+    ? `<phoneme alphabet="ipa" ph="${escapeXml(ipa)}">${escapedText}</phoneme>`
+    : escapedText;
+
+  if (slow) {
+    inner = `<prosody rate="88%">${inner}</prosody>`;
+  }
+
+  return `<speak><s>${inner}</s></speak>`;
+}
+
+async function generateClip(text, outputPath, voiceName, options = {}) {
   const client = getClient();
+  const ssml = buildSsml(text, options);
+  const languageCode = voiceName.split('-').slice(0, 2).join('-'); // 'de-DE'
 
-  const response = await client.audio.speech.create({
-    model: 'tts-1-hd',  // High quality model for clearer pronunciation
-    voice,
-    input: text,
-    response_format: 'mp3',
-    speed,
-  });
+  let response;
+  try {
+    [response] = await client.synthesizeSpeech({
+      input: { ssml },
+      voice: { languageCode, name: voiceName },
+      audioConfig: { audioEncoding: 'MP3' },
+    });
+  } catch (err) {
+    if (err.message?.includes('Could not load the default credentials') || err.code === 7 || err.code === 16) {
+      throw new Error(
+        'Google TTS credentials not found. Run:\n' +
+        '  gcloud auth application-default login\n' +
+        '  gcloud auth application-default set-quota-project YOUR_PROJECT_ID\n' +
+        'Or set "googleTtsKeyFile" in ~/.yt2anki.json'
+      );
+    }
+    throw err;
+  }
 
-  const buffer = Buffer.from(await response.arrayBuffer());
-  await writeFile(outputPath, buffer);
+  await writeFile(outputPath, Buffer.from(response.audioContent));
 }
 
 /**
@@ -73,7 +95,7 @@ async function concatenateWithPause(files, outputPath, pauseDuration = 1.0, lead
 }
 
 /**
- * Generate speech audio from German text using OpenAI TTS
+ * Generate speech audio from German text using Google Cloud TTS
  * Creates: [slow version] + [pause] + [normal version]
  *
  * @param {string} text - German text to speak
@@ -84,23 +106,16 @@ export async function generateSpeech(text, outputPath) {
   await mkdir(config.dataDir, { recursive: true });
 
   const voice = getNextVoice();
-  const slowSpeed = config.ttsSpeed || 0.7;
-  const normalSpeed = 1.0;
   const pauseDuration = config.ttsPause || 1.0;
-
-  // Generate slow version
-  const slowPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_slow.mp3');
-  await generateClip(text, slowPath, voice, slowSpeed);
-
-  // Generate normal speed version
-  const normalPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_normal.mp3');
-  await generateClip(text, normalPath, voice, normalSpeed);
-
-  // Concatenate: lead-in silence + slow + pause + normal
   const leadIn = config.audioLeadIn || 0.4;
-  await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration, leadIn);
 
-  // Clean up temp files
+  const slowPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_slow.mp3');
+  await generateClip(text, slowPath, voice, { slow: true });
+
+  const normalPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_normal.mp3');
+  await generateClip(text, normalPath, voice, { slow: false });
+
+  await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration, leadIn);
   await unlink(slowPath);
   await unlink(normalPath);
 
@@ -115,10 +130,11 @@ export async function generateSimpleSpeech(text, outputPath, options = {}) {
   await mkdir(config.dataDir, { recursive: true });
 
   const voice = options.voice || getNextVoice();
-  const speed = options.speed || config.ttsSpeed || 0.7;
+  const slow = options.speed != null ? options.speed < 1.0 : false;
+  const ipa = options.ipa || null;
 
   const rawPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_raw.mp3');
-  await generateClip(text, rawPath, voice, speed);
+  await generateClip(text, rawPath, voice, { slow, ipa });
 
   await execFileAsync('ffmpeg', ['-i', rawPath, '-filter:a', 'volume=1.2', '-y', outputPath]);
   await unlink(rawPath);

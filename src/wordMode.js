@@ -71,13 +71,13 @@ async function buildWordAudio(wordData, spinner) {
   }
 
   const audioPath = join(config.dataDir, `word_tts_${Date.now()}.mp3`);
-  await generateSimpleSpeech(wordData.canonical, audioPath, { speed: 0.9 });
+  await generateSimpleSpeech(wordData.canonical, audioPath, { speed: 0.9, ipa: wiktionaryIpa });
   spinner.succeed(wiktionaryIpa
-    ? 'Using OpenAI TTS fallback audio (IPA from Wiktionary)'
-    : 'Using OpenAI TTS fallback audio');
+    ? 'Using Google TTS fallback audio (IPA from Wiktionary)'
+    : 'Using Google TTS fallback audio');
   return {
     audioPath,
-    source: 'OpenAI TTS',
+    source: 'Google TTS',
   };
 }
 
