@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
 import { normalizeGermanForCompare, normalizeWordIpa } from './wordUtils.js';
+import { resolveSecret } from './secrets.js';
 
 let openai = null;
 
@@ -22,9 +23,9 @@ const VISUAL_SCENE_NOUNS = new Set([
   'wiese',
 ]);
 
-function getClient() {
+async function getClient() {
   if (!openai) {
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
     if (!apiKey) {
       throw new Error('OpenAI API key not set. Add to ~/.yt2anki.json or set OPENAI_API_KEY env var');
     }
@@ -151,7 +152,7 @@ async function requestWordAnalysis(client, input, options = {}) {
 }
 
 export async function enrichWord(input) {
-  const client = getClient();
+  const client = await getClient();
   const result = await requestWordAnalysis(client, input);
 
   if (shouldRetryImageableNounRejection(input, result)) {

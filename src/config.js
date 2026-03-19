@@ -22,7 +22,7 @@ const defaults = {
 
   // Google TTS
   googleTtsKeyFile: '',                                      // path to service account JSON; falls back to GOOGLE_APPLICATION_CREDENTIALS
-  googleTtsKeyOp: '',                                        // 1Password reference, e.g. op://Personal/Google TTS Key/credential
+  googleApiKey: '',                                        // 1Password reference, e.g. op://Personal/Google TTS Key/credential
   googleTtsVoices: ['de-DE-Neural2-B', 'de-DE-Neural2-C'],  // Male, Female
 
   // Brave Search API (optional)

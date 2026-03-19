@@ -1,11 +1,12 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
+import { resolveSecret } from './secrets.js';
 
 let openai = null;
 
-function getClient() {
+async function getClient() {
   if (!openai) {
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
     if (!apiKey) {
       throw new Error('OpenAI API key not set');
     }
@@ -50,7 +51,7 @@ export async function estimateCEFRBatch(sentences) {
  * Get CEFR level from LLM classification (single sentence)
  */
 async function getLLMLevel(sentence) {
-  const client = getClient();
+  const client = await getClient();
 
   const response = await client.chat.completions.create({
     model: config.openaiModel,
@@ -95,7 +96,7 @@ async function getLLMLevelBatch(sentences) {
     return [await getLLMLevel(sentences[0])];
   }
 
-  const client = getClient();
+  const client = await getClient();
   const numberedSentences = sentences.map((s, i) => `${i + 1}. ${s}`).join('\n');
 
   const response = await client.chat.completions.create({

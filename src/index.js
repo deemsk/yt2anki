@@ -426,13 +426,15 @@ async function testIntegrations(options) {
 
   // 4. Test OpenAI API
   console.log(chalk.bold.blue('\n[4/6] OpenAI API'));
-  const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const { resolveSecret } = await import('./secrets.js');
+  const rawOpenAiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+  if (!rawOpenAiKey) {
     fail('OpenAI API key not set', `Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
   } else {
     pass('OpenAI API key found');
 
     try {
+      const apiKey = await resolveSecret(rawOpenAiKey);
       const OpenAI = (await import('openai')).default;
       const openai = new OpenAI({ apiKey });
 
@@ -511,9 +513,9 @@ async function testIntegrations(options) {
   try {
     const { TextToSpeechClient } = await import('@google-cloud/text-to-speech');
     let clientOptions = {};
-    if (config.googleTtsKeyOp) {
+    if (config.googleApiKey) {
       const { execFileSync } = await import('child_process');
-      const credentials = JSON.parse(execFileSync('op', ['read', config.googleTtsKeyOp]).toString().trim());
+      const credentials = JSON.parse(execFileSync('op', ['read', config.googleApiKey]).toString().trim());
       clientOptions = { credentials };
     } else {
       const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -618,7 +620,8 @@ async function showConfig() {
   const displayConfig = { ...config };
   // Mask API key
   if (displayConfig.openaiApiKey) {
-    displayConfig.openaiApiKey = displayConfig.openaiApiKey.slice(0, 7) + '...' + displayConfig.openaiApiKey.slice(-4);
+    const k = displayConfig.openaiApiKey;
+    displayConfig.openaiApiKey = k.startsWith('op://') ? k : k.slice(0, 7) + '...' + k.slice(-4);
   }
   if (displayConfig.braveSearchApiKey) {
     displayConfig.braveSearchApiKey = displayConfig.braveSearchApiKey.slice(0, 7) + '...' + displayConfig.braveSearchApiKey.slice(-4);

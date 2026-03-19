@@ -1,11 +1,12 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
+import { resolveSecret } from './secrets.js';
 
 let openai = null;
 
-function getClient() {
+async function getClient() {
   if (!openai) {
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
     if (!apiKey) {
       throw new Error('OpenAI API key not set');
     }
@@ -25,7 +26,7 @@ function getClient() {
  * @returns {Promise<Object>} Analysis result with card recommendations
  */
 export async function analyzeSentence(data, sessionState = {}) {
-  const client = getClient();
+  const client = await getClient();
 
   const systemPrompt = `You are a German language teaching expert using Fluent Forever methodology. Analyze the given German sentence for flashcard generation.
 

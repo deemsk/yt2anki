@@ -1,12 +1,13 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
 import { estimateCEFR } from './cefr.js';
+import { resolveSecret } from './secrets.js';
 
 let openai = null;
 
-function getClient() {
+async function getClient() {
   if (!openai) {
-    const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
     if (!apiKey) {
       throw new Error('OpenAI API key not set. Add to ~/.yt2anki.json or set OPENAI_API_KEY env var');
     }
@@ -23,7 +24,7 @@ function getClient() {
  * @returns {Promise<{german: string, ipa: string, russian: string}>}
  */
 export async function enrich(germanText, subtitleContext = null, ccHint = null) {
-  const client = getClient();
+  const client = await getClient();
 
   let systemPrompt = `You are a German language expert. For the given German text:
 1. Correct any transcription errors (typos, missing letters, wrong words)

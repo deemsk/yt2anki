@@ -3,6 +3,7 @@ import { writeFile, mkdir, unlink } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
+import { resolveSecret } from './secrets.js';
 
 const execFileAsync = promisify(execFile);
 let ttsClient = null;
@@ -11,9 +12,9 @@ const DEFAULT_VOICES = ['de-DE-Neural2-B', 'de-DE-Neural2-C'];
 
 async function getClient() {
   if (!ttsClient) {
-    if (config.googleTtsKeyOp) {
-      const { stdout } = await execFileAsync('op', ['read', config.googleTtsKeyOp]);
-      const credentials = JSON.parse(stdout.trim());
+    if (config.googleApiKey) {
+      const json = await resolveSecret(config.googleApiKey);
+      const credentials = JSON.parse(json);
       ttsClient = new TextToSpeechClient({ credentials });
     } else {
       const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
