@@ -34,7 +34,7 @@ export function findModelPath() {
 export async function transcribe(wavPath, ccHint = null) {
   const modelPath = findModelPath();
   if (!modelPath) {
-    throw new Error(`Whisper model not found. Download with: whisper-cpp-download-ggml-model ${config.whisperModel}`);
+    throw new Error(`Whisper model not found. Download with:\n  curl -L -o /opt/homebrew/share/whisper-cpp/ggml-${config.whisperModel}.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${config.whisperModel}.bin`);
   }
 
   const outputBase = wavPath.replace('.wav', '');

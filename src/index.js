@@ -369,7 +369,7 @@ async function testIntegrations(options) {
   }
 
   // 1. Test yt-dlp
-  console.log(chalk.bold.blue('\n[1/5] yt-dlp'));
+  console.log(chalk.bold.blue('\n[1/6] yt-dlp'));
   try {
     const version = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
     pass(`yt-dlp installed (${version})`);
@@ -389,7 +389,7 @@ async function testIntegrations(options) {
   }
 
   // 2. Test ffmpeg
-  console.log(chalk.bold.blue('\n[2/5] ffmpeg'));
+  console.log(chalk.bold.blue('\n[2/6] ffmpeg'));
   try {
     const version = execSync('ffmpeg -version', { stdio: 'pipe' }).toString().split('\n')[0];
     pass(`ffmpeg installed (${version.replace('ffmpeg version ', '').split(' ')[0]})`);
@@ -406,7 +406,7 @@ async function testIntegrations(options) {
   }
 
   // 3. Test whisper-cli
-  console.log(chalk.bold.blue('\n[3/5] whisper-cli'));
+  console.log(chalk.bold.blue('\n[3/6] whisper-cli'));
   try {
     execSync('which whisper-cli', { stdio: 'pipe' });
     pass('whisper-cli installed');
@@ -418,14 +418,14 @@ async function testIntegrations(options) {
       pass(`Whisper ${config.whisperModel} model found`);
       console.log(chalk.dim(`  Path: ${modelPath}`));
     } else {
-      fail(`Whisper ${config.whisperModel} model not found`, `Download with: whisper-cpp-download-ggml-model ${config.whisperModel}`);
+      fail(`Whisper ${config.whisperModel} model not found`, `Download with: curl -L -o /opt/homebrew/share/whisper-cpp/ggml-${config.whisperModel}.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-${config.whisperModel}.bin`);
     }
   } catch {
     fail('whisper-cli not found', 'Install with: brew install whisper-cpp');
   }
 
   // 4. Test OpenAI API
-  console.log(chalk.bold.blue('\n[4/5] OpenAI API'));
+  console.log(chalk.bold.blue('\n[4/6] OpenAI API'));
   const apiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
   if (!apiKey) {
     fail('OpenAI API key not set', `Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
@@ -452,7 +452,7 @@ async function testIntegrations(options) {
   }
 
   // 5. Test AnkiConnect
-  console.log(chalk.bold.blue('\n[5/5] AnkiConnect'));
+  console.log(chalk.bold.blue('\n[5/6] AnkiConnect'));
   if (await checkConnection()) {
     pass('AnkiConnect is running');
 
@@ -504,6 +504,35 @@ async function testIntegrations(options) {
     console.log(chalk.dim('  1. Open Anki'));
     console.log(chalk.dim('  2. Install add-on: Tools → Add-ons → Get Add-ons → Code: 2055492159'));
     console.log(chalk.dim('  3. Restart Anki'));
+  }
+
+  // 6. Test Google TTS
+  console.log(chalk.bold.blue('\n[6/6] Google TTS'));
+  try {
+    const { TextToSpeechClient } = await import('@google-cloud/text-to-speech');
+    const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const clientOptions = keyFile ? { keyFilename: keyFile } : {};
+    const ttsClient = new TextToSpeechClient(clientOptions);
+
+    const [response] = await ttsClient.synthesizeSpeech({
+      input: { ssml: '<speak><s>Test</s></speak>' },
+      voice: { languageCode: 'de-DE', name: 'de-DE-Neural2-B' },
+      audioConfig: { audioEncoding: 'MP3' },
+    });
+
+    if (response.audioContent?.length > 0) {
+      pass('Google TTS connected (de-DE-Neural2-B)');
+    } else {
+      fail('Google TTS returned empty audio');
+    }
+  } catch (err) {
+    if (err.message?.includes('Could not load the default credentials') || err.code === 16) {
+      fail('Google TTS credentials not found', 'Run: gcloud auth application-default login');
+    } else if (err.code === 7) {
+      fail('Google TTS permission denied', 'Run: gcloud auth application-default set-quota-project YOUR_PROJECT_ID');
+    } else {
+      fail(`Google TTS error: ${err.message}`);
+    }
   }
 
   // Summary
