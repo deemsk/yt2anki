@@ -26,7 +26,7 @@ const defaults = {
   googleTtsVoices: ['de-DE-Neural2-B', 'de-DE-Neural2-C'],  // Male, Female
 
   // Brave Search API (optional)
-  braveSearchApiKey: '',
+  braveApiKey: '',
 
   // Audio
   audioFormat: 'mp3',

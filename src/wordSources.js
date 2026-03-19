@@ -305,18 +305,21 @@ async function searchOpenverseImages(query, pageSize = 6) {
   })).filter((item) => item.previewUrl && item.downloadUrl);
 }
 
-function getBraveSearchApiKey() {
-  return config.braveSearchApiKey || process.env.BRAVE_SEARCH_API_KEY || '';
+function getRawBraveApiKey() {
+  return config.braveApiKey || process.env.BRAVE_SEARCH_API_KEY || '';
 }
 
 function hasBraveImageConfig() {
-  return Boolean(getBraveSearchApiKey());
+  return Boolean(getRawBraveApiKey());
 }
 
 async function searchBraveImages(query, pageSize = 6, queryEntry = {}) {
   if (!hasBraveImageConfig()) {
     return [];
   }
+
+  const { resolveSecret } = await import('./secrets.js');
+  const apiKey = await resolveSecret(getRawBraveApiKey());
 
   const url = new URL('https://api.search.brave.com/res/v1/images/search');
   url.searchParams.set('q', query);
@@ -330,7 +333,7 @@ async function searchBraveImages(query, pageSize = 6, queryEntry = {}) {
   const payload = await fetchJson(url, {
     headers: {
       'Accept-Encoding': 'gzip',
-      'X-Subscription-Token': getBraveSearchApiKey(),
+      'X-Subscription-Token': apiKey,
     },
   });
   const results = payload.results || payload.images?.results || [];

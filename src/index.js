@@ -355,6 +355,7 @@ async function testIntegrations(options) {
   console.log(chalk.bold('\n🧪 Testing yt2anki integrations...\n'));
 
   const { execSync, spawn } = await import('child_process');
+  const { resolveSecret } = await import('./secrets.js');
   const results = { passed: 0, failed: 0 };
 
   function pass(msg) {
@@ -369,7 +370,7 @@ async function testIntegrations(options) {
   }
 
   // 1. Test yt-dlp
-  console.log(chalk.bold.blue('\n[1/6] yt-dlp'));
+  console.log(chalk.bold.blue('\n[1/7] yt-dlp'));
   try {
     const version = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
     pass(`yt-dlp installed (${version})`);
@@ -389,7 +390,7 @@ async function testIntegrations(options) {
   }
 
   // 2. Test ffmpeg
-  console.log(chalk.bold.blue('\n[2/6] ffmpeg'));
+  console.log(chalk.bold.blue('\n[2/7] ffmpeg'));
   try {
     const version = execSync('ffmpeg -version', { stdio: 'pipe' }).toString().split('\n')[0];
     pass(`ffmpeg installed (${version.replace('ffmpeg version ', '').split(' ')[0]})`);
@@ -406,7 +407,7 @@ async function testIntegrations(options) {
   }
 
   // 3. Test whisper-cli
-  console.log(chalk.bold.blue('\n[3/6] whisper-cli'));
+  console.log(chalk.bold.blue('\n[3/7] whisper-cli'));
   try {
     execSync('which whisper-cli', { stdio: 'pipe' });
     pass('whisper-cli installed');
@@ -425,8 +426,7 @@ async function testIntegrations(options) {
   }
 
   // 4. Test OpenAI API
-  console.log(chalk.bold.blue('\n[4/6] OpenAI API'));
-  const { resolveSecret } = await import('./secrets.js');
+  console.log(chalk.bold.blue('\n[4/7] OpenAI API'));
   const rawOpenAiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
   if (!rawOpenAiKey) {
     fail('OpenAI API key not set', `Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
@@ -454,7 +454,7 @@ async function testIntegrations(options) {
   }
 
   // 5. Test AnkiConnect
-  console.log(chalk.bold.blue('\n[5/6] AnkiConnect'));
+  console.log(chalk.bold.blue('\n[5/7] AnkiConnect'));
   if (await checkConnection()) {
     pass('AnkiConnect is running');
 
@@ -508,15 +508,42 @@ async function testIntegrations(options) {
     console.log(chalk.dim('  3. Restart Anki'));
   }
 
-  // 6. Test Google TTS
-  console.log(chalk.bold.blue('\n[6/6] Google TTS'));
+  // 6. Test Brave Search API
+  console.log(chalk.bold.blue('\n[6/7] Brave Search API'));
+  const rawBraveKey = config.braveApiKey || process.env.BRAVE_SEARCH_API_KEY;
+  if (!rawBraveKey) {
+    console.log(chalk.dim('  ⚠ Brave API key not set (optional — used for image search in word mode)'));
+    console.log(chalk.dim(`  Add braveApiKey to ${CONFIG_PATH_DISPLAY} or set BRAVE_SEARCH_API_KEY`));
+  } else {
+    pass('Brave API key found');
+
+    try {
+      const apiKey = await resolveSecret(rawBraveKey);
+      const url = new URL('https://api.search.brave.com/res/v1/images/search');
+      url.searchParams.set('q', 'Hund');
+      url.searchParams.set('count', '1');
+      const response = await fetch(url, {
+        headers: { 'Accept-Encoding': 'gzip', 'X-Subscription-Token': apiKey },
+      });
+      if (response.ok) {
+        pass('Brave Search API connected');
+      } else {
+        fail(`Brave Search API error: HTTP ${response.status}`, 'Check your API key at https://api.search.brave.com/');
+      }
+    } catch (err) {
+      fail(`Brave Search API error: ${err.message}`);
+    }
+  }
+
+  // 7. Test Google TTS
+  console.log(chalk.bold.blue('\n[7/7] Google TTS'));
   try {
     const { TextToSpeechClient } = await import('@google-cloud/text-to-speech');
     let clientOptions = {};
-    if (config.googleApiKey) {
-      const { execFileSync } = await import('child_process');
-      const credentials = JSON.parse(execFileSync('op', ['read', config.googleApiKey]).toString().trim());
-      clientOptions = { credentials };
+    const rawGoogleKey = config.googleApiKey;
+    if (rawGoogleKey) {
+      const credentialsJson = await resolveSecret(rawGoogleKey);
+      clientOptions = { credentials: JSON.parse(credentialsJson) };
     } else {
       const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
       if (keyFile) clientOptions = { keyFilename: keyFile };
@@ -589,7 +616,7 @@ async function initConfig() {
     ankiNoteType: 'Basic (optional reversed card)',
     wordNoteType: '2. Picture Words',
     openaiModel: 'gpt-4o-mini',
-    braveSearchApiKey: '',
+    braveApiKey: '',
     whisperModel: 'base',
   };
 
@@ -605,7 +632,7 @@ async function initConfig() {
   console.log(chalk.dim('  ankiNoteType  - Sentence note type to use'));
   console.log(chalk.dim('  wordNoteType  - Word note type to use (default: 2. Picture Words)'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
-  console.log(chalk.dim('  braveSearchApiKey - Brave Search API key for image search (optional)'));
+  console.log(chalk.dim('  braveApiKey   - Brave Search API key for image search (optional)'));
   console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));
   console.log(chalk.dim('  dataDir       - Cache folder for audio (default: system temp)\n'));
 }
@@ -623,8 +650,9 @@ async function showConfig() {
     const k = displayConfig.openaiApiKey;
     displayConfig.openaiApiKey = k.startsWith('op://') ? k : k.slice(0, 7) + '...' + k.slice(-4);
   }
-  if (displayConfig.braveSearchApiKey) {
-    displayConfig.braveSearchApiKey = displayConfig.braveSearchApiKey.slice(0, 7) + '...' + displayConfig.braveSearchApiKey.slice(-4);
+  if (displayConfig.braveApiKey) {
+    const k = displayConfig.braveApiKey;
+    displayConfig.braveApiKey = k.startsWith('op://') ? k : k.slice(0, 7) + '...' + k.slice(-4);
   }
 
   for (const [key, value] of Object.entries(displayConfig)) {
