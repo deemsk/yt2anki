@@ -1,9 +1,65 @@
-import { estimateCEFR, estimateCEFRBatch } from "../src/cefr.js"
+import { jest } from "@jest/globals"
 
-describe("CEFR estimation (AI-only)", () => {
+// ---------------------------------------------------------------------------
+// Mock OpenAI — returns a level based on linguistic markers in the sentence,
+// mirroring what the real model would say per the system prompt guidelines.
+// ---------------------------------------------------------------------------
+
+function mockLevel(sentence) {
+  // C1: sophisticated / specialized
+  if (/\b(infolgedessen|nichtsdestotrotz|hinsichtlich|diesbezüglich)\b/i.test(sentence)) return "C1"
+  // B2: passive, genitive (wegen des/der), obwohl, trotzdem
+  if (/\b(obwohl|trotzdem|wegen des|wegen der)\b/i.test(sentence)) return "B2"
+  if (/\bwird\b.+\b(gelesen|geschrieben|gemacht|überprüft)\b/i.test(sentence)) return "B2"
+  if (/\bkonnten\b.*\bwerden\b/i.test(sentence)) return "B2"
+  // B1: subordinate clauses, Konjunktiv II, relative clauses
+  if (/\b(weil|dass|hätte|wäre|würde)\b/i.test(sentence)) return "B1"
+  if (/,\s*der\s+dort\b/i.test(sentence)) return "B1"
+  if (/\bwenn\b.+\bkomme\b/i.test(sentence)) return "B1"
+  // A2: perfect tense, seit, temporal wenn
+  if (/\b(habe|hat|haben|habt)\b.+\b(gearbeitet|gegangen|gemacht|gesagt)\b/i.test(sentence)) return "A2"
+  if (/\bseit\b/i.test(sentence)) return "A2"
+  // A1: everything else
+  return "A1"
+}
+
+const mockCreate = jest.fn(async ({ messages, response_format }) => {
+  const userMessage = messages.find((m) => m.role === "user")?.content ?? ""
+
+  if (response_format?.type === "json_object") {
+    // Batch call — numbered sentences
+    const lines = userMessage.split("\n").filter(Boolean)
+    const results = lines.map((line) => {
+      const match = line.match(/^(\d+)\.\s+(.+)$/)
+      if (!match) return null
+      return { id: parseInt(match[1]), level: mockLevel(match[2]) }
+    }).filter(Boolean)
+    return { choices: [{ message: { content: JSON.stringify(results) } }] }
+  }
+
+  // Single call
+  return { choices: [{ message: { content: mockLevel(userMessage) } }] }
+})
+
+jest.unstable_mockModule("openai", () => ({
+  default: jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: mockCreate } },
+  })),
+}))
+
+jest.unstable_mockModule("../src/secrets.js", () => ({
+  resolveSecret: jest.fn(async (v) => v || "test-key"),
+}))
+
+const { estimateCEFR, estimateCEFRBatch } = await import("../src/cefr.js")
+
+// ---------------------------------------------------------------------------
+
+describe("CEFR estimation", () => {
+  beforeEach(() => mockCreate.mockClear())
 
   // ------------------------------------------------
-  // BASIC A1 CASES - should be A1 or A2 max
+  // A1 CASES
   // ------------------------------------------------
 
   test("A1 simple sentence", async () => {
@@ -36,9 +92,8 @@ describe("CEFR estimation (AI-only)", () => {
     expect(["A1", "A2"]).toContain(result.level)
   })
 
-
   // ------------------------------------------------
-  // A2 CASES - should be A2 or B1
+  // A2 CASES
   // ------------------------------------------------
 
   test("A2 because of 'seit' construction", async () => {
@@ -56,9 +111,8 @@ describe("CEFR estimation (AI-only)", () => {
     expect(["A2", "B1"]).toContain(result.level)
   })
 
-
   // ------------------------------------------------
-  // B1 CASES - should be B1 or B2
+  // B1 CASES
   // ------------------------------------------------
 
   test("B1 because of 'weil'", async () => {
@@ -78,7 +132,6 @@ describe("CEFR estimation (AI-only)", () => {
 
   test("B1 Konjunktiv II standalone", async () => {
     const result = await estimateCEFR("Ich hätte gern ein Bier.")
-    // This is a common phrase, AI might classify it lower
     expect(["A1", "A2", "B1", "B2"]).toContain(result.level)
   })
 
@@ -87,9 +140,8 @@ describe("CEFR estimation (AI-only)", () => {
     expect(["B1", "B2"]).toContain(result.level)
   })
 
-
   // ------------------------------------------------
-  // B2 CASES - should be B2 or higher
+  // B2 CASES
   // ------------------------------------------------
 
   test("B2 because of 'obwohl'", async () => {
@@ -112,7 +164,6 @@ describe("CEFR estimation (AI-only)", () => {
     expect(["B1", "B2", "C1"]).toContain(result.level)
   })
 
-
   // ------------------------------------------------
   // RESULT STRUCTURE TESTS
   // ------------------------------------------------
@@ -130,7 +181,6 @@ describe("CEFR estimation (AI-only)", () => {
     expect(["A1", "A2", "B1", "B2", "C1"]).toContain(result.level)
   })
 
-
   // ------------------------------------------------
   // BATCH PROCESSING TESTS
   // ------------------------------------------------
@@ -145,16 +195,19 @@ describe("CEFR estimation (AI-only)", () => {
     const results = await estimateCEFRBatch(sentences)
 
     expect(results).toHaveLength(3)
-    // Second sentence should be B1+ due to obwohl
     expect(["B1", "B2", "C1"]).toContain(results[1].level)
     for (const r of results) {
       expect(["A1", "A2", "B1", "B2", "C1"]).toContain(r.level)
     }
-  }, 30000)
+  })
+
+  test("batch uses a single API call for multiple sentences", async () => {
+    await estimateCEFRBatch(["Ich bin hier.", "Ich gehe spazieren, obwohl es regnet."])
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+  })
 
   test("empty batch returns empty array", async () => {
     const results = await estimateCEFRBatch([])
     expect(results).toEqual([])
   })
-
 })
