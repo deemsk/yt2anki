@@ -510,8 +510,15 @@ async function testIntegrations(options) {
   console.log(chalk.bold.blue('\n[6/6] Google TTS'));
   try {
     const { TextToSpeechClient } = await import('@google-cloud/text-to-speech');
-    const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const clientOptions = keyFile ? { keyFilename: keyFile } : {};
+    let clientOptions = {};
+    if (config.googleTtsKeyOp) {
+      const { execFileSync } = await import('child_process');
+      const credentials = JSON.parse(execFileSync('op', ['read', config.googleTtsKeyOp]).toString().trim());
+      clientOptions = { credentials };
+    } else {
+      const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      if (keyFile) clientOptions = { keyFilename: keyFile };
+    }
     const ttsClient = new TextToSpeechClient(clientOptions);
 
     const [response] = await ttsClient.synthesizeSpeech({

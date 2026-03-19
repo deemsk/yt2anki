@@ -9,11 +9,17 @@ let ttsClient = null;
 let voiceIndex = 0;
 const DEFAULT_VOICES = ['de-DE-Neural2-B', 'de-DE-Neural2-C'];
 
-function getClient() {
+async function getClient() {
   if (!ttsClient) {
-    const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const clientOptions = keyFile ? { keyFilename: keyFile } : {};
-    ttsClient = new TextToSpeechClient(clientOptions);
+    if (config.googleTtsKeyOp) {
+      const { stdout } = await execFileAsync('op', ['read', config.googleTtsKeyOp]);
+      const credentials = JSON.parse(stdout.trim());
+      ttsClient = new TextToSpeechClient({ credentials });
+    } else {
+      const keyFile = config.googleTtsKeyFile || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const clientOptions = keyFile ? { keyFilename: keyFile } : {};
+      ttsClient = new TextToSpeechClient(clientOptions);
+    }
   }
   return ttsClient;
 }
@@ -48,7 +54,7 @@ function buildSsml(text, { ipa = null, slow = false } = {}) {
 }
 
 async function generateClip(text, outputPath, voiceName, options = {}) {
-  const client = getClient();
+  const client = await getClient();
   const ssml = buildSsml(text, options);
   const languageCode = voiceName.split('-').slice(0, 2).join('-'); // 'de-DE'
 
