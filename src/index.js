@@ -985,32 +985,33 @@ async function processTextBatch(options) {
 
   for (let i = 0; i < phrases.length; i++) {
     const phrase = phrases[i];
-    const progress = `[${i + 1}/${phrases.length}]`;
 
-    spinner.start(`${progress} Enriching...`);
+    console.log(chalk.bold(`[${i + 1}/${phrases.length}] "${phrase}"`));
+
+    spinner.start('Enriching...');
     const { german, ipa, russian, cefr } = await enrich(phrase);
-    spinner.succeed(`${progress} "${german}"`);
+    spinner.succeed(`"${german}"`);
 
     if (phrase !== german) {
       console.log(chalk.dim(`   (corrected from: "${phrase}")`));
     }
 
     // Analyze sentence for card types
-    spinner.start(`${progress} Analyzing...`);
+    spinner.start('Analyzing...');
     const enrichedData = { german, ipa, russian, cefr };
     const analysis = await analyzeSentence(enrichedData, sessionState);
     const selection = selectCards(analysis, sessionState);
-    spinner.succeed(`${progress} Analysis complete`);
+    spinner.succeed('Analysis complete');
 
     // Handle rejection
     if (selection.rejected) {
-      console.log(chalk.yellow(`${progress} Rejected: ${selection.reason}\n`));
+      console.log(chalk.yellow(`Rejected: ${selection.reason}\n`));
       continue;
     }
 
     // Handle split suggestion
     if (selection.needsSplit) {
-      console.log(chalk.yellow(`${progress} Should be split:`));
+      console.log(chalk.yellow('Should be split:'));
       selection.splits.forEach((part, idx) => {
         console.log(chalk.dim(`      ${idx + 1}. ${part}`));
       });
@@ -1023,15 +1024,27 @@ async function processTextBatch(options) {
     const sourceId = `${timestamp}`;
     const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
 
-    spinner.start(`${progress} Generating voice-over...`);
+    spinner.start('Generating voice-over...');
     await generateSpeech(german, audioPath);
-    spinner.succeed(`${progress} Voice-over ready`);
+    spinner.succeed('Voice-over ready');
 
     // Generate cards
     const cards = generateCards(enrichedData, selection.cards, sourceId);
 
     if (dryRun) {
       console.log(chalk.dim(`   ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`));
+      const { execFile: execFileRaw } = await import('child_process');
+      const { promisify } = await import('util');
+      const { unlink } = await import('fs/promises');
+      const execFileAsync = promisify(execFileRaw);
+      spinner.start('Playing audio preview...');
+      try {
+        await execFileAsync('afplay', [audioPath]);
+        spinner.succeed('Audio preview played');
+      } catch {
+        spinner.warn('Could not play audio (afplay not available)');
+      }
+      await unlink(audioPath).catch(() => {});
       console.log();
       totalCardsCreated += cards.length;
       phrasesProcessed++;
@@ -1039,7 +1052,7 @@ async function processTextBatch(options) {
     }
 
     // Check for similar cards
-    spinner.start(`${progress} Checking for similar cards...`);
+    spinner.start('Checking for similar cards...');
     const similarCards = await findSimilarCards(german);
     spinner.stop();
 
@@ -1047,18 +1060,18 @@ async function processTextBatch(options) {
     const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, audioPath);
 
     if (result.dismissed) {
-      console.log(chalk.yellow(`${progress} Cards dismissed\n`));
+      console.log(chalk.yellow('Cards dismissed\n'));
       continue;
     }
 
-    spinner.start(`${progress} Creating ${result.cards.length} Anki cards...`);
+    spinner.start(`Creating ${result.cards.length} Anki cards...`);
     const audioFilename = await storeAudio(audioPath);
     const noteIds = await createNotes(result.cards, audioFilename, {
       sourceId,
       cefr,
       deck: options.deck,
     });
-    spinner.succeed(`${progress} Created ${noteIds.length} cards!\n`);
+    spinner.succeed(`Created ${noteIds.length} cards!\n`);
 
     // Update session state
     sessionState.recordAcceptedUnit();
