@@ -48,7 +48,8 @@ function buildSsml(text, { ipa = null, slow = false } = {}) {
     : escapedText;
 
   if (slow) {
-    inner = `<prosody rate="88%">${inner}</prosody>`;
+    const rate = Math.round((config.ttsSpeed || 0.75) * 100);
+    inner = `<prosody rate="${rate}%">${inner}</prosody>`;
   }
 
   return `<speak><s>${inner}</s></speak>`;
@@ -59,12 +60,18 @@ async function generateClip(text, outputPath, voiceName, options = {}) {
   const ssml = buildSsml(text, options);
   const languageCode = voiceName.split('-').slice(0, 2).join('-'); // 'de-DE'
 
+  const audioConfig = {
+    audioEncoding: 'MP3',
+    effectsProfileId: ['headphone-class-device'],
+    ...options.audioConfig,
+  };
+
   let response;
   try {
     [response] = await client.synthesizeSpeech({
       input: { ssml },
       voice: { languageCode, name: voiceName },
-      audioConfig: { audioEncoding: 'MP3' },
+      audioConfig,
     });
   } catch (err) {
     if (err.message?.includes('Could not load the default credentials') || err.code === 7 || err.code === 16) {
@@ -117,10 +124,16 @@ export async function generateSpeech(text, outputPath) {
   const leadIn = config.audioLeadIn || 0.4;
 
   const slowPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_slow.mp3');
-  await generateClip(text, slowPath, voice, { slow: true });
+  await generateClip(text, slowPath, voice, {
+    slow: true,
+    audioConfig: { pitch: -1.0 },
+  });
 
   const normalPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_normal.mp3');
-  await generateClip(text, normalPath, voice, { slow: false });
+  await generateClip(text, normalPath, voice, {
+    slow: false,
+    audioConfig: { speakingRate: config.ttsNormalRate || 0.9 },
+  });
 
   await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration, leadIn);
   await unlink(slowPath);
@@ -141,7 +154,11 @@ export async function generateSimpleSpeech(text, outputPath, options = {}) {
   const ipa = options.ipa || null;
 
   const rawPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_raw.mp3');
-  await generateClip(text, rawPath, voice, { slow, ipa });
+  await generateClip(text, rawPath, voice, {
+    slow,
+    ipa,
+    audioConfig: slow ? { pitch: -1.0 } : { speakingRate: config.ttsNormalRate || 0.9 },
+  });
 
   await execFileAsync('ffmpeg', ['-i', rawPath, '-filter:a', 'volume=1.2', '-y', outputPath]);
   await unlink(rawPath);
