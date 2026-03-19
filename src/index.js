@@ -356,11 +356,17 @@ async function testIntegrations(options) {
 
   const { execSync, spawn } = await import('child_process');
   const { resolveSecret } = await import('./secrets.js');
-  const results = { passed: 0, failed: 0 };
+  const results = { passed: 0, warned: 0, failed: 0 };
 
   function pass(msg) {
     console.log(chalk.green(`✓ ${msg}`));
     results.passed++;
+  }
+
+  function warn(msg, hint) {
+    console.log(chalk.yellow(`⚠ ${msg}`));
+    if (hint) console.log(chalk.dim(`  ${hint}`));
+    results.warned++;
   }
 
   function fail(msg, hint) {
@@ -460,8 +466,6 @@ async function testIntegrations(options) {
 
     // Check deck
     try {
-      const { getDecks } = await import('./anki.js');
-      // We don't have getDecks, let's use ensureDeck logic
       const decks = await ankiConnectRequest('deckNames');
       if (decks.includes(options.deck)) {
         pass(`Deck "${options.deck}" exists`);
@@ -482,10 +486,10 @@ async function testIntegrations(options) {
       if (fields.includes('Front') && fields.includes('Back')) {
         pass('Sentence note type has required fields (Front, Back)');
       } else {
-        fail('Note type missing Front/Back fields', `Found fields: ${fields.join(', ')}`);
+        warn('Note type missing Front/Back fields', `Found fields: ${fields.join(', ')}`);
       }
     } else {
-      fail(`Note type "${config.ankiNoteType}" not found`);
+      warn(`Note type "${config.ankiNoteType}" not found`);
       console.log(chalk.dim(`  Available: ${noteTypes.join(', ')}`));
     }
 
@@ -496,13 +500,13 @@ async function testIntegrations(options) {
       if (wordFields.includes('Word') && wordFields.includes('Picture')) {
         pass('Word note type has required fields (Word, Picture)');
       } else {
-        fail('Word note type missing Word/Picture fields', `Found fields: ${wordFields.join(', ')}`);
+        warn('Word note type missing Word/Picture fields', `Found fields: ${wordFields.join(', ')}`);
       }
     } else {
-      fail(`Word note type "${wordNoteType}" not found`);
+      warn(`Word note type "${wordNoteType}" not found`);
     }
   } else {
-    fail('AnkiConnect not available');
+    warn('AnkiConnect not available (required only for non-dry-run)');
     console.log(chalk.dim('  1. Open Anki'));
     console.log(chalk.dim('  2. Install add-on: Tools → Add-ons → Get Add-ons → Code: 2055492159'));
     console.log(chalk.dim('  3. Restart Anki'));
@@ -573,10 +577,13 @@ async function testIntegrations(options) {
 
   // Summary
   console.log(chalk.bold('\n' + '─'.repeat(50)));
-  if (results.failed === 0) {
+  if (results.failed === 0 && results.warned === 0) {
     console.log(chalk.green.bold(`\n✓ All ${results.passed} tests passed! Ready to use.\n`));
+  } else if (results.failed === 0) {
+    console.log(chalk.green(`\n✓ ${results.passed} passed`) + chalk.yellow(`, ${results.warned} warned`));
+    console.log(chalk.dim('Warnings are non-blocking — dry-run mode works without Anki.\n'));
   } else {
-    console.log(chalk.yellow(`\n${results.passed} passed, ${results.failed} failed`));
+    console.log(chalk.yellow(`\n${results.passed} passed, ${results.warned} warned, ${results.failed} failed`));
     console.log(chalk.dim('Fix the issues above before using yt2anki\n'));
     process.exit(1);
   }
