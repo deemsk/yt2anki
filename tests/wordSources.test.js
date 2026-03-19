@@ -6,13 +6,13 @@ describe("word image sources", () => {
   let originalBraveSearchApiKey
 
   beforeEach(() => {
-    originalBraveSearchApiKey = config.braveSearchApiKey
-    config.braveSearchApiKey = ""
+    originalBraveSearchApiKey = config.braveApiKey
+    config.braveApiKey = ""
   })
 
   afterEach(() => {
     global.fetch = originalFetch
-    config.braveSearchApiKey = originalBraveSearchApiKey
+    config.braveApiKey = originalBraveSearchApiKey
   })
 
   test("buildWordImageSearchTerms prefers specific visual queries before broad fallbacks", () => {
@@ -235,7 +235,7 @@ describe("word image sources", () => {
       }
     }
 
-    config.braveSearchApiKey = "test-key"
+    config.braveApiKey = "test-key"
 
     const results = await searchWordImages(
       { bareNoun: "Wasser" },
@@ -282,7 +282,7 @@ describe("word image sources", () => {
       }
     }
 
-    config.braveSearchApiKey = "test-key"
+    config.braveApiKey = "test-key"
 
     await searchWordImages(
       { bareNoun: "Apotheke" },
@@ -350,7 +350,7 @@ describe("word image sources", () => {
       }
     }
 
-    config.braveSearchApiKey = "test-key"
+    config.braveApiKey = "test-key"
 
     const results = await searchWordImages(
       { bareNoun: "Apotheke" },
@@ -418,7 +418,7 @@ describe("word image sources", () => {
       }
     }
 
-    config.braveSearchApiKey = "test-key"
+    config.braveApiKey = "test-key"
 
     const results = await searchWordImages(
       { bareNoun: "Montag" },
