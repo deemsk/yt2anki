@@ -41,14 +41,35 @@ function escapeXml(str) {
     .replace(/'/g, '&apos;');
 }
 
-function buildSsml(text, { ipa = null, slow = false } = {}) {
+function normalizePhonemeIpa(ipa = null) {
+  const value = String(ipa || '').trim();
+  if (!value) {
+    return null;
+  }
+
+  const stripped = value.replace(/^\[/, '').replace(/\]$/, '').trim();
+  return stripped || null;
+}
+
+function toProsodyRatePercent(rate) {
+  if (!Number.isFinite(rate)) {
+    return null;
+  }
+
+  return Math.max(20, Math.min(200, Math.round(rate * 100)));
+}
+
+function buildSsml(text, { ipa = null, slow = false, prosodyRate = null } = {}) {
   const escapedText = escapeXml(text);
-  let inner = ipa
-    ? `<phoneme alphabet="ipa" ph="${escapeXml(ipa)}">${escapedText}</phoneme>`
+  const phonemeIpa = normalizePhonemeIpa(ipa);
+  let inner = phonemeIpa
+    ? `<phoneme alphabet="ipa" ph="${escapeXml(phonemeIpa)}">${escapedText}</phoneme>`
     : escapedText;
 
-  if (slow) {
-    const rate = Math.round((config.ttsSpeed || 0.75) * 100);
+  const rate = toProsodyRatePercent(
+    prosodyRate != null ? prosodyRate : (slow ? (config.ttsSpeed || 0.75) : null)
+  );
+  if (rate != null && rate !== 100) {
     inner = `<prosody rate="${rate}%">${inner}</prosody>`;
   }
 
@@ -150,14 +171,18 @@ export async function generateSimpleSpeech(text, outputPath, options = {}) {
   await mkdir(config.dataDir, { recursive: true });
 
   const voice = options.voice || getNextVoice();
-  const slow = options.speed != null ? options.speed < 1.0 : false;
+  const requestedRate = Number.isFinite(options.speed) ? options.speed : null;
+  const slow = requestedRate != null ? requestedRate < 1.0 : false;
   const ipa = options.ipa || null;
 
   const rawPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_raw.mp3');
   await generateClip(text, rawPath, voice, {
     slow,
     ipa,
-    audioConfig: slow ? { pitch: -1.0 } : { speakingRate: config.ttsNormalRate || 0.9 },
+    prosodyRate: requestedRate != null && requestedRate !== 1.0 ? requestedRate : null,
+    audioConfig: slow
+      ? { pitch: -1.0 }
+      : { speakingRate: requestedRate != null ? requestedRate : (config.ttsNormalRate || 0.9) },
   });
 
   await execFileAsync('ffmpeg', ['-i', rawPath, '-filter:a', 'volume=1.2', '-y', outputPath]);

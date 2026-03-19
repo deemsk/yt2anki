@@ -126,6 +126,24 @@ describe("TTS SSML generation", () => {
     expect(req.input.ssml).toMatch(/<prosody rate="75%"><phoneme[^>]+>Wohnung<\/phoneme><\/prosody>/)
   })
 
+  test("bracketed dictionary IPA is stripped before phoneme SSML", async () => {
+    await generateSimpleSpeech("Wohnung", "/tmp/word.mp3", { ipa: "[diː ˈvoːnʊŋ]" })
+
+    const req = mockSynthesizeSpeech.mock.calls[0][0]
+    expect(req.input.ssml).toContain('ph="diː ˈvoːnʊŋ"')
+    expect(req.input.ssml).not.toContain('ph="[diː ˈvoːnʊŋ]"')
+  })
+
+  test("numeric word speed below 1.0 is preserved in SSML prosody", async () => {
+    config.ttsSpeed = 0.75
+
+    await generateSimpleSpeech("Montag", "/tmp/word.mp3", { speed: 0.9 })
+
+    const req = mockSynthesizeSpeech.mock.calls[0][0]
+    expect(req.input.ssml).toMatch(/prosody rate="90%"/)
+    expect(req.audioConfig.pitch).toBe(-1.0)
+  })
+
   test("normal word clip uses speakingRate not SSML prosody", async () => {
     config.ttsNormalRate = 0.9
 
