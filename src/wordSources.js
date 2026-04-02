@@ -4,7 +4,7 @@ import { extname, join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
-import { normalizeGermanForCompare, normalizeWordIpa, stripHtml } from './wordUtils.js';
+import { getWordLemma, normalizeGermanForCompare, normalizeWordIpa, stripHtml } from './wordUtils.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -490,7 +490,7 @@ function classifyImageQueryBucket(term, englishGloss = '') {
 }
 
 function isPlaceOrInstitution(wordData, selectedMeaning) {
-  const bare = normalizeGermanForCompare(wordData?.bareNoun || '');
+  const bare = normalizeGermanForCompare(getWordLemma(wordData));
   const english = normalizeGermanForCompare(selectedMeaning?.english || '');
 
   if (PLACE_OR_INSTITUTION_GERMAN.has(bare)) {
@@ -512,7 +512,11 @@ function getGermanArticleAdjective(article = '') {
 }
 
 function classifyWordConcept(wordData, selectedMeaning) {
-  const bare = normalizeGermanForCompare(wordData?.bareNoun || '');
+  if (wordData?.lexicalType === 'adjective') {
+    return 'adjective';
+  }
+
+  const bare = normalizeGermanForCompare(getWordLemma(wordData));
   const english = normalizeGermanForCompare(selectedMeaning?.english || '');
 
   if (SUBSTANCE_GERMAN.has(bare) || hasAnyTerm(english, SUBSTANCE_ENGLISH)) {
@@ -561,6 +565,28 @@ function looksGermanQueryTerm(term, bareNoun = '') {
   );
 }
 
+function classifyAdjectiveBucket(term, wordData) {
+  const normalizedTerm = normalizeGermanForCompare(term);
+  const normalizedAnchor = normalizeGermanForCompare(wordData?.anchorPhrase || '');
+  const normalizedOpposite = normalizeGermanForCompare(wordData?.opposite || '');
+
+  if (
+    /\b(neben|gegenueber|gegenüber|vs|kontrast|before|after|vergleich)\b/.test(normalizedTerm) ||
+    (normalizedOpposite && normalizedTerm.includes(normalizedOpposite))
+  ) {
+    return 'contrast';
+  }
+
+  if (
+    (normalizedAnchor && normalizedTerm.includes(normalizedAnchor)) ||
+    normalizedTerm.split(/\s+/).filter(Boolean).length > 1
+  ) {
+    return 'prototype';
+  }
+
+  return 'generic';
+}
+
 function pushQueryEntries(entries, terms, bucket, locale = 'de') {
   dedupeTerms(terms).forEach((term) => {
     entries.push({ term, bucket, locale });
@@ -568,7 +594,7 @@ function pushQueryEntries(entries, terms, bucket, locale = 'de') {
 }
 
 function buildSubstanceEntries(wordData, selectedMeaning) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const lowerEnglish = normalizeGermanForCompare(selectedMeaning?.english || '');
   const entries = [];
 
@@ -595,7 +621,7 @@ function buildSubstanceEntries(wordData, selectedMeaning) {
 }
 
 function buildInstitutionEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const adjective = getGermanArticleAdjective(wordData?.article);
   const entries = [];
 
@@ -610,7 +636,7 @@ function buildInstitutionEntries(wordData) {
 }
 
 function buildDwellingEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const entries = [];
 
   pushQueryEntries(entries, [`${bareWord} Eingang`, `${bareWord} außen`], 'exterior');
@@ -622,7 +648,7 @@ function buildDwellingEntries(wordData) {
 }
 
 function buildRoomEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const entries = [];
 
   pushQueryEntries(entries, [`leeres ${bareWord}`, `${bareWord} innen`], 'interior');
@@ -633,7 +659,7 @@ function buildRoomEntries(wordData) {
 }
 
 function buildCalendarEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const entries = [];
 
   pushQueryEntries(
@@ -654,7 +680,7 @@ function buildCalendarEntries(wordData) {
 }
 
 function buildMeasureEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const normalizedBare = normalizeGermanForCompare(bareWord);
   const entries = [];
 
@@ -669,7 +695,7 @@ function buildMeasureEntries(wordData) {
 }
 
 function buildDocumentEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   const entries = [];
 
   pushQueryEntries(entries, [`${bareWord} ausfüllen`, `${bareWord} unterschreiben`], 'action');
@@ -680,7 +706,7 @@ function buildDocumentEntries(wordData) {
 }
 
 function buildSceneEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   return [
     { term: bareWord, bucket: 'prototype', locale: 'de' },
     { term: `${bareWord} Landschaft`, bucket: 'context', locale: 'de' },
@@ -688,10 +714,36 @@ function buildSceneEntries(wordData) {
 }
 
 function buildObjectEntries(wordData) {
-  const bareWord = wordData?.bareNoun || '';
+  const bareWord = getWordLemma(wordData);
   return [
     { term: bareWord, bucket: 'prototype', locale: 'de' },
   ];
+}
+
+function buildAdjectiveEntries(wordData, selectedMeaning) {
+  const lemma = getWordLemma(wordData);
+  const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
+  const entries = [];
+
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => looksGermanQueryTerm(term, lemma)),
+    null,
+    'de'
+  );
+
+  if (wordData?.anchorPhrase) {
+    pushQueryEntries(entries, [wordData.anchorPhrase], 'prototype', 'de');
+  }
+
+  if (lemma) {
+    pushQueryEntries(entries, [lemma], 'generic', 'de');
+  }
+
+  return entries.map((entry) => ({
+    ...entry,
+    bucket: entry.bucket || classifyAdjectiveBucket(entry.term, wordData),
+  }));
 }
 
 function buildWordImageQueryEntries(wordData, selectedMeaning) {
@@ -701,7 +753,9 @@ function buildWordImageQueryEntries(wordData, selectedMeaning) {
   const conceptClass = classifyWordConcept(wordData, selectedMeaning);
   const entries = [];
 
-  if (conceptClass === 'substance') {
+  if (conceptClass === 'adjective') {
+    entries.push(...buildAdjectiveEntries(wordData, selectedMeaning));
+  } else if (conceptClass === 'substance') {
     entries.push(...buildSubstanceEntries(wordData, selectedMeaning));
   } else if (conceptClass === 'institution') {
     entries.push(...buildInstitutionEntries(wordData));
@@ -721,16 +775,18 @@ function buildWordImageQueryEntries(wordData, selectedMeaning) {
     entries.push(...buildObjectEntries(wordData));
   }
 
-  pushQueryEntries(
-    entries,
-    specificTerms.filter((term) => looksGermanQueryTerm(term, wordData?.bareNoun || '')),
-    null,
-    'de'
-  );
+  if (conceptClass !== 'adjective') {
+    pushQueryEntries(
+      entries,
+      specificTerms.filter((term) => looksGermanQueryTerm(term, getWordLemma(wordData))),
+      null,
+      'de'
+    );
+  }
 
   pushQueryEntries(
     entries,
-    specificTerms.filter((term) => !looksGermanQueryTerm(term, wordData?.bareNoun || '')),
+    specificTerms.filter((term) => !looksGermanQueryTerm(term, getWordLemma(wordData))),
     null,
     'en'
   );
@@ -794,6 +850,138 @@ export function buildVerbImageSearchTerms(verbData, selectedMeaning) {
   return buildVerbImageQueryEntries(verbData, selectedMeaning).map((entry) => entry.term);
 }
 
+function briefTokens(value) {
+  return normalizeGermanForCompare(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !/^(with|ohne|aber|oder|nicht|just|only|main|mainly|show|should|look|looks|visible|visibly|clear|clearly|photo|image|scene|subject|thing|from|into|over|under|near|mainSubject|must|that|this|than|eine|einer|einem|einen|eines|einer|der|die|das|dem|den|des|und|oder|nicht|kein|keine|einer|einem|einen|mit|fuer|für|auf|von|ist|sind|sein|soll|sollte|zeigt|zeigen)$/.test(token));
+}
+
+function countMatchingBriefTokens(normalizedCombinedText, value) {
+  const tokens = briefTokens(value);
+  if (tokens.length === 0) {
+    return 0;
+  }
+
+  return tokens.reduce((count, token) => (
+    normalizedCombinedText.includes(token) ? count + 1 : count
+  ), 0);
+}
+
+function visualBriefText(visualBrief) {
+  if (!visualBrief || typeof visualBrief !== 'object') {
+    return '';
+  }
+
+  return normalizeGermanForCompare([
+    visualBrief.searchQuery,
+    ...(Array.isArray(visualBrief.queryVariants) ? visualBrief.queryVariants : []),
+    visualBrief.sceneSummary,
+    visualBrief.focusRole,
+    ...(Array.isArray(visualBrief.mustShow) ? visualBrief.mustShow : []),
+    ...(Array.isArray(visualBrief.avoid) ? visualBrief.avoid : []),
+    visualBrief.imagePrompt,
+  ].filter(Boolean).join(' '));
+}
+
+function visualBriefWantsInteraction(visualBrief) {
+  const normalized = visualBriefText(visualBrief);
+  return /\b(interaktion|interaction|hilfe|hilft|help|helping|gespraech|gespräch|conversation|talk|smile|laechelt|lächelt|service|kund|begruesst|begrüßt|door|tuer|tür|handshake|greeting|welcoming)\b/.test(normalized);
+}
+
+function scoreVisualBrief(normalizedCombinedText, result, visualBrief) {
+  if (!visualBrief || typeof visualBrief !== 'object') {
+    return 0;
+  }
+
+  let score = 0;
+  const searchQuery = String(visualBrief.searchQuery || '').trim();
+  const queryVariants = Array.isArray(visualBrief.queryVariants) ? visualBrief.queryVariants : [];
+  const sceneSummary = String(visualBrief.sceneSummary || '').trim();
+  const focusRole = String(visualBrief.focusRole || '').trim();
+  const mustShow = Array.isArray(visualBrief.mustShow) ? visualBrief.mustShow : [];
+  const avoid = Array.isArray(visualBrief.avoid) ? visualBrief.avoid : [];
+  const imagePrompt = String(visualBrief.imagePrompt || '').trim();
+  const prioritizedQueries = [searchQuery, ...queryVariants].filter(Boolean);
+  const normalizedQueryUsed = normalizeGermanForCompare(result.queryUsed || '');
+  const interactionDesired = visualBriefWantsInteraction(visualBrief);
+
+  if (searchQuery && normalizedQueryUsed === normalizeGermanForCompare(searchQuery)) {
+    score += 12;
+  }
+
+  for (const query of prioritizedQueries) {
+    const normalizedQuery = normalizeGermanForCompare(query);
+    if (!normalizedQuery) continue;
+
+    if (normalizedCombinedText.includes(normalizedQuery)) {
+      score += query === searchQuery ? 10 : 5;
+      continue;
+    }
+
+    const tokenMatches = countMatchingBriefTokens(normalizedCombinedText, normalizedQuery);
+    if (tokenMatches >= 2) {
+      score += query === searchQuery ? 6 : 3;
+    }
+  }
+
+  for (const descriptor of mustShow) {
+    const normalizedDescriptor = normalizeGermanForCompare(descriptor);
+    if (!normalizedDescriptor) continue;
+
+    if (normalizedCombinedText.includes(normalizedDescriptor)) {
+      score += 6;
+      continue;
+    }
+
+    const tokenMatches = countMatchingBriefTokens(normalizedCombinedText, normalizedDescriptor);
+    if (tokenMatches >= 2) {
+      score += 3;
+    }
+  }
+
+  for (const descriptor of [sceneSummary, focusRole, imagePrompt]) {
+    const normalizedDescriptor = normalizeGermanForCompare(descriptor);
+    if (!normalizedDescriptor) continue;
+
+    if (normalizedCombinedText.includes(normalizedDescriptor)) {
+      score += 4;
+      continue;
+    }
+
+    const tokenMatches = countMatchingBriefTokens(normalizedCombinedText, normalizedDescriptor);
+    if (tokenMatches >= 2) {
+      score += 2;
+    }
+  }
+
+  for (const descriptor of avoid) {
+    const normalizedDescriptor = normalizeGermanForCompare(descriptor);
+    if (!normalizedDescriptor) continue;
+
+    if (normalizedCombinedText.includes(normalizedDescriptor)) {
+      score -= 12;
+      continue;
+    }
+
+    const tokenMatches = countMatchingBriefTokens(normalizedCombinedText, normalizedDescriptor);
+    if (tokenMatches >= 2) {
+      score -= 7;
+    }
+  }
+
+  if (interactionDesired) {
+    if (/\b(help|helping|assist|assisting|customer|service|smile|smiling|greet|greeting|conversation|talking|handshake|door|welcoming|hilft|helfen|kund|service|laechelt|lächelt|begruesst|begrüßt|gespraech|gespräch|tuer|tür)\b/.test(normalizedCombinedText)) {
+      score += 8;
+    }
+
+    if (/\b(portrait|selfie|headshot|glamour|model shoot|beauty shot|close up|closeup|isolated person|portraitfoto|portraet|porträt|selfie|headshot|model)\b/.test(normalizedCombinedText)) {
+      score -= 14;
+    }
+  }
+
+  return score;
+}
+
 function rankImageResult(result, context = {}) {
   const query = result.queryUsed || '';
   const wordCount = query.split(/\s+/).filter(Boolean).length;
@@ -803,9 +991,12 @@ function rankImageResult(result, context = {}) {
   const downloadUrl = (result.downloadUrl || '').toLowerCase();
   const combinedText = `${title} ${detailUrl} ${downloadUrl}`;
   const normalizedCombinedText = normalizeGermanForCompare(combinedText);
-  const bareWord = normalizeGermanForCompare(context.wordData?.bareNoun || '');
+  const bareWord = normalizeGermanForCompare(getWordLemma(context.wordData));
   const englishGloss = normalizeGermanForCompare(context.selectedMeaning?.english || '');
   const conceptClass = classifyWordConcept(context.wordData, context.selectedMeaning);
+  const normalizedAnchor = normalizeGermanForCompare(context.wordData?.anchorPhrase || '');
+  const normalizedOpposite = normalizeGermanForCompare(context.wordData?.opposite || '');
+  const visualBrief = context.selectedMeaning?.visualBrief || null;
 
   let score = 0;
 
@@ -857,6 +1048,7 @@ function rankImageResult(result, context = {}) {
 
   const bucket = result.queryBucket || 'generic';
   const bucketWeights = {
+    adjective: { contrast: 20, prototype: 12, generic: 0 },
     substance: { container: 18, action: 10, source: 6, prototype: 8, generic: -2 },
     institution: { sign: 18, exterior: 16, service: 12, interior: 8, context: 8, prototype: 6, generic: -4 },
     dwelling: { exterior: 16, context: 14, interior: 8, prototype: 6, generic: -4 },
@@ -869,6 +1061,22 @@ function rankImageResult(result, context = {}) {
   };
 
   score += bucketWeights[conceptClass]?.[bucket] || 0;
+
+  if (conceptClass === 'adjective') {
+    if (normalizedAnchor && normalizedCombinedText.includes(normalizedAnchor)) {
+      score += 14;
+    }
+
+    if (normalizedOpposite && normalizedCombinedText.includes(normalizedOpposite)) {
+      score += 8;
+    }
+
+    score += scoreVisualBrief(normalizedCombinedText, result, visualBrief);
+
+    if (/icon|logo|symbol|diagram|chart|infographic|palette|swatch|hex\b/.test(combinedText)) {
+      score -= 18;
+    }
+  }
 
   if (conceptClass === 'institution') {
     if (/walgreens|cvs|rite aid|drugstore|chemist/.test(combinedText) && !/apotheke|schule|bahnhof|krankenhaus|restaurant|museum/.test(combinedText)) {
@@ -1276,7 +1484,7 @@ async function getWiktionaryPronunciationData(word) {
 }
 
 export async function resolveWordPronunciation(wordData) {
-  const pronunciationData = await getWiktionaryPronunciationData(wordData.bareNoun);
+  const pronunciationData = await getWiktionaryPronunciationData(getWordLemma(wordData));
   const normalizedIpa = pronunciationData.ipa
     ? normalizeWordIpa(wordData.canonical, pronunciationData.ipa)
     : null;

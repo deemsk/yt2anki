@@ -114,19 +114,20 @@ program
 
 program
   .command('word')
-  .description('Create a Fluent Forever noun note')
-  .argument('<word>', 'German noun, with or without article')
+  .description('Create a Fluent Forever noun/adjective note with picture or sentence fallback')
+  .argument('<word>', 'German noun/adjective, with or without article when applicable')
   .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
+  .option('-s, --sentence <text>', 'Preferred example sentence for sentence-form adjectives')
   .option('-t, --theme <name>', 'Optional theme tag')
-  .option('-n, --dry-run', 'Preview the noun note without creating it')
+  .option('-n, --dry-run', 'Preview the word note without creating it')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processSingleWord);
 
 program
   .command('words')
-  .description('Create Fluent Forever noun notes from text input (one noun per line)')
-  .option('-t, --theme <name>', 'Optional theme tag for all nouns in the batch')
-  .option('-n, --dry-run', 'Preview noun notes without creating them')
+  .description('Create Fluent Forever noun/adjective notes from text input (one noun/adjective per line)')
+  .option('-t, --theme <name>', 'Optional theme tag for all words in the batch')
+  .option('-n, --dry-run', 'Preview word notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processWordBatch);
 

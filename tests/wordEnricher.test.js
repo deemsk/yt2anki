@@ -1,4 +1,4 @@
-import { canProceedWithWeakWordCard, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
+import { canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -66,5 +66,42 @@ describe("word enricher retries", () => {
         meanings: [{ russian: "идти", english: "go" }],
       })
     ).toBe(false)
+  })
+
+  test("does not allow weak adjective analyses through the noun recovery path", () => {
+    expect(
+      canProceedWithWeakWordCard({
+        lexicalType: "adjective",
+        shouldCreateWordCard: false,
+        rejectionReason: "The adjective is too abstract for a picture card.",
+        canonical: "wichtig",
+        lemma: "wichtig",
+        meanings: [{ russian: "важный", english: "important" }],
+      })
+    ).toBe(false)
+  })
+
+  test("keeps structured adjective analyses usable for sentence-form fallback", () => {
+    expect(
+      hasStructuredWordAnalysis({
+        lexicalType: "adjective",
+        canonical: "wichtig",
+        lemma: "wichtig",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "важный", english: "important" }],
+        exampleSentences: [{ german: "Das ist wichtig.", russian: "Это важно." }],
+      })
+    ).toBe(true)
+  })
+
+  test("treats bare adjective normalization as enough to continue into fallback mode", () => {
+    expect(
+      hasStructuredWordAnalysis({
+        lexicalType: "adjective",
+        canonical: "gut",
+        lemma: "gut",
+        recommendedMode: "sentence-form",
+      })
+    ).toBe(true)
   })
 })

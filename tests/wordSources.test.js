@@ -104,6 +104,20 @@ describe("word image sources", () => {
     expect(terms).toContain("monday")
   })
 
+  test("buildWordImageSearchTerms keeps adjective anchor scenes ahead of bare-label fallbacks", () => {
+    const terms = buildWordImageSearchTerms(
+      { lexicalType: "adjective", canonical: "groß", lemma: "groß", anchorPhrase: "großer Hund", opposite: "klein" },
+      {
+        english: "big",
+        imageSearchTerms: ["großer Hund neben kleinem Hund", "großes Auto"],
+      }
+    )
+
+    expect(terms.slice(0, 3)).toEqual(["großer Hund neben kleinem Hund", "großes Auto", "großer Hund"])
+    expect(terms).toContain("groß")
+    expect(terms).toContain("big")
+  })
+
   test("buildVerbImageSearchTerms keeps German action queries ahead of fallbacks", () => {
     const terms = buildVerbImageSearchTerms(
       { infinitive: "laufen", displayForm: "läuft" },
@@ -201,6 +215,155 @@ describe("word image sources", () => {
       expect.objectContaining({
         title: "Glass of water on table",
         queryUsed: "Glas Wasser",
+      })
+    )
+  })
+
+  test("searchWordImages uses visual brief cues to demote meme-like adjective results", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+      const openverseQuery = parsed.searchParams.get("q")
+      const commonsQuery = parsed.searchParams.get("gsrsearch")
+      const query = openverseQuery || commonsQuery
+
+      if (openverseQuery) {
+        if (query === "hässliches Kleid") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Ugly dress meme cartoon",
+                    thumbnail: "https://img.example/ugly-dress-meme.jpg",
+                    url: "https://img.example/ugly-dress-meme-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                  {
+                    title: "Ugly dress mannequin photo",
+                    thumbnail: "https://img.example/ugly-dress-photo.jpg",
+                    url: "https://img.example/ugly-dress-photo-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] } }
+        },
+      }
+    }
+
+    const results = await searchWordImages(
+      { lexicalType: "adjective", canonical: "hässlich", lemma: "hässlich" },
+      {
+        english: "ugly",
+        imageSearchTerms: ["hässliches Kleid", "hässlich"],
+        visualBrief: {
+          searchQuery: "hässliches Kleid",
+          queryVariants: ["unschönes Kleid"],
+          mustShow: ["dress mannequin"],
+          avoid: ["meme cartoon"],
+        },
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        title: "Ugly dress mannequin photo",
+        queryUsed: "hässliches Kleid",
+      })
+    )
+  })
+
+  test("searchWordImages prefers interaction scenes over portrait shots for social adjectives like nett", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+      const openverseQuery = parsed.searchParams.get("q")
+      const commonsQuery = parsed.searchParams.get("gsrsearch")
+      const query = openverseQuery || commonsQuery
+
+      if (openverseQuery) {
+        if (query === "nette Person hilft") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Beautiful woman portrait selfie",
+                    thumbnail: "https://img.example/friendly-portrait.jpg",
+                    url: "https://img.example/friendly-portrait-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                  {
+                    title: "Friendly woman helping customer with smile",
+                    thumbnail: "https://img.example/friendly-help.jpg",
+                    url: "https://img.example/friendly-help-full.jpg",
+                    creator: "tester",
+                    license: "cc0",
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] } }
+        },
+      }
+    }
+
+    const results = await searchWordImages(
+      { lexicalType: "adjective", canonical: "nett", lemma: "nett" },
+      {
+        english: "nice",
+        imageSearchTerms: ["nette Person hilft", "nett"],
+        visualBrief: {
+          searchQuery: "nette Person hilft",
+          queryVariants: ["freundliche Person hilft", "freundliche Verkäuferin hilft Kundin"],
+          sceneSummary: "A friendly person is visibly helping someone.",
+          focusRole: "Niceness must be visible through a helpful interaction, not just appearance.",
+          mustShow: ["two people interacting", "helping gesture", "welcoming smile"],
+          avoid: ["portrait", "selfie", "headshot", "glamour photo"],
+          imagePrompt: "Photo of a friendly person helping another person in a visible everyday interaction.",
+        },
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        title: "Friendly woman helping customer with smile",
+        queryUsed: "nette Person hilft",
       })
     )
   })

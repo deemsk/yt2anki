@@ -94,6 +94,23 @@ export function formatPlainWord(canonical) {
   return `<span style="font-weight:600;">${escapeHtml(canonical)}</span>`;
 }
 
+export function getWordLemma(wordData = {}) {
+  const raw = String(wordData.lemma || wordData.bareNoun || wordData.canonical || '').trim();
+  return raw.replace(/^(der|die|das)\s+/i, '');
+}
+
+export function applyChosenSentenceGloss(sentenceData = {}, chosenSentence = {}) {
+  const chosenRussian = String(chosenSentence?.russian || '').trim();
+  if (!chosenRussian) {
+    return sentenceData;
+  }
+
+  return {
+    ...sentenceData,
+    russian: chosenRussian,
+  };
+}
+
 export function normalizeWordIpa(canonical = '', ipa = '') {
   const raw = String(ipa || '').trim();
   if (!raw) return '';
@@ -141,6 +158,7 @@ export function buildWordExtraInfo({
   plural,
   exampleSentence = null,
   dictionaryForm = null,
+  contrast = null,
   personalConnection = null,
   metadata,
 }) {
@@ -162,6 +180,10 @@ export function buildWordExtraInfo({
     lines.push(`<div>Dictionary Form: ${escapeHtml(dictionaryForm)}</div>`);
   }
 
+  if (contrast) {
+    lines.push(`<div>Contrast: ${escapeHtml(contrast)}</div>`);
+  }
+
   if (personalConnection) {
     lines.push(`<div>Personal Connection: ${escapeHtml(personalConnection)}</div>`);
   }
@@ -178,7 +200,7 @@ export function extractWordMeaning(extraInfo = '') {
   }
 
   const stripped = stripHtml(extraInfo);
-  const match = stripped.match(/Meaning:\s*(.+?)(?:Plural:|Example:|Dictionary Form:|Personal Connection:|$)/i);
+  const match = stripped.match(/Meaning:\s*(.+?)(?:Plural:|Example:|Dictionary Form:|Contrast:|Personal Connection:|$)/i);
   return match ? match[1].trim() : null;
 }
 
@@ -189,6 +211,11 @@ export function extractCanonicalWord(wordField = '', extraInfo = '') {
   }
 
   return stripHtml(wordField);
+}
+
+export function extractWordLexicalType(extraInfo = '') {
+  const metadata = parseWordMetadataComment(extraInfo);
+  return metadata?.lexicalType ? String(metadata.lexicalType).trim() : null;
 }
 
 export function formatPluralLabel(wordData) {

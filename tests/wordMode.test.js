@@ -1,0 +1,65 @@
+import { buildSentenceImageMeaning } from "../src/wordMode.js"
+
+describe("word mode sentence image helpers", () => {
+  test("buildSentenceImageMeaning prefers noun-anchored adjective phrases before bare adjective glosses", () => {
+    const meaning = buildSentenceImageMeaning(
+      {
+        russian: "уродливый",
+        english: "ugly",
+        imageSearchTerms: ["hässlich"],
+      },
+      {
+        german: "Ich finde das Kleid hässlich.",
+        focusForm: "hässlich",
+      },
+      {
+        canonical: "hässlich",
+        lexicalType: "adjective",
+      }
+    )
+
+    expect(meaning.imageSearchTerms.slice(0, 3)).toEqual([
+      "das Kleid hässlich",
+      "Kleid hässlich",
+      "Ich finde das Kleid hässlich",
+    ])
+    expect(meaning.imageSearchTerms).toContain("hässlich")
+  })
+
+  test("buildSentenceImageMeaning prioritizes AI visual brief queries before heuristic sentence terms", () => {
+    const meaning = buildSentenceImageMeaning(
+      {
+        russian: "уродливый",
+        english: "ugly",
+        imageSearchTerms: ["hässlich"],
+      },
+      {
+        german: "Ich finde das Kleid hässlich.",
+        focusForm: "hässlich",
+        imageBrief: {
+          searchQuery: "hässliches Kleid",
+          queryVariants: ["unschönes Kleid", "Kleid mit hässlichem Muster"],
+          mustShow: ["dress main subject"],
+          avoid: ["meme cartoon"],
+        },
+      },
+      {
+        canonical: "hässlich",
+        lexicalType: "adjective",
+      }
+    )
+
+    expect(meaning.imageSearchTerms.slice(0, 5)).toEqual([
+      "hässliches Kleid",
+      "unschönes Kleid",
+      "Kleid mit hässlichem Muster",
+      "das Kleid hässlich",
+      "Kleid hässlich",
+    ])
+    expect(meaning.visualBrief).toEqual(
+      expect.objectContaining({
+        searchQuery: "hässliches Kleid",
+      })
+    )
+  })
+})

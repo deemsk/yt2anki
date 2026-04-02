@@ -13,11 +13,13 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 - Select German text on any webpage
 - Generate voice-over using OpenAI TTS
 
-**Word mode** (single nouns):
-- Create Fluent Forever-style picture-word notes for German nouns
+**Word mode** (nouns and adjectives):
+- Create Fluent Forever-style notes for German nouns and adjectives
 - Pick an image manually from Brave/Openverse/Wikimedia previews
 - Prefer Wikimedia pronunciation audio, fall back to Google TTS
-- Store noun with article and gender color, plus plural/back-side info
+- Store nouns with article and gender color, plus plural/back-side info
+- Store imageable adjectives with a concrete anchor phrase and optional contrast on the back
+- Route non-visual but common adjectives into sentence cards instead of skipping them
 
 **Verb mode**:
 - Route verbs into picture-word or sentence/form mode
@@ -119,9 +121,14 @@ npm run verb -- "laufen"
 npm run verbs
 ```
 
-Word mode is noun-first and uses the `2. Picture Words` note type by default.
-During creation you choose the intended meaning, pick an image, review frequency band,
-and confirm before the note is added.
+Word mode uses the `2. Picture Words` note type for picture cards and falls back to the
+regular sentence note type for adjectives that are better learned in context.
+During creation you choose the intended meaning, then either pick an image or confirm an
+example sentence before the note is added.
+
+Imageable adjectives such as colors, sizes, textures, and visible states can go through
+picture-word mode. Abstract or weakly visual adjectives are routed into sentence cards
+so frequent words like `wichtig` do not get dropped from the workflow.
 
 Verb mode routes imageable verbs to picture-word cards and routes abstract or form-heavy
 verbs to sentence cards with an optional dictionary-form note.
@@ -142,8 +149,8 @@ npm run clip -- -n    # Dry run (preview only)
 |---------|-------------|
 | `npm start` | Process clips from clipboard |
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
-| `npm run word -- <noun>` | Create one Fluent Forever noun note |
-| `npm run words` | Create multiple noun notes interactively |
+| `npm run word -- <word>` | Create one Fluent Forever noun/adjective note |
+| `npm run words` | Create multiple noun/adjective notes interactively |
 | `npm run verb -- <verb>` | Create one Fluent Forever verb note |
 | `npm run verbs` | Create multiple verb notes interactively |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
@@ -192,7 +199,7 @@ Edit `~/.yt2anki.json`:
 
 `googleTtsVoices` controls which Google Cloud TTS voices are rotated when generating speech.
 
-`wordNoteType` controls the note type used for noun cards. The v1 word mode assumes a
+`wordNoteType` controls the note type used for picture-word cards. The v1 word mode assumes a
 Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
 
 `braveApiKey` is optional. If set, word and verb picture modes query Brave image search before

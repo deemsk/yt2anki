@@ -6,7 +6,7 @@ import { platform, tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
 import { config } from './config.js';
-import { escapeHtml, formatPluralLabel, normalizeGermanForCompare } from './wordUtils.js';
+import { escapeHtml, formatPluralLabel, getWordLemma, normalizeGermanForCompare } from './wordUtils.js';
 import { playAudio } from './confirm.js';
 import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './wordSources.js';
 
@@ -225,9 +225,38 @@ function meaningMatches(input, meaning) {
     normalizeGermanForCompare(meaning.english) === normalizedInput;
 }
 
-export async function chooseMeaning(wordData, preferredMeaning = null) {
+export async function chooseMeaning(wordData, preferredMeaning = null, promptOverrides = {}) {
+  const manualPrompt = promptOverrides.manualPrompt || 'Enter the intended meaning/gloss for this word, or press Enter to skip: ';
+  const editPrompt = promptOverrides.editPrompt || 'Enter the intended meaning/gloss: ';
+  const allowBlank = Boolean(promptOverrides.allowBlank);
+
   if (!wordData.meanings?.length) {
-    throw new Error('No meaning options available for this word');
+    if (preferredMeaning) {
+      return {
+        russian: preferredMeaning,
+        english: getWordLemma(wordData),
+        imageSearchTerms: [getWordLemma(wordData)],
+      };
+    }
+
+    if (allowBlank) {
+      return {
+        russian: '',
+        english: getWordLemma(wordData),
+        imageSearchTerms: [getWordLemma(wordData)],
+      };
+    }
+
+    const manual = await ask(manualPrompt);
+    if (!manual) {
+      return null;
+    }
+
+    return {
+      russian: manual,
+      english: getWordLemma(wordData),
+      imageSearchTerms: [getWordLemma(wordData)],
+    };
   }
 
   if (preferredMeaning) {
@@ -238,8 +267,8 @@ export async function chooseMeaning(wordData, preferredMeaning = null) {
 
     return {
       russian: preferredMeaning,
-      english: wordData.meanings[0].english || wordData.bareNoun,
-      imageSearchTerms: [wordData.bareNoun],
+      english: wordData.meanings[0].english || getWordLemma(wordData),
+      imageSearchTerms: [getWordLemma(wordData)],
     };
   }
 
@@ -262,12 +291,12 @@ export async function chooseMeaning(wordData, preferredMeaning = null) {
     }
 
     if (normalized === 'e' || normalized === 'edit') {
-      const edited = await ask('Enter the intended meaning/gloss: ');
+      const edited = await ask(editPrompt);
       if (!edited) continue;
       return {
         russian: edited,
-        english: wordData.meanings[0].english || wordData.bareNoun,
-        imageSearchTerms: [wordData.bareNoun],
+        english: wordData.meanings[0].english || getWordLemma(wordData),
+        imageSearchTerms: [getWordLemma(wordData)],
       };
     }
 
@@ -357,6 +386,77 @@ export async function chooseImage(wordData, meaning, candidates) {
   }
 }
 
+export async function chooseWordSentence(wordData, preferredSentence = null) {
+  if (preferredSentence) {
+    const existing = wordData.exampleSentences?.find((sentence) => sentence.german === preferredSentence);
+    if (existing) {
+      return existing;
+    }
+
+    return {
+      german: preferredSentence,
+      russian: wordData.meanings?.[0]?.russian || '',
+      focusForm: wordData.canonical,
+    };
+  }
+
+  const sentences = Array.isArray(wordData.exampleSentences) ? wordData.exampleSentences : [];
+  if (sentences.length === 0) {
+    if (wordData.lexicalType === 'adjective' && wordData.canonical) {
+      return {
+        german: `Das ist ${wordData.canonical}.`,
+        russian: wordData.meanings?.[0]?.russian || '',
+        focusForm: wordData.canonical,
+      };
+    }
+
+    const manual = await ask('Enter an example sentence for this word, or press Enter to skip: ');
+    if (!manual) return null;
+    return {
+      german: manual,
+      russian: wordData.meanings?.[0]?.russian || '',
+      focusForm: wordData.canonical,
+    };
+  }
+
+  if (sentences.length === 1) {
+    return sentences[0];
+  }
+
+  console.log();
+  console.log(`Example sentences for ${wordData.canonical}:`);
+  sentences.forEach((sentence, index) => {
+    console.log(`  ${index + 1}. ${sentence.german}`);
+    if (sentence.russian) {
+      console.log(`     ${sentence.russian}`);
+    }
+  });
+
+  while (true) {
+    const answer = await ask('Choose sentence [1-3, Enter=1, E=edit]: ');
+    const normalized = answer.toLowerCase();
+
+    if (normalized === '') {
+      return sentences[0];
+    }
+
+    if (normalized === 'e' || normalized === 'edit') {
+      const manual = await ask('Enter an example sentence: ');
+      if (!manual) continue;
+      return {
+        german: manual,
+        russian: wordData.meanings?.[0]?.russian || '',
+        focusForm: wordData.canonical,
+      };
+    }
+
+    const index = parseInt(normalized, 10);
+    if (!Number.isNaN(index) && index >= 1 && index <= sentences.length) {
+      return sentences[index - 1];
+    }
+  }
+}
+
 export async function confirmWordSelection({
   wordData,
   selectedMeaning,
@@ -373,8 +473,18 @@ export async function confirmWordSelection({
   async function showPreview() {
     console.log();
     console.log(`Word: ${wordData.canonical}`);
+    console.log(`Type: ${wordData.lexicalType || 'noun'}`);
     console.log(`${wordData.ipa || ''}  ${selectedMeaning.russian}`.trim());
-    console.log(`Plural: ${formatPluralLabel(wordData)}`);
+    if (wordData.lexicalType === 'adjective') {
+      if (wordData.anchorPhrase) {
+        console.log(`Anchor: ${wordData.anchorPhrase}`);
+      }
+      if (wordData.opposite) {
+        console.log(`Contrast: ${wordData.opposite}`);
+      }
+    } else {
+      console.log(`Plural: ${formatPluralLabel(wordData)}`);
+    }
     console.log(`Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`Audio: ${audioSource}`);
     console.log(`Image: ${imageChoice.source || imageChoice.type}`);
@@ -427,5 +537,84 @@ export async function confirmWordSelection({
     }
 
     return { confirmed: false, personalConnection: null };
+  }
+}
+
+export async function confirmSentenceWordSelection({
+  wordData,
+  selectedMeaning,
+  sentenceData,
+  chosenSentence,
+  duplicateInfo = { exactMatches: [], headwordMatches: [] },
+  imageChoice = null,
+  audioPath,
+  similarCards = [],
+  autoPlay = true,
+}) {
+  if (autoPlay && audioPath) {
+    try {
+      await playAudio(audioPath);
+    } catch {
+      // Ignore initial audio errors.
+    }
+  }
+
+  while (true) {
+    console.log();
+    console.log(`Word: ${wordData.canonical}`);
+    console.log(`Type: ${wordData.lexicalType || 'adjective'}`);
+    if (selectedMeaning?.russian) {
+      console.log(`Meaning: ${selectedMeaning.russian}`);
+    }
+    console.log('Mode: sentence-form');
+    console.log(`Sentence: ${sentenceData.german}`);
+    console.log(`${sentenceData.ipa || ''}  ${sentenceData.russian}`.trim());
+    if (imageChoice) {
+      console.log(`Image: ${imageChoice.source || imageChoice.type}`);
+    }
+    if (wordData.opposite) {
+      console.log(`Contrast: ${wordData.opposite}`);
+    }
+    if (chosenSentence?.focusForm) {
+      console.log(`Focus form: ${chosenSentence.focusForm}`);
+    }
+    if (sentenceData.cefr?.level) {
+      console.log(`CEFR: ${sentenceData.cefr.level}`);
+    }
+
+    if (similarCards.length > 0) {
+      console.log();
+      console.log('Similar cards found:');
+      similarCards.slice(0, 3).forEach((card) => {
+        console.log(`  - ${card.similarity}% "${card.german}"`);
+      });
+    }
+
+    if (duplicateInfo.headwordMatches.length > 0) {
+      console.log();
+      console.log('Existing notes with the same headword:');
+      duplicateInfo.headwordMatches.slice(0, 3).forEach((match) => {
+        console.log(`  - ${match.canonical}${match.meaning ? ` (${match.meaning})` : ''}`);
+      });
+    }
+
+    const answer = await ask('[A]dd, [L]isten, [D]ismiss: ');
+    const normalized = answer.toLowerCase();
+
+    if (normalized === '' || normalized === 'a' || normalized === 'add') {
+      return { confirmed: true };
+    }
+
+    if (normalized === 'l' || normalized === 'listen') {
+      if (!audioPath) continue;
+      try {
+        await playAudio(audioPath);
+      } catch (err) {
+        console.log(`Could not play audio: ${err.message}`);
+      }
+      continue;
+    }
+
+    return { confirmed: false };
   }
 }

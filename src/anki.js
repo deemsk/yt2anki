@@ -3,9 +3,12 @@ import { basename } from 'path';
 import { config } from './config.js';
 import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
 import {
+  buildWordMetadataComment,
   extractCanonicalWord,
+  extractWordLexicalType,
   extractWordMeaning,
   normalizeGermanForCompare,
+  parseWordMetadataComment,
   toTagSlug,
 } from './wordUtils.js';
 
@@ -103,8 +106,10 @@ export async function createNote({
   russian,
   audioFilename,
   context = null,
+  imageFilename = null,
   addReversed = true,
   cefr = null,
+  metadata = null,
   tags: extraTags = [],
   deck = null,
 }) {
@@ -115,9 +120,15 @@ export async function createNote({
   if (context) {
     front += `<br>Context: ${context}`;
   }
+  if (imageFilename) {
+    front += `<br><img src="${imageFilename}" />`;
+  }
 
   // Format back: German + IPA + Russian
-  const back = `${german}<br>${ipa}<br>${russian}`;
+  let back = `${german}<br>${ipa}<br>${russian}`;
+  if (metadata) {
+    back += buildWordMetadataComment(metadata);
+  }
 
   // Build fields based on note type
   const fields = {
@@ -392,6 +403,31 @@ function extractSearchableText(note) {
   });
 }
 
+function extractWordMetadataFromSentenceNote(note) {
+  const front = note.fields?.Front?.value || '';
+  const back = note.fields?.Back?.value || '';
+  const embedded = parseWordMetadataComment(`${front} ${back}`);
+  if (embedded) {
+    return embedded;
+  }
+
+  const tags = Array.isArray(note.tags) ? note.tags : [];
+  const lexicalTag = tags.find((tag) => /^word-(noun|adjective|verb)$/i.test(tag)) || null;
+  const canonicalTag = tags.find((tag) => /^canonical-/i.test(tag)) || null;
+  const lemmaTag = tags.find((tag) => /^lemma-/i.test(tag)) || null;
+
+  if (!lexicalTag && !canonicalTag && !lemmaTag) {
+    return null;
+  }
+
+  return {
+    lexicalType: lexicalTag ? lexicalTag.replace(/^word-/i, '') : null,
+    canonical: canonicalTag ? canonicalTag.replace(/^canonical-/i, '').replace(/-/g, ' ') : null,
+    lemma: lemmaTag ? lemmaTag.replace(/^lemma-/i, '').replace(/-/g, ' ') : null,
+    meaning: null,
+  };
+}
+
 /**
  * Find similar cards in the deck
  * @param {string} germanText - German text to search for
@@ -442,6 +478,7 @@ export async function findSimilarCards(germanText, threshold = 70) {
 export async function findWordDuplicates({
   canonical,
   meaning,
+  lexicalType = null,
   modelName = config.wordNoteType || PICTURE_WORD_MODEL,
 }) {
   const noteIds = await ankiConnect('findNotes', {
@@ -462,17 +499,63 @@ export async function findWordDuplicates({
     const wordField = note.fields?.[PICTURE_WORD_FIELDS.word]?.value || '';
     const extraField = note.fields?.[PICTURE_WORD_FIELDS.extra]?.value || '';
     const existingCanonical = extractCanonicalWord(wordField, extraField);
+    const existingLexicalType = extractWordLexicalType(extraField);
 
     if (!existingCanonical) continue;
     if (normalizeGerman(existingCanonical) !== normalizedCanonical) continue;
+    if (lexicalType && existingLexicalType && existingLexicalType !== lexicalType) continue;
 
     const duplicate = {
       noteId: note.noteId,
       canonical: existingCanonical,
+      lexicalType: existingLexicalType,
       meaning: extractWordMeaning(extraField),
     };
 
     if (duplicate.meaning && normalizeGerman(duplicate.meaning) === normalizedMeaning) {
+      exactMatches.push(duplicate);
+      continue;
+    }
+
+    headwordMatches.push(duplicate);
+  }
+
+  return { exactMatches, headwordMatches };
+}
+
+export async function findSentenceWordDuplicates({
+  canonical,
+  meaning = null,
+  lexicalType = null,
+}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:mode-word-sentence',
+  });
+
+  if (noteIds.length === 0) {
+    return { exactMatches: [], headwordMatches: [] };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const normalizedCanonical = normalizeGerman(canonical);
+  const normalizedMeaning = meaning ? normalizeGerman(meaning) : null;
+  const exactMatches = [];
+  const headwordMatches = [];
+
+  for (const note of notes) {
+    const metadata = extractWordMetadataFromSentenceNote(note);
+    if (!metadata?.canonical) continue;
+    if (normalizeGerman(metadata.canonical) !== normalizedCanonical) continue;
+    if (lexicalType && metadata.lexicalType && metadata.lexicalType !== lexicalType) continue;
+
+    const duplicate = {
+      noteId: note.noteId,
+      canonical: metadata.canonical,
+      lexicalType: metadata.lexicalType,
+      meaning: metadata.meaning || null,
+    };
+
+    if (normalizedMeaning && duplicate.meaning && normalizeGerman(duplicate.meaning) === normalizedMeaning) {
       exactMatches.push(duplicate);
       continue;
     }

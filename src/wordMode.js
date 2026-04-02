@@ -4,22 +4,167 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { buildWordExtraInfo, formatGenderColoredWord, formatPluralLabel, getArticleNormalizationWarning } from './wordUtils.js';
-import { canProceedWithWeakWordCard, enrichWord } from './wordEnricher.js';
-import { chooseImage, chooseMeaning, confirmWordSelection } from './wordConfirm.js';
+import {
+  applyChosenSentenceGloss,
+  buildWordExtraInfo,
+  formatGenderColoredWord,
+  formatPlainWord,
+  formatPluralLabel,
+  getArticleNormalizationWarning,
+  getWordLemma,
+  normalizeGermanForCompare,
+  toTagSlug,
+} from './wordUtils.js';
+import { canProceedWithWeakWordCard, enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
+import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSelection, confirmWordSelection } from './wordConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
 import {
   checkConnection,
+  createNote,
   createPictureWordNote,
   ensureDeck,
+  findSimilarCards,
+  findSentenceWordDuplicates,
   findWordDuplicates,
   getNoteTypes,
   storeAudio,
   storeMedia,
 } from './anki.js';
-import { generateSimpleSpeech } from './tts.js';
+import { generateSimpleSpeech, generateSpeech } from './tts.js';
+import { enrich } from './enricher.js';
 
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';
+const SENTENCE_NOUN_PHRASE_PATTERN = /\b(der|die|das|den|dem|des|ein|eine|einen|einem|einer|eines|kein|keine|keinen|keinem|keiner|keines|mein(?:e|en|em|er|es)?|dein(?:e|en|em|er|es)?|sein(?:e|en|em|er|es)?|ihr(?:e|en|em|er|es)?|unser(?:e|en|em|er|es)?|euer(?:e|en|em|er|es)?)\s+([A-ZÄÖÜ][\p{L}-]+)/gu;
+
+function isNounWord(wordData = {}) {
+  return (wordData.lexicalType || 'noun') === 'noun';
+}
+
+function formatWordDisplay(wordData) {
+  return isNounWord(wordData)
+    ? formatGenderColoredWord(wordData.canonical, wordData.gender)
+    : formatPlainWord(wordData.canonical);
+}
+
+function buildWordMetadata(wordData, selectedMeaning, frequencyInfo) {
+  return {
+    canonical: wordData.canonical,
+    meaning: selectedMeaning.russian,
+    lemma: frequencyInfo.lemma,
+    lexicalType: wordData.lexicalType || 'noun',
+    gender: wordData.gender || null,
+  };
+}
+
+function resolveWordRoute(wordData = {}) {
+  if (isNounWord(wordData)) {
+    return 'picture-word';
+  }
+
+  return wordData.recommendedMode === 'sentence-form' ? 'sentence-form' : 'picture-word';
+}
+
+function buildWordSentenceContext(wordData) {
+  const label = wordData.lexicalType === 'adjective' ? 'Adjective' : 'Word';
+  const parts = [`${label}: ${wordData.canonical}`];
+
+  if (wordData.opposite) {
+    parts.push(`Contrast: ${wordData.opposite}`);
+  }
+
+  return parts.join(' | ');
+}
+
+function buildSentenceImageTerms(wordData, chosenSentence) {
+  const sentenceTerm = String(chosenSentence?.german || '').replace(/[.!?]+$/g, '').trim();
+  const anchorTerm = String(wordData?.anchorPhrase || '').trim();
+  const focusForm = String(chosenSentence?.focusForm || wordData?.canonical || '').trim();
+  const normalizedFocus = normalizeGermanForCompare(focusForm);
+  const nounAnchors = [];
+  let match;
+
+  while ((match = SENTENCE_NOUN_PHRASE_PATTERN.exec(sentenceTerm)) !== null) {
+    const [, article, noun] = match;
+    const articlePhrase = `${article} ${noun}`;
+    nounAnchors.push(`${articlePhrase} ${focusForm}`.trim());
+    nounAnchors.push(`${noun} ${focusForm}`.trim());
+  }
+
+  if (normalizedFocus && sentenceTerm) {
+    const rawWords = sentenceTerm.split(/\s+/).map((part) => part.replace(/[.,!?;:()"]/g, '')).filter(Boolean);
+    const focusIndex = rawWords.findIndex((word) => normalizeGermanForCompare(word) === normalizedFocus);
+    if (focusIndex >= 0) {
+      const capitalized = [];
+      for (let index = Math.max(0, focusIndex - 4); index < focusIndex; index++) {
+        if (/^[A-ZÄÖÜ][\p{L}-]+$/u.test(rawWords[index])) {
+          capitalized.push(rawWords[index]);
+        }
+      }
+      if (capitalized.length > 0) {
+        const noun = capitalized[capitalized.length - 1];
+        nounAnchors.push(`${noun} ${focusForm}`.trim());
+      }
+    }
+  }
+
+  const dedupedTerms = [];
+
+  for (const term of [...nounAnchors, anchorTerm, sentenceTerm]) {
+    const trimmed = String(term || '').trim();
+    if (!trimmed) continue;
+    if (dedupedTerms.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) continue;
+    dedupedTerms.push(trimmed);
+  }
+
+  return dedupedTerms;
+}
+
+function buildSentenceImageBriefTerms(chosenSentence) {
+  const brief = chosenSentence?.imageBrief;
+  if (!brief || typeof brief !== 'object') {
+    return [];
+  }
+
+  const terms = [];
+
+  if (brief.searchQuery) {
+    terms.push(brief.searchQuery);
+  }
+
+  if (Array.isArray(brief.queryVariants)) {
+    terms.push(...brief.queryVariants);
+  }
+
+  const dedupedTerms = [];
+  for (const term of terms) {
+    const trimmed = String(term || '').trim();
+    if (!trimmed) continue;
+    if (dedupedTerms.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) continue;
+    dedupedTerms.push(trimmed);
+  }
+
+  return dedupedTerms;
+}
+
+export function buildSentenceImageMeaning(selectedMeaning, chosenSentence, wordData) {
+  const briefTerms = buildSentenceImageBriefTerms(chosenSentence);
+  const sentenceTerms = buildSentenceImageTerms(wordData, chosenSentence);
+  const existingTerms = Array.isArray(selectedMeaning?.imageSearchTerms) ? selectedMeaning.imageSearchTerms : [];
+  const dedupedTerms = [];
+
+  for (const term of [...briefTerms, ...sentenceTerms, ...existingTerms]) {
+    const trimmed = String(term || '').trim();
+    if (!trimmed) continue;
+    if (dedupedTerms.some((existing) => existing.toLowerCase() === trimmed.toLowerCase())) continue;
+    dedupedTerms.push(trimmed);
+  }
+
+  return {
+    ...selectedMeaning,
+    imageSearchTerms: dedupedTerms,
+    visualBrief: chosenSentence?.imageBrief || selectedMeaning?.visualBrief || null,
+  };
+}
 
 function showWordHeader(rawInput) {
   const label = String(rawInput || '').trim();
@@ -39,6 +184,9 @@ async function ensureWordSetup(deck, dryRun) {
   const noteTypes = await getNoteTypes();
   if (!noteTypes.includes(DEFAULT_WORD_NOTE_TYPE)) {
     throw new Error(`Required note type "${DEFAULT_WORD_NOTE_TYPE}" not found in Anki.`);
+  }
+  if (!noteTypes.includes(config.ankiNoteType)) {
+    throw new Error(`Required note type "${config.ankiNoteType}" not found in Anki.`);
   }
 
   await ensureDeck(deck || config.ankiDeck);
@@ -81,23 +229,46 @@ async function buildWordAudio(wordData, spinner) {
   };
 }
 
-async function prepareWord(rawInput, options, spinner) {
-  spinner.start('Analyzing noun...');
-  const wordData = await enrichWord(rawInput);
-  const recoverableWeakCandidate = canProceedWithWeakWordCard(wordData);
-  const articleNormalizationWarning = getArticleNormalizationWarning(rawInput, wordData.canonical);
+async function buildWordSentenceAudio(sentence, spinner) {
+  spinner.start('Generating sentence audio...');
+  const audioPath = join(config.dataDir, `word_sentence_${Date.now()}.mp3`);
+  await generateSpeech(sentence, audioPath);
+  spinner.succeed('Sentence audio ready');
+  return {
+    audioPath,
+    source: 'Google TTS',
+  };
+}
 
-  if (!wordData.shouldCreateWordCard && !recoverableWeakCandidate) {
+async function prepareWord(rawInput, options, spinner) {
+  spinner.start('Analyzing word...');
+  const wordData = await enrichWord(rawInput);
+  const route = resolveWordRoute(wordData);
+  const structuredAnalysis = hasStructuredWordAnalysis(wordData);
+  const recoverableWeakCandidate = route === 'picture-word' && canProceedWithWeakWordCard(wordData);
+  const articleNormalizationWarning = isNounWord(wordData)
+    ? getArticleNormalizationWarning(rawInput, wordData.canonical)
+    : null;
+
+  if (!wordData.shouldCreateWordCard && !structuredAnalysis && !recoverableWeakCandidate) {
     spinner.warn(`Rejected: ${wordData.rejectionReason}`);
     return { rejected: true };
   }
 
-  if (!wordData.isImageable && !recoverableWeakCandidate) {
+  if (route === 'picture-word' && !wordData.isImageable && !recoverableWeakCandidate) {
     spinner.warn(`Rejected: ${wordData.imageabilityReason || 'not imageable enough for picture-word cards'}`);
     return { rejected: true };
   }
 
-  if (recoverableWeakCandidate && (!wordData.shouldCreateWordCard || !wordData.isImageable)) {
+  if (route === 'sentence-form' && !structuredAnalysis) {
+    spinner.warn(`Rejected: ${wordData.rejectionReason || 'not enough adjective analysis for sentence cards'}`);
+    return { rejected: true };
+  }
+
+  if (route === 'sentence-form' && (!wordData.shouldCreateWordCard || !wordData.isImageable)) {
+    const warning = wordData.rejectionReason || wordData.imageabilityReason || 'better learned in context';
+    console.log(chalk.yellow(`Using sentence-form: ${warning}.`));
+  } else if (recoverableWeakCandidate && (!wordData.shouldCreateWordCard || !wordData.isImageable)) {
     const warning = wordData.rejectionReason || wordData.imageabilityReason || 'weak picture candidate';
     console.log(chalk.yellow(`Weak picture candidate: ${warning}. Continuing anyway.`));
   }
@@ -108,16 +279,83 @@ async function prepareWord(rawInput, options, spinner) {
     console.log(chalk.yellow(articleNormalizationWarning));
   }
 
-  const frequencyInfo = getWordFrequencyInfo(wordData.bareNoun);
-  const selectedMeaning = await chooseMeaning(wordData, options.meaning);
+  const frequencyInfo = getWordFrequencyInfo(getWordLemma(wordData));
+
+  if (route === 'picture-word') {
+    const selectedMeaning = await chooseMeaning(wordData, options.meaning);
+    if (!selectedMeaning) {
+      console.log(chalk.yellow('Skipped: no meaning selected'));
+      return { rejected: true };
+    }
+
+    let duplicateInfo = { exactMatches: [], headwordMatches: [] };
+    spinner.start('Checking duplicates...');
+    try {
+      duplicateInfo = await findWordDuplicates({
+        canonical: wordData.canonical,
+        meaning: selectedMeaning.russian,
+        lexicalType: wordData.lexicalType || 'noun',
+        modelName: DEFAULT_WORD_NOTE_TYPE,
+      });
+    } catch (err) {
+      if (!options.dryRun) {
+        throw err;
+      }
+      console.log(chalk.dim(`Duplicate check skipped in dry run: ${err.message}`));
+    } finally {
+      spinner.stop();
+    }
+
+    if (duplicateInfo.exactMatches.length > 0) {
+      console.log(chalk.yellow(`Exact duplicate exists for ${wordData.canonical} (${selectedMeaning.russian})`));
+      return { rejected: true };
+    }
+
+    spinner.start('Searching images...');
+    const imageCandidates = await searchWordImages(wordData, selectedMeaning, {
+      pageSize: config.wordImagePreviewCount || 6,
+      total: config.wordImageSearchResults || 12,
+    });
+    spinner.stop();
+
+    const imageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
+    if (!imageChoice) {
+      console.log(chalk.yellow('Skipped: no image selected'));
+      return { rejected: true };
+    }
+
+    const audio = await buildWordAudio(wordData, spinner);
+
+    return {
+      route,
+      wordData,
+      frequencyInfo,
+      selectedMeaning,
+      duplicateInfo,
+      imageChoice,
+      audio,
+    };
+  }
+
+  const chosenSentence = await chooseWordSentence(wordData, options.sentence);
+  if (!chosenSentence) {
+    console.log(chalk.yellow('Skipped: no example sentence selected'));
+    return { rejected: true };
+  }
+
+  const selectedMeaning = await chooseMeaning(wordData, options.meaning, {
+    manualPrompt: `Enter the intended meaning/gloss for "${wordData.canonical}" (not an example sentence), or press Enter to skip: `,
+    editPrompt: 'Enter the intended meaning/gloss (not an example sentence): ',
+    allowBlank: true,
+  });
 
   let duplicateInfo = { exactMatches: [], headwordMatches: [] };
   spinner.start('Checking duplicates...');
   try {
-    duplicateInfo = await findWordDuplicates({
+    duplicateInfo = await findSentenceWordDuplicates({
       canonical: wordData.canonical,
       meaning: selectedMeaning.russian,
-      modelName: DEFAULT_WORD_NOTE_TYPE,
+      lexicalType: wordData.lexicalType || 'adjective',
     });
   } catch (err) {
     if (!options.dryRun) {
@@ -133,32 +371,56 @@ async function prepareWord(rawInput, options, spinner) {
     return { rejected: true };
   }
 
-  spinner.start('Searching images...');
-  const imageCandidates = await searchWordImages(wordData, selectedMeaning, {
+  spinner.start('Preparing example sentence...');
+  const sentenceData = applyChosenSentenceGloss(
+    await enrich(chosenSentence.german),
+    chosenSentence
+  );
+  spinner.succeed(`Sentence ready: ${sentenceData.german}`);
+
+  spinner.start('Searching optional image...');
+  const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, chosenSentence, wordData);
+  const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
     pageSize: config.wordImagePreviewCount || 6,
     total: config.wordImageSearchResults || 12,
   });
   spinner.stop();
 
-  const imageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
-  if (!imageChoice) {
-    console.log(chalk.yellow('Skipped: no image selected'));
-    return { rejected: true };
+  const imageChoice = imageCandidates.length > 0
+    ? await chooseImage(wordData, selectedMeaning, imageCandidates)
+    : null;
+
+  let similarCards = [];
+  try {
+    if (!options.dryRun) {
+      spinner.start('Checking similar cards...');
+      similarCards = await findSimilarCards(sentenceData.german);
+      spinner.stop();
+    }
+  } catch (err) {
+    spinner.stop();
+    if (!options.dryRun) {
+      console.log(chalk.dim(`Similarity check skipped: ${err.message}`));
+    }
   }
 
-  const audio = await buildWordAudio(wordData, spinner);
+  const audio = await buildWordSentenceAudio(sentenceData.german, spinner);
 
   return {
+    route,
     wordData,
     frequencyInfo,
     selectedMeaning,
     duplicateInfo,
+    chosenSentence,
+    sentenceData,
     imageChoice,
+    similarCards,
     audio,
   };
 }
 
-async function finalizeWord(prepared, options, spinner) {
+async function finalizePictureWord(prepared, options, spinner) {
   const { wordData, frequencyInfo, selectedMeaning, duplicateInfo, imageChoice, audio } = prepared;
 
   const confirmation = await confirmWordSelection({
@@ -178,16 +440,15 @@ async function finalizeWord(prepared, options, spinner) {
   }
 
   const metadata = {
-    canonical: wordData.canonical,
-    meaning: selectedMeaning.russian,
-    lemma: frequencyInfo.lemma,
-    gender: wordData.gender,
+    ...buildWordMetadata(wordData, selectedMeaning, frequencyInfo),
   };
 
-  const pluralLabel = formatPluralLabel(wordData);
+  const pluralLabel = isNounWord(wordData) ? formatPluralLabel(wordData) : null;
   const extraInfoField = buildWordExtraInfo({
     meaning: selectedMeaning.russian,
     plural: pluralLabel,
+    exampleSentence: wordData.anchorPhrase,
+    contrast: wordData.opposite,
     personalConnection: confirmation.personalConnection,
     metadata,
   });
@@ -196,8 +457,17 @@ async function finalizeWord(prepared, options, spinner) {
     console.log();
     console.log(chalk.bold('Word preview'));
     console.log(`  Word:      ${wordData.canonical}`);
+    console.log(`  Type:      ${wordData.lexicalType || 'noun'}`);
     console.log(`  Meaning:   ${selectedMeaning.russian}`);
-    console.log(`  Plural:    ${pluralLabel}`);
+    if (pluralLabel) {
+      console.log(`  Plural:    ${pluralLabel}`);
+    }
+    if (wordData.anchorPhrase) {
+      console.log(`  Anchor:    ${wordData.anchorPhrase}`);
+    }
+    if (wordData.opposite) {
+      console.log(`  Contrast:  ${wordData.opposite}`);
+    }
     console.log(`  Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`  Audio:     ${audio.source}`);
     console.log(`  Image:     ${imageChoice.source || imageChoice.type}`);
@@ -216,15 +486,16 @@ async function finalizeWord(prepared, options, spinner) {
 
   await createPictureWordNote({
     canonical: wordData.canonical,
-    coloredWord: formatGenderColoredWord(wordData.canonical, wordData.gender),
+    coloredWord: formatWordDisplay(wordData),
     imageFilename,
     pronunciationField,
     extraInfoField,
-    gender: wordData.gender,
+    gender: isNounWord(wordData) ? wordData.gender : null,
     frequencyBand: frequencyInfo.bandKey,
-    lemma: wordData.bareNoun,
+    lemma: getWordLemma(wordData),
     imageSource: imageChoice.source || imageChoice.type,
     audioSource: audio.source,
+    lexicalType: wordData.lexicalType || 'noun',
     theme: options.theme || null,
     deck: options.deck,
     modelName: DEFAULT_WORD_NOTE_TYPE,
@@ -232,6 +503,81 @@ async function finalizeWord(prepared, options, spinner) {
   spinner.succeed(`Created ${wordData.canonical}`);
 
   console.log(chalk.green(`✓ Added ${wordData.canonical} (${selectedMeaning.russian})`));
+  return true;
+}
+
+async function finalizeSentenceWord(prepared, options, spinner) {
+  const { wordData, selectedMeaning, duplicateInfo, chosenSentence, sentenceData, imageChoice, similarCards, audio } = prepared;
+
+  const confirmation = await confirmSentenceWordSelection({
+    wordData,
+    selectedMeaning,
+    sentenceData,
+    chosenSentence,
+    duplicateInfo,
+    imageChoice,
+    audioPath: audio.audioPath,
+    similarCards,
+  });
+
+  if (!confirmation.confirmed) {
+    console.log(chalk.yellow('Word dismissed'));
+    return false;
+  }
+
+  if (options.dryRun) {
+    console.log();
+    console.log(chalk.bold('Word sentence preview'));
+    console.log(`  Word:      ${wordData.canonical}`);
+    console.log(`  Type:      ${wordData.lexicalType || 'adjective'}`);
+    if (selectedMeaning?.russian) {
+      console.log(`  Meaning:   ${selectedMeaning.russian}`);
+    }
+    console.log(`  Mode:      sentence-form`);
+    console.log(`  Sentence:  ${sentenceData.german}`);
+    if (imageChoice) {
+      console.log(`  Image:     ${imageChoice.source || imageChoice.type}`);
+    }
+    console.log(chalk.yellow('\n⚡ DRY RUN: Word sentence previewed'));
+    return true;
+  }
+
+  let imageFilename = null;
+  if (imageChoice) {
+    spinner.start('Downloading chosen image...');
+    const imagePath = await resolveImageAsset(imageChoice, 'word_sentence_image');
+    spinner.succeed('Image ready');
+    imageFilename = await storeMedia(imagePath);
+  }
+
+  spinner.start('Creating sentence note...');
+  const audioFilename = await storeAudio(audio.audioPath);
+  await createNote({
+    german: sentenceData.german,
+    ipa: sentenceData.ipa,
+    russian: sentenceData.russian,
+    audioFilename,
+    context: buildWordSentenceContext(wordData),
+    imageFilename,
+    cefr: sentenceData.cefr,
+    metadata: {
+      canonical: wordData.canonical,
+      meaning: selectedMeaning.russian || null,
+      lemma: getWordLemma(wordData),
+      lexicalType: wordData.lexicalType || 'adjective',
+    },
+    deck: options.deck,
+    tags: [
+      'mode-word-sentence',
+      `word-${wordData.lexicalType || 'adjective'}`,
+      `lemma-${toTagSlug(getWordLemma(wordData))}`,
+      `canonical-${toTagSlug(wordData.canonical)}`,
+      ...(chosenSentence?.focusForm ? [`word-form-${toTagSlug(chosenSentence.focusForm)}`] : []),
+    ],
+  });
+
+  spinner.succeed(`Created sentence card for ${wordData.canonical}`);
+  console.log(chalk.green(`✓ Added word sentence for ${wordData.canonical}`));
   return true;
 }
 
@@ -245,7 +591,10 @@ async function processWord(rawInput, options = {}) {
     if (!prepared || prepared.rejected) {
       return false;
     }
-    return finalizeWord(prepared, options, spinner);
+    if (prepared.route === 'sentence-form') {
+      return finalizeSentenceWord(prepared, options, spinner);
+    }
+    return finalizePictureWord(prepared, options, spinner);
   } catch (err) {
     spinner.fail(err.message);
     throw err;
@@ -267,7 +616,7 @@ export async function processWordBatch(options = {}) {
       output: process.stdout,
     });
 
-    console.log(chalk.bold('\nEnter German nouns (one per line, empty line to finish):\n'));
+    console.log(chalk.bold('\nEnter German nouns or adjectives (one per line, empty line to finish):\n'));
 
     const words = await new Promise((resolve) => {
       const entries = [];
@@ -286,11 +635,11 @@ export async function processWordBatch(options = {}) {
     });
 
     if (words.length === 0) {
-      console.log(chalk.yellow('No nouns entered'));
+      console.log(chalk.yellow('No words entered'));
       return;
     }
 
-    console.log(chalk.bold(`\nProcessing ${words.length} nouns...\n`));
+    console.log(chalk.bold(`\nProcessing ${words.length} words...\n`));
 
     let completed = 0;
     for (const word of words) {
@@ -306,9 +655,9 @@ export async function processWordBatch(options = {}) {
 
     console.log();
     if (options.dryRun) {
-      console.log(chalk.yellow(`⚡ DRY RUN: ${completed} noun notes previewed`));
+      console.log(chalk.yellow(`⚡ DRY RUN: ${completed} word notes previewed`));
     } else {
-      console.log(chalk.green(`✓ Added ${completed} noun notes`));
+      console.log(chalk.green(`✓ Added ${completed} word notes`));
     }
   } catch {
     process.exit(1);

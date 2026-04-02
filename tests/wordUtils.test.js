@@ -1,10 +1,13 @@
 import {
+  applyChosenSentenceGloss,
   buildWordExtraInfo,
   extractLeadingArticle,
   extractCanonicalWord,
+  extractWordLexicalType,
   extractWordMeaning,
   formatGenderColoredWord,
   getArticleNormalizationWarning,
+  getWordLemma,
   normalizeWordIpa,
   normalizeGermanForCompare,
   toTagSlug,
@@ -23,15 +26,18 @@ describe("word helpers", () => {
     const extra = buildWordExtraInfo({
       meaning: "вода",
       plural: "usually no plural",
+      contrast: "сухой",
       personalConnection: "glass on the kitchen table",
       metadata: {
         canonical: "das Wasser",
         meaning: "вода",
+        lexicalType: "noun",
       },
     })
 
     expect(extractCanonicalWord("", extra)).toBe("das Wasser")
     expect(extractWordMeaning(extra)).toBe("вода")
+    expect(extractWordLexicalType(extra)).toBe("noun")
   })
 
   test("normalization and tag slug keep canonical noun comparisons stable", () => {
@@ -51,6 +57,24 @@ describe("word helpers", () => {
     expect(normalizeWordIpa("die Wohnung", "[ˈvoːnʊŋ]")).toBe("[diː ˈvoːnʊŋ]")
     expect(normalizeWordIpa("die Apotheke", "[diː apɔˈteːkə]")).toBe("[diː apɔˈteːkə]")
     expect(normalizeWordIpa("das Bad", "baːt")).toBe("[das baːt]")
+  })
+
+  test("getWordLemma works for nouns and adjectives", () => {
+    expect(getWordLemma({ canonical: "das Wasser", lemma: "Wasser" })).toBe("Wasser")
+    expect(getWordLemma({ canonical: "rot", lexicalType: "adjective" })).toBe("rot")
+  })
+
+  test("applyChosenSentenceGloss keeps the selected Russian sentence gloss", () => {
+    expect(
+      applyChosenSentenceGloss(
+        { german: "Der Becher ist voll.", russian: "Чаша полна" },
+        { german: "Der Becher ist voll.", russian: "Чашка полная." }
+      )
+    ).toEqual(
+      expect.objectContaining({
+        russian: "Чашка полная.",
+      })
+    )
   })
 
   test("frequency info uses configured learner bands", () => {

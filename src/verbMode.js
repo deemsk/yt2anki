@@ -4,7 +4,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { buildWordExtraInfo, formatPlainWord, toTagSlug } from './wordUtils.js';
+import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
 import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection } from './verbConfirm.js';
@@ -167,6 +167,10 @@ async function prepareVerb(rawInput, options, spinner) {
     },
     options.meaning
   );
+  if (!selectedMeaning) {
+    console.log(chalk.yellow('Skipped: no meaning selected'));
+    return { rejected: true };
+  }
   const frequencyInfo = getWordFrequencyInfo(verbData.infinitive);
   const forcedMode = normalizeVerbMode(options.mode);
   const route = forcedMode || verbData.recommendedMode || 'sentence-form';
@@ -231,10 +235,10 @@ async function prepareVerb(rawInput, options, spinner) {
   }
 
   spinner.start('Preparing example sentence...');
-  const sentenceData = await enrich(chosenSentence.german);
-  if (!sentenceData.russian && chosenSentence.russian) {
-    sentenceData.russian = chosenSentence.russian;
-  }
+  const sentenceData = applyChosenSentenceGloss(
+    await enrich(chosenSentence.german),
+    chosenSentence
+  );
   spinner.succeed(`Sentence ready: ${sentenceData.german}`);
 
   let similarCards = [];

@@ -32,6 +32,36 @@ describe("anki helpers", () => {
     expect(requests[0].params.note.deckName).toBe("Custom::Deck")
   })
 
+  test("createNote can embed image and hidden lexical metadata", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      requests.push(JSON.parse(options.body))
+      return {
+        async json() {
+          return { result: 124, error: null }
+        },
+      }
+    }
+
+    await createNote({
+      german: "Das ist gut.",
+      ipa: "[das ɪst ɡuːt]",
+      russian: "Это хорошо.",
+      audioFilename: "gut.mp3",
+      imageFilename: "gut.jpg",
+      metadata: {
+        canonical: "gut",
+        meaning: "хороший",
+        lexicalType: "adjective",
+      },
+    })
+
+    const note = requests[0].params.note
+    expect(note.fields.Front).toContain("gut.jpg")
+    expect(note.fields.Back).toContain("yt2anki-word:")
+  })
+
   test("findSimilarCards matches current audio-first cards using back-side German text", async () => {
     global.fetch = async (_url, options) => {
       const body = JSON.parse(options.body)
