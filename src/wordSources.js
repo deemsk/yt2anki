@@ -750,6 +750,50 @@ export function buildWordImageSearchTerms(wordData, selectedMeaning) {
   return buildWordImageQueryEntries(wordData, selectedMeaning).map((entry) => entry.term);
 }
 
+function buildVerbImageQueryEntries(verbData, selectedMeaning) {
+  const englishGlossValue = selectedMeaning?.english ? String(selectedMeaning.english).trim() : '';
+  const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
+  const entries = [];
+  const infinitive = String(verbData.infinitive || verbData.canonical || '').trim();
+  const displayForm = String(verbData.displayForm || infinitive).trim();
+
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => looksGermanQueryTerm(term, infinitive)),
+    'action',
+    'de'
+  );
+
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => !looksGermanQueryTerm(term, infinitive)),
+    'action',
+    'en'
+  );
+
+  if (displayForm && normalizeGermanForCompare(displayForm) !== normalizeGermanForCompare(infinitive)) {
+    pushQueryEntries(entries, [displayForm], 'prototype', 'de');
+  }
+
+  pushQueryEntries(entries, [infinitive], 'prototype', 'de');
+
+  if (englishGlossValue) {
+    pushQueryEntries(entries, [englishGlossValue], 'generic', 'en');
+  }
+
+  return dedupeBy(
+    entries.map((entry) => ({
+      ...entry,
+      bucket: entry.bucket || classifyImageQueryBucket(entry.term, englishGlossValue),
+    })),
+    (entry) => `${entry.bucket}:${entry.term.toLowerCase()}`
+  );
+}
+
+export function buildVerbImageSearchTerms(verbData, selectedMeaning) {
+  return buildVerbImageQueryEntries(verbData, selectedMeaning).map((entry) => entry.term);
+}
+
 function rankImageResult(result, context = {}) {
   const query = result.queryUsed || '';
   const wordCount = query.split(/\s+/).filter(Boolean).length;
@@ -870,6 +914,58 @@ function rankImageResult(result, context = {}) {
 
   if (conceptClass === 'document' && /formular|form|document|papier|template|vorlage|sign|signature/.test(combinedText)) {
     score += 12;
+  }
+
+  return score;
+}
+
+function rankVerbImageResult(result, context = {}) {
+  const query = result.queryUsed || '';
+  const wordCount = query.split(/\s+/).filter(Boolean).length;
+  const title = (result.title || '').toLowerCase();
+  const detailUrl = (result.detailUrl || '').toLowerCase();
+  const downloadUrl = (result.downloadUrl || '').toLowerCase();
+  const combinedText = `${title} ${detailUrl} ${downloadUrl}`;
+  const normalizedCombinedText = normalizeGermanForCompare(combinedText);
+  const infinitive = normalizeGermanForCompare(context.verbData?.infinitive || '');
+  const displayForm = normalizeGermanForCompare(context.verbData?.displayForm || '');
+
+  let score = 0;
+
+  score += Math.min(wordCount, 4) * 10;
+  score -= (result.queryPriority || 0) * 5;
+  score -= (result.resultPriority || 0);
+
+  if (result.source === 'Brave Images') {
+    score += 6;
+  }
+
+  if (result.queryLocale === 'de') {
+    score += 8;
+  }
+
+  if (infinitive && normalizedCombinedText.includes(infinitive)) {
+    score += 10;
+  }
+
+  if (displayForm && normalizedCombinedText.includes(displayForm)) {
+    score += 12;
+  }
+
+  if (result.queryBucket === 'action') {
+    score += 18;
+  }
+
+  if (result.queryBucket === 'prototype') {
+    score += 8;
+  }
+
+  if (/icon|logo|symbol|diagram|chart|infographic|piktogramm/.test(combinedText)) {
+    score -= 18;
+  }
+
+  if (/person|mann|frau|kind|someone|jemand|laeuft|rennt|springt|isst|trinkt|arbeitet|schreibt/.test(normalizedCombinedText)) {
+    score += 8;
   }
 
   return score;
@@ -1010,6 +1106,29 @@ export async function searchWordImages(wordData, selectedMeaning, options = {}) 
     .map((result) => ({
       ...result,
       rankScore: rankImageResult(result, { wordData, selectedMeaning }),
+    }))
+    .sort((a, b) => b.rankScore - a.rankScore);
+
+  return buildDiverseResultSet(combined, {
+    total: options.total || 12,
+    firstPageCount: pageSize,
+  });
+}
+
+export async function searchVerbImages(verbData, selectedMeaning, options = {}) {
+  const pageSize = options.pageSize || 6;
+  const searchTerms = buildVerbImageQueryEntries(verbData, selectedMeaning);
+
+  const [brave, openverse, commons] = await Promise.all([
+    searchFirstAvailable(searchBraveImages, searchTerms, pageSize),
+    searchFirstAvailable(searchOpenverseImages, searchTerms, pageSize),
+    searchFirstAvailable(searchWikimediaImages, searchTerms, pageSize),
+  ]);
+
+  const combined = [...brave, ...openverse, ...commons]
+    .map((result) => ({
+      ...result,
+      rankScore: rankVerbImageResult(result, { verbData, selectedMeaning }),
     }))
     .sort((a, b) => b.rankScore - a.rankScore);
 

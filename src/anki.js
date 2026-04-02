@@ -105,6 +105,7 @@ export async function createNote({
   context = null,
   addReversed = true,
   cefr = null,
+  tags: extraTags = [],
   deck = null,
 }) {
   const deckName = deck || config.ankiDeck;
@@ -134,6 +135,7 @@ export async function createNote({
   if (cefr && cefr.level) {
     tags.push(`cefr-${cefr.level.toLowerCase()}`);
   }
+  tags.push(...extraTags);
 
   await ankiConnect('addNote', {
     note: {
@@ -209,11 +211,12 @@ export async function createPictureWordNote({
   imageFilename,
   pronunciationField,
   extraInfoField,
-  gender,
+  gender = null,
   frequencyBand,
   lemma,
   imageSource,
   audioSource,
+  lexicalType = 'noun',
   theme = null,
   deck = null,
   modelName = config.wordNoteType || PICTURE_WORD_MODEL,
@@ -231,8 +234,7 @@ export async function createPictureWordNote({
   const tags = [
     'yt2anki',
     'mode-word',
-    'word-noun',
-    `gender-${gender}`,
+    `word-${lexicalType}`,
     `freq-${frequencyBand}`,
     `lemma-${toTagSlug(lemma)}`,
     `canonical-${toTagSlug(canonical)}`,
@@ -240,8 +242,43 @@ export async function createPictureWordNote({
     `audio-${toTagSlug(audioSource)}`,
   ];
 
+  if (gender) {
+    tags.push(`gender-${gender}`);
+  }
+
   if (theme) {
     tags.push(`theme-${toTagSlug(theme)}`);
+  }
+
+  return ankiConnect('addNote', {
+    note: {
+      deckName,
+      modelName,
+      fields,
+      options: {
+        allowDuplicate: false,
+      },
+      tags,
+    },
+  });
+}
+
+export async function createBasicNote({
+  front,
+  back,
+  tags = [],
+  deck = null,
+  modelName = config.ankiNoteType,
+  addReversed = false,
+}) {
+  const deckName = deck || config.ankiDeck;
+  const fields = {
+    Front: front,
+    Back: back,
+  };
+
+  if (modelName.includes('optional reversed') && addReversed) {
+    fields['Add Reverse'] = '1';
   }
 
   return ankiConnect('addNote', {

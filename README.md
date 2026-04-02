@@ -16,8 +16,14 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 **Word mode** (single nouns):
 - Create Fluent Forever-style picture-word notes for German nouns
 - Pick an image manually from Brave/Openverse/Wikimedia previews
-- Prefer Wikimedia pronunciation audio, fall back to OpenAI TTS
+- Prefer Wikimedia pronunciation audio, fall back to Google TTS
 - Store noun with article and gender color, plus plural/back-side info
+
+**Verb mode**:
+- Route verbs into picture-word or sentence/form mode
+- Use picture-word cards for highly imageable action verbs
+- Use sentence cards plus optional dictionary-form cards for abstract or grammar-heavy verbs
+- Generate example sentences automatically when verbs are better learned in context
 
 **Both modes:**
 - Generate IPA transcription and Russian translation
@@ -109,13 +115,18 @@ Create Safari bookmarks, edit them, and paste the bookmarklet URLs.
 ```bash
 npm run word -- "das Wasser"
 npm run words
+npm run verb -- "laufen"
+npm run verbs
 ```
 
 Word mode is noun-first and uses the `2. Picture Words` note type by default.
 During creation you choose the intended meaning, pick an image, review frequency band,
 and confirm before the note is added.
 
-If `braveSearchApiKey` is configured, Brave image search is queried first and
+Verb mode routes imageable verbs to picture-word cards and routes abstract or form-heavy
+verbs to sentence cards with an optional dictionary-form note.
+
+If `braveApiKey` is configured, Brave image search is queried first and
 Openverse/Wikimedia remain as fallbacks.
 
 ### Options
@@ -133,6 +144,8 @@ npm run clip -- -n    # Dry run (preview only)
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
 | `npm run word -- <noun>` | Create one Fluent Forever noun note |
 | `npm run words` | Create multiple noun notes interactively |
+| `npm run verb -- <verb>` | Create one Fluent Forever verb note |
+| `npm run verbs` | Create multiple verb notes interactively |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
 | `npm run process -- <file.json>` | Process markers JSON file |
 | `npm run check` | Quick check of installed tools, API key, and AnkiConnect |
@@ -162,26 +175,27 @@ Edit `~/.yt2anki.json`:
   "ankiNoteType": "Basic (optional reversed card)",
   "wordNoteType": "2. Picture Words",
   "openaiModel": "gpt-4o-mini",
-  "braveSearchApiKey": "",
+  "googleTtsKeyFile": "",
+  "googleApiKey": "",
+  "googleTtsVoices": ["de-DE-Neural2-B", "de-DE-Neural2-C"],
+  "braveApiKey": "",
   "whisperModel": "base",
-  "ttsVoices": ["nova", "onyx"],
-  "ttsSpeed": 0.7,
+  "ttsSpeed": 0.75,
+  "ttsNormalRate": 0.9,
   "ttsPause": 1.0,
   "audioLeadIn": 0.4,
-  "wordImagePreviewCount": 9,
+  "wordImagePreviewCount": 12,
   "wordImageSearchResults": 12,
   "dataDir": "/tmp/yt2anki"
 }
 ```
 
-`ttsVoices` controls which OpenAI TTS voices are rotated when generating speech. Available voices: `alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`.
-
-`ttsVoice` still exists in the defaults for backward compatibility, but current speech generation reads `ttsVoices`.
+`googleTtsVoices` controls which Google Cloud TTS voices are rotated when generating speech.
 
 `wordNoteType` controls the note type used for noun cards. The v1 word mode assumes a
 Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
 
-`braveSearchApiKey` is optional. If set, word mode queries Brave image search before
+`braveApiKey` is optional. If set, word and verb picture modes query Brave image search before
 Openverse and Wikimedia.
 
 ## Tech Stack
@@ -189,7 +203,8 @@ Openverse and Wikimedia.
 - **yt-dlp** — YouTube audio download
 - **ffmpeg** — Audio cutting
 - **whisper.cpp** — Local speech-to-text
-- **OpenAI API** — IPA, translation, TTS
+- **OpenAI API** — IPA, translation, routing, enrichment
+- **Google Cloud TTS** — sentence and word audio
 - **AnkiConnect** — Card creation
 
 ## License

@@ -12,6 +12,8 @@
     "text": "node src/index.js text",
     "word": "node src/index.js word",
     "words": "node src/index.js words",
+    "verb": "node src/index.js verb",
+    "verbs": "node src/index.js verbs",
     "add": "node src/index.js add",
     "process": "node src/index.js process",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",

@@ -1,5 +1,5 @@
 import { config } from "../src/config.js"
-import { buildWordImageSearchTerms, resolveWordPronunciation, searchWordImages } from "../src/wordSources.js"
+import { buildVerbImageSearchTerms, buildWordImageSearchTerms, resolveWordPronunciation, searchVerbImages, searchWordImages } from "../src/wordSources.js"
 
 describe("word image sources", () => {
   const originalFetch = global.fetch
@@ -102,6 +102,20 @@ describe("word image sources", () => {
     ])
     expect(terms).toContain("Montag in Deutschland")
     expect(terms).toContain("monday")
+  })
+
+  test("buildVerbImageSearchTerms keeps German action queries ahead of fallbacks", () => {
+    const terms = buildVerbImageSearchTerms(
+      { infinitive: "laufen", displayForm: "läuft" },
+      {
+        english: "run",
+        imageSearchTerms: ["Mann läuft", "laufen im Park"],
+      }
+    )
+
+    expect(terms.slice(0, 3)).toEqual(["Mann läuft", "laufen im Park", "läuft"])
+    expect(terms).toContain("laufen")
+    expect(terms).toContain("run")
   })
 
   test("searchWordImages prefers prototypical specific results over scenic broad matches", async () => {
@@ -433,6 +447,73 @@ describe("word image sources", () => {
       expect.objectContaining({
         title: "Montag Kalenderblatt auf deutsch",
         queryUsed: "Montag Kalender deutsch",
+      })
+    )
+  })
+
+  test("searchVerbImages prefers German action imagery over generic verb labels", async () => {
+    global.fetch = async (url) => {
+      const parsed = new URL(url)
+
+      if (parsed.hostname === "api.search.brave.com") {
+        const query = parsed.searchParams.get("q")
+        if (query === "Mann läuft") {
+          return {
+            ok: true,
+            async json() {
+              return {
+                results: [
+                  {
+                    title: "Mann läuft im Park",
+                    source: "laufen.example.de",
+                    page_url: "https://laufen.example.de/park",
+                    thumbnail: { src: "https://img.example/laufen.jpg" },
+                    properties: { url: "https://img.example/laufen-full.jpg" },
+                  },
+                  {
+                    title: "Run icon symbol",
+                    source: "icons.example.com",
+                    page_url: "https://icons.example.com/run",
+                    thumbnail: { src: "https://img.example/run-icon.jpg" },
+                    properties: { url: "https://img.example/run-icon-full.jpg" },
+                  },
+                ],
+              }
+            },
+          }
+        }
+
+        return {
+          ok: true,
+          async json() {
+            return { results: [] }
+          },
+        }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return { query: { pages: [] }, results: [] }
+        },
+      }
+    }
+
+    config.braveApiKey = "test-key"
+
+    const results = await searchVerbImages(
+      { infinitive: "laufen", displayForm: "läuft" },
+      {
+        english: "run",
+        imageSearchTerms: ["Mann läuft", "laufen im Park"],
+      },
+      { pageSize: 6, total: 6 }
+    )
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        title: "Mann läuft im Park",
+        queryUsed: "Mann läuft",
       })
     )
   })

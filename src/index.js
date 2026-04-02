@@ -15,6 +15,7 @@ import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
 import { processSingleWord, processWordBatch } from './wordMode.js';
+import { processSingleVerb, processVerbBatch } from './verbMode.js';
 
 /**
  * Session state for tracking accepted units and pattern usage.
@@ -128,6 +129,25 @@ program
   .option('-n, --dry-run', 'Preview noun notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processWordBatch);
+
+program
+  .command('verb')
+  .description('Create a Fluent Forever verb note')
+  .argument('<verb>', 'German verb or verb form')
+  .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
+  .option('-s, --sentence <text>', 'Preferred example sentence')
+  .option('--mode <mode>', 'Force mode: picture or sentence')
+  .option('-n, --dry-run', 'Preview the verb note without creating it')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processSingleVerb);
+
+program
+  .command('verbs')
+  .description('Create Fluent Forever verb notes from text input (one verb per line)')
+  .option('--mode <mode>', 'Force mode: picture or sentence')
+  .option('-n, --dry-run', 'Preview verb notes without creating them')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processVerbBatch);
 
 program.parse();
 

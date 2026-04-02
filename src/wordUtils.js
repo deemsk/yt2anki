@@ -90,6 +90,10 @@ export function formatGenderColoredWord(canonical, gender) {
   return `<span style="color:${color};font-weight:600;">${escapeHtml(canonical)}</span>`;
 }
 
+export function formatPlainWord(canonical) {
+  return `<span style="font-weight:600;">${escapeHtml(canonical)}</span>`;
+}
+
 export function normalizeWordIpa(canonical = '', ipa = '') {
   const raw = String(ipa || '').trim();
   if (!raw) return '';
@@ -135,6 +139,8 @@ export function parseWordMetadataComment(text = '') {
 export function buildWordExtraInfo({
   meaning,
   plural,
+  exampleSentence = null,
+  dictionaryForm = null,
   personalConnection = null,
   metadata,
 }) {
@@ -146,6 +152,14 @@ export function buildWordExtraInfo({
 
   if (plural) {
     lines.push(`<div>Plural: ${escapeHtml(plural)}</div>`);
+  }
+
+  if (exampleSentence) {
+    lines.push(`<div>Example: ${escapeHtml(exampleSentence)}</div>`);
+  }
+
+  if (dictionaryForm) {
+    lines.push(`<div>Dictionary Form: ${escapeHtml(dictionaryForm)}</div>`);
   }
 
   if (personalConnection) {
@@ -164,7 +178,7 @@ export function extractWordMeaning(extraInfo = '') {
   }
 
   const stripped = stripHtml(extraInfo);
-  const match = stripped.match(/Meaning:\s*(.+?)(?:Plural:|Personal Connection:|$)/i);
+  const match = stripped.match(/Meaning:\s*(.+?)(?:Plural:|Example:|Dictionary Form:|Personal Connection:|$)/i);
   return match ? match[1].trim() : null;
 }
 
