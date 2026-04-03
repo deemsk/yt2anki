@@ -38,11 +38,31 @@ describe("word enricher retries", () => {
     ).toBe(true)
   })
 
+  test("retries adverb rejection for adjective-adverb ambiguous words like früh", () => {
+    expect(
+      shouldRetryBareLexicalRejection("früh", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "The input 'früh' is an adverb and does not meet the criteria for nouns or adjectives that can work as strong learner cards in word mode.",
+      })
+    ).toBe(true)
+  })
+
   test("does not retry obvious verb-style rejections through the bare lexical path", () => {
     expect(
       shouldRetryBareLexicalRejection("machen", {
         shouldCreateWordCard: false,
         rejectionReason: "Input is a verb, not a noun or adjective.",
+      })
+    ).toBe(false)
+  })
+
+  test("does not retry common adverb-only bare inputs through the lexical path", () => {
+    expect(
+      shouldRetryBareLexicalRejection("oft", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "The input 'oft' is an adverb and does not meet the criteria for nouns or adjectives that can work as strong learner cards in word mode.",
       })
     ).toBe(false)
   })

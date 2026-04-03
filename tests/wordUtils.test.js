@@ -93,5 +93,13 @@ describe("word helpers", () => {
         bandLabel: "Rare",
       })
     )
+
+    expect(getWordFrequencyInfo("früh")).toEqual(
+      expect.objectContaining({
+        rank: 626,
+        bandKey: "core",
+        bandLabel: "Core",
+      })
+    )
   })
 })

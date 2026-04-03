@@ -27,8 +27,9 @@ function bandForRank(rank) {
 }
 
 export function getWordFrequencyInfo(word) {
+  const raw = String(word || '').trim().toLowerCase();
   const normalized = normalizeGermanForCompare(word);
-  const rank = FREQUENCY_MAP[normalized] || null;
+  const rank = FREQUENCY_MAP[raw] || FREQUENCY_MAP[normalized] || null;
   const band = bandForRank(rank);
 
   return {

@@ -44,6 +44,36 @@ const COLOR_ADJECTIVES = new Set([
   'farbenfroh',
 ]);
 
+const NON_ADJECTIVE_BARE_ADVERBS = new Set([
+  'oft',
+  'gern',
+  'bald',
+  'sehr',
+  'hier',
+  'dort',
+  'heute',
+  'gestern',
+  'morgen',
+  'damals',
+  'schon',
+  'noch',
+  'immer',
+  'nie',
+  'wieder',
+  'vielleicht',
+  'sofort',
+  'zusammen',
+  'deshalb',
+  'darum',
+  'deswegen',
+  'also',
+  'dann',
+  'oben',
+  'unten',
+  'links',
+  'rechts',
+]);
+
 async function getClient() {
   if (!openai) {
     const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
@@ -64,6 +94,7 @@ function buildWordSystemPrompt({ forceVisibleNoun = false, forceBareLexicalCandi
 - The user explicitly entered a single bare German word for word mode. It may be a lowercase noun or a bare adjective.
 - Do not reject solely because the input is short, lowercase, or lacks an article.
 - Short adjectives like "eng", "breit", "weich", "froh", and "leer" are valid adjective inputs and should not be treated as fragments or abbreviations.
+- If the bare word can function as both adjective and adverb in German, prefer the adjective analysis for word mode.
 - If the input is plausibly a noun or adjective, return the best lexical analysis instead of rejecting it.` : '';
 
   return `You are a German language expert and Fluent Forever consultant.
@@ -82,6 +113,7 @@ Rules:
 - Do not reject nouns just because they need a proxy image like a calendar, sign, label, document, or interface.
 - Accept adjectives only when they are strongly imageable or visually contrastive.
 - Good adjective candidates include colors, sizes, temperatures, shapes, textures, and visible states such as "rot", "groß", "kalt", "rund", "nass", "leer", "offen".
+- In German, many bare adjectives can also be used adverbially. If a word like "früh", "spät", "schnell", or "langsam" has a valid adjective reading, analyze it as an adjective for word mode instead of rejecting it as an adverb.
 - For abstract or non-visual high-frequency adjectives like "wichtig", "möglich", "deutlich", "schwierig", or "interessant", do NOT reject them. Instead set recommendedMode="sentence-form" and provide short example sentences.
 - Common adjectives like "gut", "schlecht", "besser", "wichtig", "einfach", and "schwer" should stay usable even when they are not strongly visual.
 - For accepted adjectives, provide a short concrete anchorPhrase in German such as "roter Apfel" or "offene Tür".
@@ -333,16 +365,20 @@ export function shouldRetryBareLexicalRejection(input, result = {}) {
   }
 
   const rejectionReason = normalizeGermanForCompare(result.rejectionReason || '');
-  if (/\bverb|adverb|phrase\b/.test(rejectionReason)) {
-    return false;
-  }
-
-  if (!/not a noun or adjective|fragment|abbreviation|unclear|unrecognized|unknown/.test(rejectionReason)) {
+  if (/\bverb|phrase\b/.test(rejectionReason)) {
     return false;
   }
 
   const frequencyInfo = getWordFrequencyInfo(input);
-  return Boolean(frequencyInfo.rank && frequencyInfo.rank <= 5000);
+  if (!frequencyInfo.rank || frequencyInfo.rank > 5000) {
+    return false;
+  }
+
+  if (/adverb/.test(rejectionReason)) {
+    return !NON_ADJECTIVE_BARE_ADVERBS.has(normalizeGermanForCompare(input));
+  }
+
+  return /not a noun or adjective|fragment|abbreviation|unclear|unrecognized|unknown/.test(rejectionReason);
 }
 
 export function buildBareLexicalAdjectiveFallback(input, result = {}) {
