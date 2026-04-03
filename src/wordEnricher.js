@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
+import { getWordFrequencyInfo } from './wordFrequency.js';
 import { normalizeGermanForCompare, normalizeWordIpa } from './wordUtils.js';
 import { resolveSecret } from './secrets.js';
 
@@ -34,11 +35,16 @@ async function getClient() {
   return openai;
 }
 
-function buildWordSystemPrompt({ forceVisibleNoun = false } = {}) {
+function buildWordSystemPrompt({ forceVisibleNoun = false, forceBareLexicalCandidate = false } = {}) {
   const retryInstructions = forceVisibleNoun ? `
 - The user explicitly wants a picture-word card for a visible noun that may depict a scene rather than a handheld object.
 - Visible scene nouns like "der Himmel", "die Sonne", "der Mond", "die Wolke", "das Meer", "der Wald" are imageable and should be accepted.
 - Only reject if the input is clearly not a noun or cannot be normalized into a noun.` : '';
+  const lexicalRetryInstructions = forceBareLexicalCandidate ? `
+- The user explicitly entered a single bare German word for word mode. It may be a lowercase noun or a bare adjective.
+- Do not reject solely because the input is short, lowercase, or lacks an article.
+- Short adjectives like "eng", "breit", "weich", "froh", and "leer" are valid adjective inputs and should not be treated as fragments or abbreviations.
+- If the input is plausibly a noun or adjective, return the best lexical analysis instead of rejecting it.` : '';
 
   return `You are a German language expert and Fluent Forever consultant.
 
@@ -86,6 +92,7 @@ Rules:
 - For adjectives, set article, gender, plural to null and noPlural to false.
 - If you reject an identifiable noun or adjective, still return best-effort values for canonical, lemma, meanings, and imageability fields.
 ${retryInstructions}
+${lexicalRetryInstructions}
 
 Respond in JSON only:
 {
@@ -229,6 +236,16 @@ function extractRetryCandidate(input, result = {}) {
   return normalized;
 }
 
+function looksLikeBareLexicalInput(input = '') {
+  const rawInput = String(input || '').trim();
+  return Boolean(
+    rawInput &&
+    !/\s/.test(rawInput) &&
+    rawInput === rawInput.toLowerCase() &&
+    /^[\p{L}-]+$/u.test(rawInput)
+  );
+}
+
 export function hasStructuredWordAnalysis(result = {}) {
   if (result.lexicalType === 'adjective') {
     return Boolean(
@@ -259,6 +276,67 @@ export function shouldRetryImageableNounRejection(input, result = {}) {
   return VISUAL_SCENE_NOUNS.has(extractRetryCandidate(input, result));
 }
 
+export function shouldRetryBareLexicalRejection(input, result = {}) {
+  if (!result || result.shouldCreateWordCard !== false) {
+    return false;
+  }
+
+  if (result.lexicalType === 'adjective') {
+    return false;
+  }
+
+  if (result.lexicalType === 'noun' && hasStructuredWordAnalysis(result)) {
+    return false;
+  }
+
+  if (!looksLikeBareLexicalInput(input)) {
+    return false;
+  }
+
+  const rejectionReason = normalizeGermanForCompare(result.rejectionReason || '');
+  if (/\bverb|adverb|phrase\b/.test(rejectionReason)) {
+    return false;
+  }
+
+  if (!/not a noun or adjective|fragment|abbreviation|unclear|unrecognized|unknown/.test(rejectionReason)) {
+    return false;
+  }
+
+  const frequencyInfo = getWordFrequencyInfo(input);
+  return Boolean(frequencyInfo.rank && frequencyInfo.rank <= 5000);
+}
+
+export function buildBareLexicalAdjectiveFallback(input, result = {}) {
+  const rawInput = String(input || '').trim();
+  const fallbackMeanings = Array.isArray(result.meanings)
+    ? result.meanings.filter(Boolean).slice(0, 3)
+    : [];
+  const fallbackSentences = Array.isArray(result.exampleSentences)
+    ? result.exampleSentences.filter((sentence) => sentence?.german).slice(0, 3)
+    : [];
+
+  return {
+    ...result,
+    shouldCreateWordCard: false,
+    rejectionReason: result.rejectionReason || 'Weak lexical analysis; falling back to sentence-form adjective mode.',
+    lexicalType: 'adjective',
+    canonical: rawInput || result.canonical || result.lemma || '',
+    lemma: rawInput || result.lemma || result.canonical || '',
+    article: null,
+    gender: null,
+    recommendedMode: 'sentence-form',
+    isImageable: false,
+    imageabilityReason: result.imageabilityReason || 'needs sentence context',
+    plural: null,
+    noPlural: false,
+    bareNoun: null,
+    anchorPhrase: null,
+    opposite: result.opposite || null,
+    meanings: fallbackMeanings,
+    exampleSentences: fallbackSentences,
+  };
+}
+
 async function requestWordAnalysis(client, input, options = {}) {
   const response = await client.chat.completions.create({
     model: config.openaiModel,
@@ -282,6 +360,14 @@ export async function enrichWord(input) {
 
   if (shouldRetryImageableNounRejection(input, result)) {
     return requestWordAnalysis(client, input, { forceVisibleNoun: true });
+  }
+
+  if (shouldRetryBareLexicalRejection(input, result)) {
+    const retried = await requestWordAnalysis(client, input, { forceBareLexicalCandidate: true });
+    if (shouldRetryBareLexicalRejection(input, retried)) {
+      return buildBareLexicalAdjectiveFallback(input, retried);
+    }
+    return retried;
   }
 
   return result;

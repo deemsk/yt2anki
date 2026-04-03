@@ -1,4 +1,4 @@
-import { canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
+import { buildBareLexicalAdjectiveFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -26,6 +26,52 @@ describe("word enricher retries", () => {
         isImageable: true,
       })
     ).toBe(false)
+  })
+
+  test("retries generic lexical rejection for frequent bare words like eng", () => {
+    expect(
+      shouldRetryBareLexicalRejection("eng", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "Input is not a noun or adjective.",
+      })
+    ).toBe(true)
+  })
+
+  test("does not retry obvious verb-style rejections through the bare lexical path", () => {
+    expect(
+      shouldRetryBareLexicalRejection("machen", {
+        shouldCreateWordCard: false,
+        rejectionReason: "Input is a verb, not a noun or adjective.",
+      })
+    ).toBe(false)
+  })
+
+  test("does not retry rare unknown bare inputs through the lexical path", () => {
+    expect(
+      shouldRetryBareLexicalRejection("xqzpt", {
+        shouldCreateWordCard: false,
+        rejectionReason: "Input is not a noun or adjective.",
+      })
+    ).toBe(false)
+  })
+
+  test("builds a sentence-form adjective fallback for stubborn bare lexical misses", () => {
+    expect(
+      buildBareLexicalAdjectiveFallback("eng", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "Input is not a noun or adjective.",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        lexicalType: "adjective",
+        canonical: "eng",
+        lemma: "eng",
+        recommendedMode: "sentence-form",
+        isImageable: false,
+      })
+    )
   })
 
   test("allows recoverable abstract-style rejections for usable noun cards like Preis", () => {
