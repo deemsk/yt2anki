@@ -24,6 +24,26 @@ const VISUAL_SCENE_NOUNS = new Set([
   'wiese',
 ]);
 
+const COLOR_ADJECTIVES = new Set([
+  'rot',
+  'blau',
+  'gelb',
+  'gruen',
+  'grün',
+  'schwarz',
+  'weiss',
+  'weiß',
+  'braun',
+  'grau',
+  'rosa',
+  'pink',
+  'orange',
+  'lila',
+  'violett',
+  'bunt',
+  'farbenfroh',
+]);
+
 async function getClient() {
   if (!openai) {
     const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
@@ -66,6 +86,7 @@ Rules:
 - Common adjectives like "gut", "schlecht", "besser", "wichtig", "einfach", and "schwer" should stay usable even when they are not strongly visual.
 - For accepted adjectives, provide a short concrete anchorPhrase in German such as "roter Apfel" or "offene Tür".
 - For accepted adjectives, provide opposite when there is a natural everyday contrast like "klein" for "groß" or "geschlossen" for "offen". If no clear opposite helps, set opposite to null.
+- For color adjectives like "blau", "rot", or "gelb", set opposite to null. Do not invent color contrasts such as "rot" for "blau".
 - For place or institution nouns in German culture, prefer target-language visual anchors and German search terms.
 - Example: for "die Apotheke", prefer "Apotheke Schild", "Apotheke Eingang", "Apotheke innen", or "deutsche Apotheke" over generic English "pharmacy" images.
 - For nouns with multiple meanings, provide up to 3 short meaning options.
@@ -172,6 +193,20 @@ function sanitizeSentence(sentence = {}) {
   };
 }
 
+export function shouldSuppressAdjectiveContrast(result = {}) {
+  if (result.lexicalType !== 'adjective') {
+    return false;
+  }
+
+  const candidates = [
+    result.lemma,
+    result.canonical,
+    result.anchorPhrase,
+  ];
+
+  return candidates.some((candidate) => COLOR_ADJECTIVES.has(normalizeGermanForCompare(candidate || '')));
+}
+
 function sanitizeWordAnalysis(result = {}) {
   const lexicalType = result.lexicalType === 'adjective' ? 'adjective' : 'noun';
   const lemma = String(result.lemma || result.bareNoun || result.canonical || '').trim();
@@ -195,6 +230,10 @@ function sanitizeWordAnalysis(result = {}) {
     anchorPhrase: lexicalType === 'adjective' ? String(result.anchorPhrase || '').trim() || null : null,
     opposite: lexicalType === 'adjective' ? String(result.opposite || '').trim() || null : null,
   };
+
+  if (shouldSuppressAdjectiveContrast(sanitized)) {
+    sanitized.opposite = null;
+  }
 
   sanitized.bareNoun = sanitized.lexicalType === 'noun' ? sanitized.lemma : null;
 

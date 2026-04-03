@@ -1,4 +1,4 @@
-import { buildBareLexicalAdjectiveFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection } from "../src/wordEnricher.js"
+import { buildBareLexicalAdjectiveFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -72,6 +72,28 @@ describe("word enricher retries", () => {
         isImageable: false,
       })
     )
+  })
+
+  test("suppresses contrast words for color adjectives", () => {
+    expect(
+      shouldSuppressAdjectiveContrast({
+        lexicalType: "adjective",
+        canonical: "blau",
+        lemma: "blau",
+        opposite: "rot",
+      })
+    ).toBe(true)
+  })
+
+  test("keeps contrast words for non-color adjectives", () => {
+    expect(
+      shouldSuppressAdjectiveContrast({
+        lexicalType: "adjective",
+        canonical: "groß",
+        lemma: "groß",
+        opposite: "klein",
+      })
+    ).toBe(false)
   })
 
   test("allows recoverable abstract-style rejections for usable noun cards like Preis", () => {
