@@ -12,6 +12,7 @@
     "text": "node src/index.js text",
     "word": "node src/index.js word",
     "words": "node src/index.js words",
+    "grammar": "node src/index.js grammar",
     "verb": "node src/index.js verb",
     "verbs": "node src/index.js verbs",
     "add": "node src/index.js add",

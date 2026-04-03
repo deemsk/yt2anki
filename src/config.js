@@ -11,6 +11,7 @@ const defaults = {
   ankiDeck: 'German::YouTube',
   ankiNoteType: 'Basic (optional reversed card)',
   wordNoteType: '2. Picture Words',
+  grammarNoteType: 'Cloze',
 
   // Paths
   dataDir: join(tmpdir(), 'yt2anki'),

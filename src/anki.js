@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
 import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
+import { parseGrammarMetadataComment } from './grammar/utils.js';
 import {
   buildWordMetadataComment,
   extractCanonicalWord,
@@ -305,6 +306,45 @@ export async function createBasicNote({
   });
 }
 
+export function resolveClozeFieldMap(fieldNames = []) {
+  const textField = fieldNames.find((field) => /^text$/i.test(field));
+  const extraField = fieldNames.find((field) => /^back extra$/i.test(field)) ||
+    fieldNames.find((field) => /^extra$/i.test(field));
+
+  if (!textField || !extraField) {
+    throw new Error(`Grammar note type must contain Text and Back Extra/Extra fields. Found: ${fieldNames.join(', ')}`);
+  }
+
+  return { textField, extraField };
+}
+
+export async function createClozeNote({
+  text,
+  extra = '',
+  tags = [],
+  deck = null,
+  modelName = config.grammarNoteType || 'Cloze',
+  fieldMap = { textField: 'Text', extraField: 'Back Extra' },
+}) {
+  const deckName = deck || config.ankiDeck;
+  const fields = {
+    [fieldMap.textField]: text,
+    [fieldMap.extraField]: extra,
+  };
+
+  return ankiConnect('addNote', {
+    note: {
+      deckName,
+      modelName,
+      fields,
+      options: {
+        allowDuplicate: false,
+      },
+      tags,
+    },
+  });
+}
+
 /**
  * Get available note types
  */
@@ -425,6 +465,36 @@ function extractWordMetadataFromSentenceNote(note) {
     canonical: canonicalTag ? canonicalTag.replace(/^canonical-/i, '').replace(/-/g, ' ') : null,
     lemma: lemmaTag ? lemmaTag.replace(/^lemma-/i, '').replace(/-/g, ' ') : null,
     meaning: null,
+  };
+}
+
+function extractAllFieldValues(note) {
+  return Object.values(note.fields || {})
+    .map((field) => field?.value || '')
+    .join(' ');
+}
+
+function extractGrammarMetadataFromNote(note) {
+  const embedded = parseGrammarMetadataComment(extractAllFieldValues(note));
+  if (embedded) {
+    return embedded;
+  }
+
+  const tags = Array.isArray(note.tags) ? note.tags : [];
+  const familyTag = tags.find((tag) => /^grammar-family-/i.test(tag)) || null;
+  const lemmaTag = tags.find((tag) => /^grammar-lemma-/i.test(tag)) || null;
+  const slotTag = tags.find((tag) => /^grammar-slot-/i.test(tag)) || null;
+  const surfaceTag = tags.find((tag) => /^grammar-surface-/i.test(tag)) || null;
+
+  if (!familyTag && !lemmaTag && !slotTag && !surfaceTag) {
+    return null;
+  }
+
+  return {
+    familyId: familyTag ? familyTag.replace(/^grammar-family-/i, '').replace(/-/g, ' ') : null,
+    lemma: lemmaTag ? lemmaTag.replace(/^grammar-lemma-/i, '').replace(/-/g, ' ') : null,
+    slotId: slotTag ? slotTag.replace(/^grammar-slot-/i, '').replace(/-/g, '-') : null,
+    surfaceForm: surfaceTag ? surfaceTag.replace(/^grammar-surface-/i, '').replace(/-/g, ' ') : null,
   };
 }
 
@@ -564,4 +634,43 @@ export async function findSentenceWordDuplicates({
   }
 
   return { exactMatches, headwordMatches };
+}
+
+export async function findGrammarDuplicates({
+  familyId,
+  lemma,
+}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: `tag:mode-grammar tag:grammar-family-${toTagSlug(familyId)} tag:grammar-lemma-${toTagSlug(lemma)}`,
+  });
+
+  if (noteIds.length === 0) {
+    return { exactMatches: [], lemmaMatches: [] };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const normalizedFamily = normalizeGerman(familyId);
+  const normalizedLemma = normalizeGerman(lemma);
+  const lemmaMatches = [];
+
+  for (const note of notes) {
+    const metadata = extractGrammarMetadataFromNote(note);
+    if (!metadata?.familyId || !metadata?.lemma || !metadata?.slotId) continue;
+    if (normalizeGerman(metadata.familyId) !== normalizedFamily) continue;
+    if (normalizeGerman(metadata.lemma) !== normalizedLemma) continue;
+
+    lemmaMatches.push({
+      noteId: note.noteId,
+      familyId: metadata.familyId,
+      lemma: metadata.lemma,
+      slotId: metadata.slotId,
+      slotLabel: metadata.slotLabel || null,
+      surfaceForm: metadata.surfaceForm || null,
+    });
+  }
+
+  return {
+    exactMatches: [],
+    lemmaMatches,
+  };
 }

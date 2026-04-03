@@ -14,6 +14,7 @@ import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
+import { processSingleGrammar } from './grammarMode.js';
 import { processSingleWord, processWordBatch } from './wordMode.js';
 import { processSingleVerb, processVerbBatch } from './verbMode.js';
 
@@ -130,6 +131,15 @@ program
   .option('-n, --dry-run', 'Preview word notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processWordBatch);
+
+program
+  .command('grammar')
+  .description('Create grammar cloze notes from a supported grammar family')
+  .argument('<family>', 'Grammar family, for example: possessive')
+  .argument('<lemma>', 'Base lemma or one inflected form from that family')
+  .option('-n, --dry-run', 'Preview grammar notes without creating them')
+  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
+  .action(processSingleGrammar);
 
 program
   .command('verb')
@@ -362,6 +372,15 @@ async function checkSetup() {
     } else {
       console.log(chalk.yellow(`⚠ Word note type "${wordNoteType}" not found`));
     }
+
+    const grammarNoteType = config.grammarNoteType || 'Cloze';
+    if (noteTypes.includes(grammarNoteType)) {
+      console.log(chalk.green(`✓ Grammar note type "${grammarNoteType}" exists`));
+      const fields = await getNoteFields(grammarNoteType);
+      console.log(chalk.dim(`  Grammar fields: ${fields.join(', ')}`));
+    } else {
+      console.log(chalk.yellow(`⚠ Grammar note type "${grammarNoteType}" not found`));
+    }
   } else {
     console.log(chalk.red('✗ AnkiConnect not available'));
     console.log(chalk.dim('  Make sure Anki is running with AnkiConnect add-on (code: 2055492159)'));
@@ -526,6 +545,19 @@ async function testIntegrations(options) {
     } else {
       warn(`Word note type "${wordNoteType}" not found`);
     }
+
+    const grammarNoteType = config.grammarNoteType || 'Cloze';
+    if (noteTypes.includes(grammarNoteType)) {
+      pass(`Grammar note type "${grammarNoteType}" exists`);
+      const grammarFields = await getNoteFields(grammarNoteType);
+      if (grammarFields.includes('Text') && (grammarFields.includes('Back Extra') || grammarFields.includes('Extra'))) {
+        pass('Grammar note type has required fields (Text, Back Extra/Extra)');
+      } else {
+        warn('Grammar note type missing Text or Back Extra/Extra', `Found fields: ${grammarFields.join(', ')}`);
+      }
+    } else {
+      warn(`Grammar note type "${grammarNoteType}" not found`);
+    }
   } else {
     warn('AnkiConnect not available (required only for non-dry-run)');
     console.log(chalk.dim('  1. Open Anki'));
@@ -643,6 +675,7 @@ async function initConfig() {
     ankiDeck: 'German::YouTube',
     ankiNoteType: 'Basic (optional reversed card)',
     wordNoteType: '2. Picture Words',
+    grammarNoteType: 'Cloze',
     openaiModel: 'gpt-4o-mini',
     braveApiKey: '',
     whisperModel: 'base',
@@ -659,6 +692,7 @@ async function initConfig() {
   console.log(chalk.dim('  ankiDeck      - Target Anki deck'));
   console.log(chalk.dim('  ankiNoteType  - Sentence note type to use'));
   console.log(chalk.dim('  wordNoteType  - Word note type to use (default: 2. Picture Words)'));
+  console.log(chalk.dim('  grammarNoteType - Grammar cloze note type to use (default: Cloze)'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
   console.log(chalk.dim('  braveApiKey   - Brave Search API key for image search (optional)'));
   console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));

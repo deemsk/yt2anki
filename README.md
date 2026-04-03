@@ -27,6 +27,11 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 - Use sentence cards plus optional dictionary-form cards for abstract or grammar-heavy verbs
 - Generate example sentences automatically when verbs are better learned in context
 
+**Grammar mode**:
+- Create true Anki `Cloze` notes for inflection-heavy grammar families
+- Start with possessive determiner paradigms such as `mein`, `dein`, `sein`, `unser`, and `euer`
+- Generate one cloze note per grammatical slot, with duplicate checks by family + lemma + slot
+
 **Both modes:**
 - Generate IPA transcription and Russian translation
 - Auto-correct transcription errors and punctuation
@@ -117,6 +122,7 @@ Create Safari bookmarks, edit them, and paste the bookmarklet URLs.
 ```bash
 npm run word -- "das Wasser"
 npm run words
+npm run grammar -- possessive mein
 npm run verb -- "laufen"
 npm run verbs
 ```
@@ -132,6 +138,11 @@ so frequent words like `wichtig` do not get dropped from the workflow.
 
 Verb mode routes imageable verbs to picture-word cards and routes abstract or form-heavy
 verbs to sentence cards with an optional dictionary-form note.
+
+Grammar mode uses the Anki `Cloze` note type and currently starts with the `possessive`
+family. It generates one note per slot such as nominative masculine singular or dative
+plural, so forms like `mein`, `meinen`, and `meinem` are learned through cloze sentences
+instead of isolated tables.
 
 If `braveApiKey` is configured, Brave image search is queried first and
 Openverse/Wikimedia remain as fallbacks.
@@ -151,6 +162,7 @@ npm run clip -- -n    # Dry run (preview only)
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
 | `npm run word -- <word>` | Create one Fluent Forever noun/adjective note |
 | `npm run words` | Create multiple noun/adjective notes interactively |
+| `npm run grammar -- <family> <lemma>` | Create grammar cloze notes, e.g. `possessive mein` |
 | `npm run verb -- <verb>` | Create one Fluent Forever verb note |
 | `npm run verbs` | Create multiple verb notes interactively |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
@@ -181,6 +193,7 @@ Edit `~/.yt2anki.json`:
   "ankiDeck": "German::YouTube",
   "ankiNoteType": "Basic (optional reversed card)",
   "wordNoteType": "2. Picture Words",
+  "grammarNoteType": "Cloze",
   "openaiModel": "gpt-4o-mini",
   "googleTtsKeyFile": "",
   "googleApiKey": "",
@@ -201,6 +214,9 @@ Edit `~/.yt2anki.json`:
 
 `wordNoteType` controls the note type used for picture-word cards. The v1 word mode assumes a
 Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
+
+`grammarNoteType` controls the note type used for grammar cloze cards. The current grammar mode
+expects a Cloze-compatible model with `Text` and `Back Extra` (or `Extra`) fields.
 
 `braveApiKey` is optional. If set, word and verb picture modes query Brave image search before
 Openverse and Wikimedia.
