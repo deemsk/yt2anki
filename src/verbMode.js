@@ -206,7 +206,7 @@ async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, de
 
 async function prepareVerb(rawInput, options, spinner) {
   spinner.start('Analyzing verb...');
-  const verbData = await enrichVerb(rawInput);
+  const verbData = options.analysisResult || await enrichVerb(rawInput);
   const recoverable = hasStructuredVerbAnalysis(verbData);
 
   if (!verbData.shouldCreateVerbCard && !recoverable) {
@@ -509,11 +509,13 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
   return true;
 }
 
-async function processVerb(rawInput, options = {}) {
+export async function runVerbWorkflow(rawInput, options = {}) {
   const spinner = ora();
 
   try {
-    showVerbHeader(rawInput);
+    if (!options.skipHeader) {
+      showVerbHeader(rawInput);
+    }
     await ensureVerbSetup(options.deck || config.ankiDeck, options.dryRun);
     const prepared = await prepareVerb(rawInput, options, spinner);
     if (!prepared || prepared.rejected) {
@@ -532,7 +534,7 @@ async function processVerb(rawInput, options = {}) {
 
 export async function processSingleVerb(rawInput, options = {}) {
   try {
-    return await processVerb(rawInput, options);
+    return await runVerbWorkflow(rawInput, options);
   } catch {
     process.exit(1);
   }
@@ -573,7 +575,7 @@ export async function processVerbBatch(options = {}) {
     let completed = 0;
     for (const verb of verbs) {
       try {
-        const added = await processVerb(verb, options);
+        const added = await runVerbWorkflow(verb, options);
         if (added) {
           completed++;
         }

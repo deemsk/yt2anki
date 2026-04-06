@@ -13,15 +13,14 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 - Select German text on any webpage
 - Generate voice-over using OpenAI TTS
 
-**Word mode** (nouns and adjectives):
+**Lexical mode** (nouns, adjectives, verbs):
 - Create Fluent Forever-style notes for German nouns and adjectives
+- Create Fluent Forever-style notes for German verbs through the same command
 - Pick an image manually from Brave/Openverse/Wikimedia previews
 - Use single slow audio clips; nouns are spoken with their article
 - Store nouns with article and gender color, plus plural/back-side info
 - Store imageable adjectives with a concrete anchor phrase and optional contrast on the back
 - Route non-visual but common adjectives into sentence cards instead of skipping them
-
-**Verb mode**:
 - Route verbs into picture-word or sentence/form mode
 - Use picture-word cards for highly imageable action verbs
 - Use sentence cards plus optional dictionary-form cards for abstract or grammar-heavy verbs
@@ -118,26 +117,29 @@ Create Safari bookmarks, edit them, and paste the bookmarklet URLs.
 2. Click **yt2anki Text** bookmarklet
 3. Run `npm start`
 
-### Word Mode
+### Lexical Mode
 
 ```bash
-npm run word -- "das Wasser"
+npm run words -- "das Wasser"
+npm run words -- "laufen"
 npm run words
 npm run grammar -- possessive mein
-npm run verb -- "laufen"
-npm run verbs
 ```
 
-Word mode uses the `2. Picture Words` note type for picture cards and falls back to the
-regular sentence note type for adjectives that are better learned in context.
-During creation you choose the intended meaning, then either pick an image or confirm an
-example sentence before the note is added.
+The `words` command handles nouns, adjectives, and verbs through one entrypoint.
+If you pass one lexical item, it processes it immediately. If you pass no item, it enters
+interactive batch mode and lets you mix nouns, adjectives, and verbs line by line.
+
+Noun/adjective picture cards use the `2. Picture Words` note type and fall back to the
+regular sentence note type for adjectives that are better learned in context. During
+creation you choose the intended meaning, then either pick an image or confirm an example
+sentence before the note is added.
 
 Imageable adjectives such as colors, sizes, textures, and visible states can go through
 picture-word mode. Abstract or weakly visual adjectives are routed into sentence cards
 so frequent words like `wichtig` do not get dropped from the workflow.
 
-Verb mode routes imageable verbs to picture-word cards and routes abstract or form-heavy
+The same command routes imageable verbs to picture-word cards and routes abstract or form-heavy
 verbs to sentence cards with an optional dictionary-form note.
 
 Grammar mode uses the Anki `Cloze` note type and currently starts with the `possessive`
@@ -161,11 +163,9 @@ npm run clip -- -n    # Dry run (preview only)
 |---------|-------------|
 | `npm start` | Process clips from clipboard |
 | `npm run clip -- -n` | Dry run (preview without creating cards) |
-| `npm run word -- <word>` | Create one Fluent Forever noun/adjective note |
-| `npm run words` | Create multiple noun/adjective notes interactively |
+| `npm run words -- <item>` | Create one lexical note for a noun, adjective, or verb |
+| `npm run words` | Create mixed lexical notes interactively |
 | `npm run grammar -- <family> <lemma>` | Create grammar cloze notes, e.g. `possessive mein` |
-| `npm run verb -- <verb>` | Create one Fluent Forever verb note |
-| `npm run verbs` | Create multiple verb notes interactively |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
 | `npm run process -- <file.json>` | Process markers JSON file |
 | `npm run check` | Quick check of installed tools, API key, and AnkiConnect |

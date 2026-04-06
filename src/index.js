@@ -16,8 +16,7 @@ import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
 import { processSingleGrammar } from './grammarMode.js';
-import { processSingleWord, processWordBatch } from './wordMode.js';
-import { processSingleVerb, processVerbBatch } from './verbMode.js';
+import { processLexicalCommand } from './lexicalMode.js';
 import { generateSpeech } from './tts.js';
 
 /**
@@ -169,23 +168,14 @@ program
   .action(processTextBatch);
 
 program
-  .command('word')
-  .description('Create a Fluent Forever noun/adjective note with picture or sentence fallback')
-  .argument('<word>', 'German noun/adjective, with or without article when applicable')
-  .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
-  .option('-s, --sentence <text>', 'Preferred example sentence for sentence-form adjectives')
-  .option('-t, --theme <name>', 'Optional theme tag')
-  .option('-n, --dry-run', 'Preview the word note without creating it')
-  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
-  .action(processSingleWord);
-
-program
   .command('words')
-  .description('Create Fluent Forever noun/adjective notes from text input (one noun/adjective per line)')
-  .option('-t, --theme <name>', 'Optional theme tag for all words in the batch')
-  .option('-n, --dry-run', 'Preview word notes without creating them')
+  .description('Create Fluent Forever lexical notes; pass one item or enter a mixed batch interactively')
+  .argument('[item...]', 'German noun, adjective, or verb; quote multi-word inputs if needed')
+  .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
+  .option('-s, --sentence <text>', 'Preferred example sentence for single-item sentence-based notes')
+  .option('-n, --dry-run', 'Preview lexical notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
-  .action(processWordBatch);
+  .action(processLexicalCommand);
 
 program
   .command('grammar')
@@ -195,25 +185,6 @@ program
   .option('-n, --dry-run', 'Preview grammar notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processSingleGrammar);
-
-program
-  .command('verb')
-  .description('Create a Fluent Forever verb note')
-  .argument('<verb>', 'German verb or verb form')
-  .option('-m, --meaning <gloss>', 'Preferred meaning/gloss')
-  .option('-s, --sentence <text>', 'Preferred example sentence')
-  .option('--mode <mode>', 'Force mode: picture or sentence')
-  .option('-n, --dry-run', 'Preview the verb note without creating it')
-  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
-  .action(processSingleVerb);
-
-program
-  .command('verbs')
-  .description('Create Fluent Forever verb notes from text input (one verb per line)')
-  .option('--mode <mode>', 'Force mode: picture or sentence')
-  .option('-n, --dry-run', 'Preview verb notes without creating them')
-  .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
-  .action(processVerbBatch);
 
 program.parse();
 

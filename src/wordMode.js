@@ -354,7 +354,7 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
 
 async function prepareWord(rawInput, options, spinner) {
   spinner.start('Analyzing word...');
-  const wordData = await enrichWord(rawInput);
+  const wordData = options.analysisResult || await enrichWord(rawInput);
   const route = resolveWordRoute(wordData);
   const structuredAnalysis = hasStructuredWordAnalysis(wordData);
   const recoverableWeakCandidate = route === 'picture-word' && canProceedWithWeakWordCard(wordData);
@@ -716,11 +716,13 @@ async function finalizeSentenceWord(prepared, options, spinner) {
   return true;
 }
 
-async function processWord(rawInput, options = {}) {
+export async function runWordWorkflow(rawInput, options = {}) {
   const spinner = ora();
 
   try {
-    showWordHeader(rawInput);
+    if (!options.skipHeader) {
+      showWordHeader(rawInput);
+    }
     await ensureWordSetup(options.deck || config.ankiDeck, options.dryRun);
     const prepared = await prepareWord(rawInput, options, spinner);
     if (!prepared || prepared.rejected) {
@@ -738,7 +740,7 @@ async function processWord(rawInput, options = {}) {
 
 export async function processSingleWord(rawInput, options = {}) {
   try {
-    return await processWord(rawInput, options);
+    return await runWordWorkflow(rawInput, options);
   } catch {
     process.exit(1);
   }
@@ -779,7 +781,7 @@ export async function processWordBatch(options = {}) {
     let completed = 0;
     for (const word of words) {
       try {
-        const added = await processWord(word, options);
+        const added = await runWordWorkflow(word, options);
         if (added) {
           completed++;
         }
