@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
 import { config } from './config.js';
 import { escapeHtml, formatPluralLabel, getWordLemma, normalizeGermanForCompare } from './wordUtils.js';
-import { playAudio } from './confirm.js';
+import { askReviewFeedback, playAudio } from './confirm.js';
 import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './wordSources.js';
 
 function ask(question) {
@@ -598,7 +598,7 @@ export async function confirmSentenceWordSelection({
       });
     }
 
-    const answer = await ask('[A]dd, [L]isten, [D]ismiss: ');
+    const answer = await ask('[A]dd, [L]isten, [R]eview, [D]ismiss: ');
     const normalized = answer.toLowerCase();
 
     if (normalized === '' || normalized === 'a' || normalized === 'add') {
@@ -613,6 +613,14 @@ export async function confirmSentenceWordSelection({
         console.log(`Could not play audio: ${err.message}`);
       }
       continue;
+    }
+
+    if (normalized === 'r' || normalized === 'review') {
+      const feedback = await askReviewFeedback();
+      if (!feedback) {
+        continue;
+      }
+      return { confirmed: false, reviewFeedback: feedback };
     }
 
     return { confirmed: false };

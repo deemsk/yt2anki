@@ -2,13 +2,14 @@
 
 import { program } from 'commander';
 import { readFile } from 'fs/promises';
+import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
 
 import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
-import { enrich } from './enricher.js';
+import { enrich, reviewEnrichedText } from './enricher.js';
 import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
@@ -17,6 +18,7 @@ import { generateCards } from './cardTypes.js';
 import { processSingleGrammar } from './grammarMode.js';
 import { processSingleWord, processWordBatch } from './wordMode.js';
 import { processSingleVerb, processVerbBatch } from './verbMode.js';
+import { generateSpeech } from './tts.js';
 
 /**
  * Session state for tracking accepted units and pattern usage.
@@ -54,6 +56,59 @@ class SessionState {
 
 // Global session state (reset each CLI invocation)
 const sessionState = new SessionState();
+
+async function rebuildReviewedCardSetPreview(currentData, feedback, spinner) {
+  spinner.start('Reviewing sentence with AI...');
+  const reviewedData = await reviewEnrichedText(currentData, feedback, {
+    cardPurpose: 'German sentence flashcard set',
+    extraGuidance: 'Keep the sentence concise, natural, and useful for learners.',
+  });
+  spinner.succeed(`Sentence reviewed: ${reviewedData.german}`);
+
+  spinner.start('Analyzing revised sentence...');
+  const analysis = await analyzeSentence(reviewedData, sessionState);
+  spinner.succeed('Analysis complete');
+  const selection = selectCards(analysis, sessionState);
+
+  if (selection.rejected) {
+    console.log(chalk.yellow(`AI review rejected the sentence: ${selection.reason}`));
+    return null;
+  }
+
+  if (selection.needsSplit) {
+    console.log(chalk.yellow('AI review suggests splitting the sentence:'));
+    selection.splits.forEach((part, index) => {
+      console.log(chalk.dim(`  ${index + 1}. ${part}`));
+    });
+    return null;
+  }
+
+  const sourceId = `${Date.now()}`;
+  const cards = generateCards(reviewedData, selection.cards, sourceId);
+  const audioPath = join(config.dataDir, `tts_${Date.now()}.mp3`);
+
+  spinner.start('Regenerating voice-over...');
+  await generateSpeech(reviewedData.german, audioPath);
+  spinner.succeed('Voice-over updated');
+
+  let similarCards = [];
+  try {
+    spinner.start('Checking for similar cards...');
+    similarCards = await findSimilarCards(reviewedData.german);
+    spinner.stop();
+  } catch (err) {
+    spinner.stop();
+    console.log(chalk.dim(`Similarity check skipped: ${err.message}`));
+  }
+
+  return {
+    data: reviewedData,
+    cards,
+    sourceId,
+    audioPath,
+    similarCards,
+  };
+}
 
 program
   .name('yt2anki')
@@ -749,9 +804,6 @@ async function processClipboard(options) {
 }
 
 async function processTextMode(data, options, spinner, dryRun) {
-  const { generateSpeech } = await import('./tts.js');
-  const { join } = await import('path');
-
   spinner.succeed(`Text mode: "${data.german.slice(0, 50)}${data.german.length > 50 ? '...' : ''}"`);
 
   if (dryRun) {
@@ -800,21 +852,22 @@ async function processTextMode(data, options, spinner, dryRun) {
   }
 
   // Generate audio
-  const timestamp = Date.now();
-  const sourceId = `${timestamp}`;
-  const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
+  let timestamp = Date.now();
+  let sourceId = `${timestamp}`;
+  let audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
 
   spinner.start('Generating voice-over...');
   await generateSpeech(german, audioPath);
   spinner.succeed('Voice-over generated');
 
   // Generate cards
-  const cards = generateCards(enrichedData, selection.cards, sourceId);
+  let currentData = enrichedData;
+  let currentCards = generateCards(enrichedData, selection.cards, sourceId);
 
   if (dryRun) {
     console.log();
-    console.log(chalk.bold(`Card set (${cards.length} cards):`));
-    cards.forEach((card, i) => {
+    console.log(chalk.bold(`Card set (${currentCards.length} cards):`));
+    currentCards.forEach((card, i) => {
       console.log(chalk.dim(`  ${i + 1}. ${card.label}: ${card.reason}`));
     });
     console.log(chalk.yellow.bold('\n⚡ DRY RUN: Cards previewed'));
@@ -823,11 +876,34 @@ async function processTextMode(data, options, spinner, dryRun) {
 
   // Check for similar cards
   spinner.start('Checking for similar cards...');
-  const similarCards = await findSimilarCards(german);
+  let similarCards = await findSimilarCards(german);
   spinner.stop();
 
-  // Interactive confirmation (with card set preview)
-  const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, audioPath);
+  let autoPlayPreview = true;
+  let result;
+
+  while (true) {
+    result = await confirmCardSet(currentCards, currentData, chalk, similarCards, audioPath, autoPlayPreview, {
+      allowReview: true,
+    });
+
+    if (!result.reviewFeedback) {
+      break;
+    }
+
+    const reviewed = await rebuildReviewedCardSetPreview(currentData, result.reviewFeedback, spinner);
+    if (!reviewed) {
+      autoPlayPreview = false;
+      continue;
+    }
+
+    currentData = reviewed.data;
+    currentCards = reviewed.cards;
+    sourceId = reviewed.sourceId;
+    audioPath = reviewed.audioPath;
+    similarCards = reviewed.similarCards;
+    autoPlayPreview = true;
+  }
 
   if (result.dismissed) {
     console.log(chalk.yellow('Cards dismissed'));
@@ -838,7 +914,7 @@ async function processTextMode(data, options, spinner, dryRun) {
   const audioFilename = await storeAudio(audioPath);
   const noteIds = await createNotes(result.cards, audioFilename, {
     sourceId,
-    cefr,
+    cefr: currentData.cefr,
     deck: options.deck,
   });
   spinner.succeed(`Created ${noteIds.length} cards!`);
@@ -989,8 +1065,6 @@ async function processVideoMode(markers, options, spinner, dryRun) {
 
 async function processTextBatch(options) {
   const { createInterface } = await import('readline');
-  const { generateSpeech } = await import('./tts.js');
-  const { join } = await import('path');
   const spinner = ora();
   const dryRun = options.dryRun;
 
@@ -1075,19 +1149,20 @@ async function processTextBatch(options) {
     }
 
     // Generate audio
-    const timestamp = Date.now();
-    const sourceId = `${timestamp}`;
-    const audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
+    let timestamp = Date.now();
+    let sourceId = `${timestamp}`;
+    let audioPath = join(config.dataDir, `tts_${timestamp}.mp3`);
 
     spinner.start('Generating voice-over...');
     await generateSpeech(german, audioPath);
     spinner.succeed('Voice-over ready');
 
     // Generate cards
-    const cards = generateCards(enrichedData, selection.cards, sourceId);
+    let currentData = enrichedData;
+    let currentCards = generateCards(enrichedData, selection.cards, sourceId);
 
     if (dryRun) {
-      console.log(chalk.dim(`   ${cards.length} cards: ${cards.map(c => c.label).join(', ')}`));
+      console.log(chalk.dim(`   ${currentCards.length} cards: ${currentCards.map(c => c.label).join(', ')}`));
       const { execFile: execFileRaw } = await import('child_process');
       const { promisify } = await import('util');
       const { unlink } = await import('fs/promises');
@@ -1101,18 +1176,41 @@ async function processTextBatch(options) {
       }
       await unlink(audioPath).catch(() => {});
       console.log();
-      totalCardsCreated += cards.length;
+      totalCardsCreated += currentCards.length;
       phrasesProcessed++;
       continue;
     }
 
     // Check for similar cards
     spinner.start('Checking for similar cards...');
-    const similarCards = await findSimilarCards(german);
+    let similarCards = await findSimilarCards(german);
     spinner.stop();
 
-    // Interactive confirmation (with card set preview)
-    const result = await confirmCardSet(cards, enrichedData, chalk, similarCards, audioPath);
+    let autoPlayPreview = true;
+    let result;
+
+    while (true) {
+      result = await confirmCardSet(currentCards, currentData, chalk, similarCards, audioPath, autoPlayPreview, {
+        allowReview: true,
+      });
+
+      if (!result.reviewFeedback) {
+        break;
+      }
+
+      const reviewed = await rebuildReviewedCardSetPreview(currentData, result.reviewFeedback, spinner);
+      if (!reviewed) {
+        autoPlayPreview = false;
+        continue;
+      }
+
+      currentData = reviewed.data;
+      currentCards = reviewed.cards;
+      sourceId = reviewed.sourceId;
+      audioPath = reviewed.audioPath;
+      similarCards = reviewed.similarCards;
+      autoPlayPreview = true;
+    }
 
     if (result.dismissed) {
       console.log(chalk.yellow('Cards dismissed\n'));
@@ -1123,7 +1221,7 @@ async function processTextBatch(options) {
     const audioFilename = await storeAudio(audioPath);
     const noteIds = await createNotes(result.cards, audioFilename, {
       sourceId,
-      cefr,
+      cefr: currentData.cefr,
       deck: options.deck,
     });
     spinner.succeed(`Created ${noteIds.length} cards!\n`);

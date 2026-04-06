@@ -31,7 +31,7 @@ import {
   storeMedia,
 } from './anki.js';
 import { generateSimpleSpeech, generateSpeech } from './tts.js';
-import { enrich } from './enricher.js';
+import { enrich, reviewEnrichedText } from './enricher.js';
 
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';
 const SENTENCE_NOUN_PHRASE_PATTERN = /\b(der|die|das|den|dem|des|ein|eine|einen|einem|einer|eines|kein|keine|keinen|keinem|keiner|keines|mein(?:e|en|em|er|es)?|dein(?:e|en|em|er|es)?|sein(?:e|en|em|er|es)?|ihr(?:e|en|em|er|es)?|unser(?:e|en|em|er|es)?|euer(?:e|en|em|er|es)?)\s+([A-ZÄÖÜ][\p{L}-]+)/gu;
@@ -253,6 +253,90 @@ async function buildWordSentenceAudio(sentence, spinner) {
   return {
     audioPath,
     source: 'Google TTS',
+  };
+}
+
+async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) {
+  const {
+    wordData,
+    selectedMeaning,
+    chosenSentence,
+    sentenceData,
+    imageChoice: currentImageChoice,
+    similarCards: currentSimilarCards,
+    audio: currentAudio,
+  } = prepared;
+  const focusForm = chosenSentence?.focusForm || wordData.canonical;
+
+  spinner.start('Reviewing sentence with AI...');
+  const reviewed = await reviewEnrichedText({
+    german: sentenceData.german,
+    ipa: sentenceData.ipa,
+    russian: sentenceData.russian,
+  }, feedback, {
+    cardPurpose: `Sentence-form ${wordData.lexicalType || 'adjective'} card for "${wordData.canonical}"`,
+    requiredTerms: focusForm ? [focusForm] : [],
+    extraGuidance: 'Keep the sentence short, natural, and centered on the target word.',
+    includeImageBrief: true,
+  });
+
+  const germanChanged = normalizeGermanForCompare(reviewed.german) !== normalizeGermanForCompare(sentenceData.german);
+  const reviewedChosenSentence = {
+    ...chosenSentence,
+    german: reviewed.german,
+    russian: reviewed.russian || chosenSentence?.russian || sentenceData.russian,
+    imageBrief: reviewed.imageBrief || (germanChanged ? null : chosenSentence?.imageBrief || null),
+  };
+  const reviewedSentenceData = applyChosenSentenceGloss(reviewed, reviewedChosenSentence);
+  spinner.succeed(`Sentence reviewed: ${reviewedSentenceData.german}`);
+
+  let imageChoice = germanChanged ? null : currentImageChoice;
+  if (germanChanged || reviewed.imageBrief) {
+    spinner.start('Searching optional image...');
+    const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, reviewedChosenSentence, wordData);
+    const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
+      pageSize: config.wordImagePreviewCount || 6,
+      total: config.wordImageSearchResults || 12,
+    });
+    spinner.stop();
+
+    if (imageCandidates.length > 0) {
+      const revisedImageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
+      if (revisedImageChoice) {
+        imageChoice = revisedImageChoice;
+      }
+    }
+  }
+
+  let similarCards = currentSimilarCards;
+  if (germanChanged) {
+    similarCards = [];
+    try {
+      if (!options.dryRun) {
+        spinner.start('Checking similar cards...');
+        similarCards = await findSimilarCards(reviewedSentenceData.german);
+        spinner.stop();
+      }
+    } catch (err) {
+      spinner.stop();
+      if (!options.dryRun) {
+        console.log(chalk.dim(`Similarity check skipped: ${err.message}`));
+      }
+    }
+  }
+
+  let audio = currentAudio;
+  if (germanChanged) {
+    audio = await buildWordSentenceAudio(reviewedSentenceData.german, spinner);
+  }
+
+  return {
+    ...prepared,
+    chosenSentence: reviewedChosenSentence,
+    sentenceData: reviewedSentenceData,
+    imageChoice,
+    similarCards,
+    audio,
   };
 }
 
@@ -523,23 +607,37 @@ async function finalizePictureWord(prepared, options, spinner) {
 }
 
 async function finalizeSentenceWord(prepared, options, spinner) {
-  const { wordData, selectedMeaning, duplicateInfo, chosenSentence, sentenceData, imageChoice, similarCards, audio } = prepared;
+  let current = prepared;
+  let autoPlay = true;
 
-  const confirmation = await confirmSentenceWordSelection({
-    wordData,
-    selectedMeaning,
-    sentenceData,
-    chosenSentence,
-    duplicateInfo,
-    imageChoice,
-    audioPath: audio.audioPath,
-    similarCards,
-  });
+  while (true) {
+    const confirmation = await confirmSentenceWordSelection({
+      wordData: current.wordData,
+      selectedMeaning: current.selectedMeaning,
+      sentenceData: current.sentenceData,
+      chosenSentence: current.chosenSentence,
+      duplicateInfo: current.duplicateInfo,
+      imageChoice: current.imageChoice,
+      audioPath: current.audio.audioPath,
+      similarCards: current.similarCards,
+      autoPlay,
+    });
 
-  if (!confirmation.confirmed) {
-    console.log(chalk.yellow('Word dismissed'));
-    return false;
+    if (confirmation.reviewFeedback) {
+      current = await rebuildSentenceWordPreview(current, confirmation.reviewFeedback, options, spinner);
+      autoPlay = true;
+      continue;
+    }
+
+    if (!confirmation.confirmed) {
+      console.log(chalk.yellow('Word dismissed'));
+      return false;
+    }
+
+    break;
   }
+
+  const { wordData, selectedMeaning, chosenSentence, sentenceData, imageChoice, audio } = current;
 
   if (options.dryRun) {
     console.log();

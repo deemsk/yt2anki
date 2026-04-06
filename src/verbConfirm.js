@@ -1,5 +1,5 @@
 import { createInterface } from 'readline';
-import { playAudio } from './confirm.js';
+import { askReviewFeedback, playAudio } from './confirm.js';
 
 function ask(question) {
   const rl = createInterface({
@@ -202,7 +202,7 @@ export async function confirmSentenceVerbSelection({
       });
     }
 
-    const answer = await ask('[A]dd, [L]isten, [T]oggle form card, [D]ismiss: ');
+    const answer = await ask('[A]dd, [L]isten, [T]oggle form card, [R]eview, [D]ismiss: ');
     const normalized = answer.toLowerCase();
 
     if (normalized === '' || normalized === 'a' || normalized === 'add') {
@@ -222,6 +222,14 @@ export async function confirmSentenceVerbSelection({
     if (normalized === 't' || normalized === 'toggle') {
       dictionaryFormEnabled = !dictionaryFormEnabled;
       continue;
+    }
+
+    if (normalized === 'r' || normalized === 'review') {
+      const feedback = await askReviewFeedback();
+      if (!feedback) {
+        continue;
+      }
+      return { confirmed: false, addDictionaryForm: dictionaryFormEnabled, reviewFeedback: feedback };
     }
 
     return { confirmed: false, addDictionaryForm: false };

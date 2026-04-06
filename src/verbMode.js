@@ -22,7 +22,7 @@ import {
   storeMedia,
 } from './anki.js';
 import { generateSimpleSpeech, generateSpeech } from './tts.js';
-import { enrich } from './enricher.js';
+import { enrich, reviewEnrichedText } from './enricher.js';
 
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';
 
@@ -108,6 +108,67 @@ async function buildVerbSentenceAudio(sentence, spinner) {
   return {
     audioPath,
     source: 'Google TTS',
+  };
+}
+
+async function rebuildSentenceVerbPreview(prepared, feedback, options, spinner) {
+  const {
+    verbData,
+    chosenSentence,
+    sentenceData,
+    similarCards: currentSimilarCards,
+    audio: currentAudio,
+  } = prepared;
+  const focusForm = chosenSentence?.focusForm || verbData.displayForm || verbData.infinitive;
+
+  spinner.start('Reviewing sentence with AI...');
+  const reviewed = await reviewEnrichedText({
+    german: sentenceData.german,
+    ipa: sentenceData.ipa,
+    russian: sentenceData.russian,
+  }, feedback, {
+    cardPurpose: `Sentence-form verb card for "${verbData.infinitive}"`,
+    requiredTerms: focusForm ? [focusForm] : [],
+    extraGuidance: 'Keep the sentence short, natural, and focused on the target verb.',
+  });
+
+  const germanChanged = reviewed.german.trim() !== sentenceData.german.trim();
+  const reviewedChosenSentence = {
+    ...chosenSentence,
+    german: reviewed.german,
+    russian: reviewed.russian || chosenSentence?.russian || sentenceData.russian,
+  };
+  const reviewedSentenceData = applyChosenSentenceGloss(reviewed, reviewedChosenSentence);
+  spinner.succeed(`Sentence reviewed: ${reviewedSentenceData.german}`);
+
+  let similarCards = currentSimilarCards;
+  if (germanChanged) {
+    similarCards = [];
+    try {
+      if (!options.dryRun) {
+        spinner.start('Checking similar cards...');
+        similarCards = await findSimilarCards(reviewedSentenceData.german);
+        spinner.stop();
+      }
+    } catch (err) {
+      spinner.stop();
+      if (!options.dryRun) {
+        console.log(chalk.dim(`Similarity check skipped: ${err.message}`));
+      }
+    }
+  }
+
+  let audio = currentAudio;
+  if (germanChanged) {
+    audio = await buildVerbSentenceAudio(reviewedSentenceData.german, spinner);
+  }
+
+  return {
+    ...prepared,
+    chosenSentence: reviewedChosenSentence,
+    sentenceData: reviewedSentenceData,
+    similarCards,
+    audio,
   };
 }
 
@@ -360,30 +421,50 @@ async function finalizePictureVerb(prepared, options, spinner) {
 }
 
 async function finalizeSentenceVerb(prepared, options, spinner) {
+  let current = prepared;
+  let autoPlay = true;
+
+  while (true) {
+    const confirmation = await confirmSentenceVerbSelection({
+      verbData: current.verbData,
+      selectedMeaning: current.selectedMeaning,
+      sentenceData: current.sentenceData,
+      chosenSentence: current.chosenSentence,
+      audioPath: current.audio.audioPath,
+      similarCards: current.similarCards,
+      addDictionaryForm: current.addDictionaryForm,
+      autoPlay,
+    });
+
+    if (confirmation.reviewFeedback) {
+      current = {
+        ...await rebuildSentenceVerbPreview(current, confirmation.reviewFeedback, options, spinner),
+        addDictionaryForm: confirmation.addDictionaryForm,
+      };
+      autoPlay = true;
+      continue;
+    }
+
+    if (!confirmation.confirmed) {
+      console.log(chalk.yellow('Verb dismissed'));
+      return false;
+    }
+
+    current = {
+      ...current,
+      addDictionaryForm: confirmation.addDictionaryForm,
+    };
+    break;
+  }
+
   const {
     verbData,
     selectedMeaning,
     chosenSentence,
     sentenceData,
-    similarCards,
     audio,
     addDictionaryForm,
-  } = prepared;
-
-  const confirmation = await confirmSentenceVerbSelection({
-    verbData,
-    selectedMeaning,
-    sentenceData,
-    chosenSentence,
-    audioPath: audio.audioPath,
-    similarCards,
-    addDictionaryForm,
-  });
-
-  if (!confirmation.confirmed) {
-    console.log(chalk.yellow('Verb dismissed'));
-    return false;
-  }
+  } = current;
 
   if (options.dryRun) {
     console.log();

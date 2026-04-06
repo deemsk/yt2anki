@@ -35,6 +35,7 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 **Both modes:**
 - Generate IPA transcription and Russian translation
 - Auto-correct transcription errors and punctuation
+- During sentence previews, use `[R]eview` to tell AI what looks wrong and regenerate the draft
 - Create Anki cards with audio via AnkiConnect
 
 ## Card Format

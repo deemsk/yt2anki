@@ -5,6 +5,20 @@ import { tmpdir, platform } from 'os';
 import { spawn } from 'child_process';
 import { CARD_LABELS } from './cardTypes.js';
 
+async function askText(question) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
 /**
  * Play audio file using system player
  */
@@ -32,31 +46,31 @@ export async function playAudio(audioPath) {
 }
 
 // Ask for action: add, edit, listen, or dismiss
-export async function askAction(hasAudio = false) {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
+export async function askAction(hasAudio = false, allowReview = false) {
+  const reviewLabel = allowReview ? ', [R]eview' : '';
   const prompt = hasAudio
-    ? '[A]dd, [E]dit, [L]isten, or [D]ismiss? '
-    : '[A]dd, [E]dit, or [D]ismiss? ';
+    ? `[A]dd, [E]dit${reviewLabel}, [L]isten, or [D]ismiss? `
+    : `[A]dd, [E]dit${reviewLabel}, or [D]ismiss? `;
 
-  return new Promise((resolve) => {
-    rl.question(prompt, (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
-      if (normalized === '' || normalized === 'a' || normalized === 'add') {
-        resolve('add');
-      } else if (normalized === 'e' || normalized === 'edit') {
-        resolve('edit');
-      } else if (normalized === 'l' || normalized === 'listen') {
-        resolve('listen');
-      } else {
-        resolve('dismiss');
-      }
-    });
-  });
+  const answer = await askText(prompt);
+  const normalized = answer.toLowerCase();
+  if (normalized === '' || normalized === 'a' || normalized === 'add') {
+    return 'add';
+  }
+  if (normalized === 'e' || normalized === 'edit') {
+    return 'edit';
+  }
+  if (allowReview && (normalized === 'r' || normalized === 'review')) {
+    return 'review';
+  }
+  if (normalized === 'l' || normalized === 'listen') {
+    return 'listen';
+  }
+  return 'dismiss';
+}
+
+export async function askReviewFeedback(prompt = 'What should AI recheck and adjust? ') {
+  return askText(prompt);
 }
 
 // Ask if reversed card is needed
@@ -214,46 +228,40 @@ function formatCardBack(card) {
  * Ask for card set action with toggle support.
  * Returns: 'add', 'toggle', 'listen', 'dismiss', or a number (card to toggle)
  */
-async function askCardSetAction(enabledCount, totalCount, hasAudio = false) {
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
+async function askCardSetAction(enabledCount, totalCount, hasAudio = false, allowReview = false) {
+  const reviewLabel = allowReview ? ', [R]eview' : '';
   const prompt = hasAudio
-    ? `[A]dd ${enabledCount}, [T]oggle #, [L]isten, [D]ismiss? `
-    : `[A]dd ${enabledCount}, [T]oggle #, [D]ismiss? `;
+    ? `[A]dd ${enabledCount}, [T]oggle #${reviewLabel}, [L]isten, [D]ismiss? `
+    : `[A]dd ${enabledCount}, [T]oggle #${reviewLabel}, [D]ismiss? `;
 
-  return new Promise((resolve) => {
-    rl.question(prompt, (answer) => {
-      rl.close();
-      const normalized = answer.trim().toLowerCase();
+  const answer = await askText(prompt);
+  const normalized = answer.toLowerCase();
 
-      if (normalized === '' || normalized === 'a' || normalized === 'add') {
-        resolve('add');
-      } else if (normalized === 'l' || normalized === 'listen') {
-        resolve('listen');
-      } else if (normalized === 'd' || normalized === 'dismiss') {
-        resolve('dismiss');
-      } else if (normalized.startsWith('t')) {
-        // Toggle specific card: t1, t2, toggle 1, etc.
-        const num = parseInt(normalized.replace(/\D/g, ''), 10);
-        if (!isNaN(num) && num >= 1 && num <= totalCount) {
-          resolve({ toggle: num });
-        } else {
-          resolve('toggle'); // Invalid number, ask again
-        }
-      } else {
-        // Try parsing as just a number
-        const num = parseInt(normalized, 10);
-        if (!isNaN(num) && num >= 1 && num <= totalCount) {
-          resolve({ toggle: num });
-        } else {
-          resolve('dismiss');
-        }
-      }
-    });
-  });
+  if (normalized === '' || normalized === 'a' || normalized === 'add') {
+    return 'add';
+  }
+  if (allowReview && (normalized === 'r' || normalized === 'review')) {
+    return 'review';
+  }
+  if (normalized === 'l' || normalized === 'listen') {
+    return 'listen';
+  }
+  if (normalized === 'd' || normalized === 'dismiss') {
+    return 'dismiss';
+  }
+  if (normalized.startsWith('t')) {
+    const num = parseInt(normalized.replace(/\D/g, ''), 10);
+    if (!isNaN(num) && num >= 1 && num <= totalCount) {
+      return { toggle: num };
+    }
+    return 'toggle';
+  }
+
+  const num = parseInt(normalized, 10);
+  if (!isNaN(num) && num >= 1 && num <= totalCount) {
+    return { toggle: num };
+  }
+  return 'dismiss';
 }
 
 /**
@@ -268,7 +276,8 @@ async function askCardSetAction(enabledCount, totalCount, hasAudio = false) {
  * @param {boolean} autoPlay - Whether to auto-play audio
  * @returns {Object} { confirmed, cards, dismissed }
  */
-export async function confirmCardSet(cards, data, chalk, similarCards = null, audioPath = null, autoPlay = true) {
+export async function confirmCardSet(cards, data, chalk, similarCards = null, audioPath = null, autoPlay = true, options = {}) {
+  const allowReview = Boolean(options.allowReview);
   // Track which cards are enabled (all enabled by default)
   const enabled = cards.map(() => true);
 
@@ -344,7 +353,7 @@ export async function confirmCardSet(cards, data, chalk, similarCards = null, au
       console.log(chalk.yellow('No cards enabled. Toggle cards or dismiss.'));
     }
 
-    const action = await askCardSetAction(enabledCount, cards.length, !!audioPath);
+    const action = await askCardSetAction(enabledCount, cards.length, !!audioPath, allowReview);
 
     if (action === 'add') {
       if (enabledCount === 0) {
@@ -369,6 +378,15 @@ export async function confirmCardSet(cards, data, chalk, similarCards = null, au
       return { confirmed: false, cards: [], dismissed: true };
     }
 
+    if (action === 'review' && allowReview) {
+      const feedback = await askReviewFeedback();
+      if (!feedback) {
+        console.log(chalk.yellow('AI review skipped: no feedback provided.'));
+        continue;
+      }
+      return { confirmed: false, cards: [], dismissed: false, reviewFeedback: feedback };
+    }
+
     if (typeof action === 'object' && action.toggle) {
       const idx = action.toggle - 1;
       enabled[idx] = !enabled[idx];
@@ -384,7 +402,8 @@ export async function confirmCardSet(cards, data, chalk, similarCards = null, au
 
 // Show card preview and ask for confirmation
 // Returns: { confirmed: true, data } or { confirmed: false, dismissed: true } or loops for edit
-export async function confirmCard(cardData, chalk, similarCards = null, audioPath = null, autoPlay = true) {
+export async function confirmCard(cardData, chalk, similarCards = null, audioPath = null, autoPlay = true, options = {}) {
+  const allowReview = Boolean(options.allowReview);
   console.log();
   console.log(chalk.bold('Card preview:'));
   console.log(`  German:  ${cardData.german}`);
@@ -418,7 +437,7 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
   // Ask for context first (shown below card preview)
   const context = cardData.context || await askContext();
 
-  const action = await askAction(!!audioPath);
+  const action = await askAction(!!audioPath, allowReview);
 
   if (action === 'listen' && audioPath) {
     console.log(chalk.dim('  Replaying audio...'));
@@ -428,7 +447,7 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
       console.log(chalk.red(`  Could not play audio: ${err.message}`));
     }
     // After listening, ask again (no auto-play, keep context)
-    return confirmCard({ ...cardData, context }, chalk, similarCards, audioPath, false);
+    return confirmCard({ ...cardData, context }, chalk, similarCards, audioPath, false, options);
   }
 
   if (action === 'add') {
@@ -440,6 +459,14 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
     return { confirmed: false, dismissed: true };
   }
 
+  if (action === 'review' && allowReview) {
+    const feedback = await askReviewFeedback();
+    if (!feedback) {
+      return confirmCard({ ...cardData, context }, chalk, similarCards, audioPath, false, options);
+    }
+    return { confirmed: false, dismissed: false, reviewFeedback: feedback, data: { ...cardData, context } };
+  }
+
   // Edit mode
   const edited = await editCardData(cardData);
 
@@ -449,5 +476,5 @@ export async function confirmCard(cardData, chalk, similarCards = null, audioPat
   }
 
   // Recursively confirm edited data (no auto-play after edit, preserve context)
-  return confirmCard({ ...edited, context }, chalk, similarCards, audioPath, false);
+  return confirmCard({ ...edited, context }, chalk, similarCards, audioPath, false, options);
 }
