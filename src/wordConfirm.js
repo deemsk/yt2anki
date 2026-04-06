@@ -1,4 +1,5 @@
 import { createInterface } from 'readline';
+import chalk from 'chalk';
 import { mkdir, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -22,6 +23,26 @@ function ask(question) {
       resolve(answer.trim());
     });
   });
+}
+
+function label(text) {
+  return chalk.cyan(text);
+}
+
+function formatLexicalType(wordData) {
+  return (wordData.lexicalType || 'noun') === 'adjective' ? 'adj' : 'noun';
+}
+
+function buildWordSummaryLine(wordData, translation, cefrLevel = null) {
+  const meta = [formatLexicalType(wordData)];
+
+  if (cefrLevel) {
+    meta.push(cefrLevel);
+  }
+
+  const head = `${chalk.bold.cyan(wordData.canonical)} ${chalk.dim(`(${meta.join(', ')})`)}`;
+
+  return translation ? `${head} ${chalk.dim('—')} ${translation}` : head;
 }
 
 async function openFile(filePath) {
@@ -472,31 +493,31 @@ export async function confirmWordSelection({
 
   async function showPreview() {
     console.log();
-    console.log(`Word: ${wordData.canonical}`);
-    console.log(`Type: ${wordData.lexicalType || 'noun'}`);
-    console.log(`${wordData.ipa || ''}  ${selectedMeaning.russian}`.trim());
+    console.log(buildWordSummaryLine(wordData, selectedMeaning.russian));
+    if (wordData.ipa) {
+      console.log(`${label('IPA:')} ${wordData.ipa}`);
+    }
     if (wordData.lexicalType === 'adjective') {
       if (wordData.anchorPhrase) {
-        console.log(`Anchor: ${wordData.anchorPhrase}`);
+        console.log(`${label('Anchor:')} ${wordData.anchorPhrase}`);
       }
       if (wordData.opposite) {
-        console.log(`Contrast: ${wordData.opposite}`);
+        console.log(`${label('Contrast:')} ${wordData.opposite}`);
       }
     } else {
-      console.log(`Plural: ${formatPluralLabel(wordData)}`);
+      console.log(`${label('Plural:')} ${formatPluralLabel(wordData)}`);
     }
-    console.log(`Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
-    console.log(`Audio: ${audioSource}`);
-    console.log(`Image: ${imageChoice.source || imageChoice.type}`);
+    console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
+    console.log(`${label('Audio:')} ${audioSource}`);
     if (theme) {
-      console.log(`Theme: ${theme}`);
+      console.log(`${label('Theme:')} ${theme}`);
     }
     if (personalConnection) {
-      console.log(`Personal connection: ${personalConnection}`);
+      console.log(`${label('Personal connection:')} ${personalConnection}`);
     }
     if (duplicateInfo.headwordMatches.length > 0) {
       console.log();
-      console.log('Existing notes with the same headword:');
+      console.log(label('Existing notes with the same headword:'));
       duplicateInfo.headwordMatches.slice(0, 3).forEach((match) => {
         console.log(`  - ${match.canonical}${match.meaning ? ` (${match.meaning})` : ''}`);
       });
@@ -561,30 +582,24 @@ export async function confirmSentenceWordSelection({
 
   while (true) {
     console.log();
-    console.log(`Word: ${wordData.canonical}`);
-    console.log(`Type: ${wordData.lexicalType || 'adjective'}`);
-    if (selectedMeaning?.russian) {
-      console.log(`Meaning: ${selectedMeaning.russian}`);
+    console.log(buildWordSummaryLine(wordData, selectedMeaning?.russian, sentenceData.cefr?.level || null));
+    console.log(`${label('Sentence:')} ${sentenceData.german}`);
+    if (sentenceData.ipa) {
+      console.log(`${label('IPA:')} ${sentenceData.ipa}`);
     }
-    console.log('Mode: sentence-form');
-    console.log(`Sentence: ${sentenceData.german}`);
-    console.log(`${sentenceData.ipa || ''}  ${sentenceData.russian}`.trim());
-    if (imageChoice) {
-      console.log(`Image: ${imageChoice.source || imageChoice.type}`);
+    if (sentenceData.russian) {
+      console.log(`${label('Russian:')} ${sentenceData.russian}`);
     }
     if (wordData.opposite) {
-      console.log(`Contrast: ${wordData.opposite}`);
+      console.log(`${label('Contrast:')} ${wordData.opposite}`);
     }
     if (chosenSentence?.focusForm) {
-      console.log(`Focus form: ${chosenSentence.focusForm}`);
-    }
-    if (sentenceData.cefr?.level) {
-      console.log(`CEFR: ${sentenceData.cefr.level}`);
+      console.log(`${label('Focus form:')} ${chosenSentence.focusForm}`);
     }
 
     if (similarCards.length > 0) {
       console.log();
-      console.log('Similar cards found:');
+      console.log(label('Similar cards found:'));
       similarCards.slice(0, 3).forEach((card) => {
         console.log(`  - ${card.similarity}% "${card.german}"`);
       });
@@ -592,7 +607,7 @@ export async function confirmSentenceWordSelection({
 
     if (duplicateInfo.headwordMatches.length > 0) {
       console.log();
-      console.log('Existing notes with the same headword:');
+      console.log(label('Existing notes with the same headword:'));
       duplicateInfo.headwordMatches.slice(0, 3).forEach((match) => {
         console.log(`  - ${match.canonical}${match.meaning ? ` (${match.meaning})` : ''}`);
       });

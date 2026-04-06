@@ -53,6 +53,12 @@ CARD TYPES:
 - Production: High-value phrases learner will actually speak in real situations
 - Pattern: Strong reusable grammatical structures (only if strong, with 3+ distinct useful examples)
 - Cloze: Grammar features where blank is non-obvious and teaches reusable pattern
+- Learner-facing helper text must be in Russian, not English. This applies to:
+  - situation
+  - patternFamily
+  - clozeCandidate.category
+  - clozeReason
+- Keep those helper strings concise and natural for a Russian-speaking learner.
 
 RESPOND IN JSON:
 {
@@ -70,14 +76,14 @@ RESPOND IN JSON:
 
   "isHighValueForActiveUse": true/false,
   "isSpeakableByLearner": true/false,
-  "situation": "max 8 word context" or null,
+  "situation": "max 8 word Russian context" or null,
 
-  "patternFamily": "pattern name" or null,
+  "patternFamily": "Russian pattern name" or null,
   "patternStrength": "weak" | "medium" | "strong",
   "patternExamples": ["example1", "example2", "example3"] or null,
 
-  "clozeCandidate": {"word": "...", "category": "..."} or null,
-  "clozeReason": "why this teaches something" or null,
+  "clozeCandidate": {"word": "...", "category": "Russian grammar hint"} or null,
+  "clozeReason": "Russian explanation of why this teaches something" or null,
   "isGuessable": true/false,
 
   "dialogueValue": 0-10,

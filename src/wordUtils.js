@@ -155,8 +155,10 @@ export function parseWordMetadataComment(text = '') {
 
 export function buildWordExtraInfo({
   meaning,
+  plainMeaning = false,
   plural,
   exampleSentence = null,
+  exampleSentenceTranslation = null,
   dictionaryForm = null,
   contrast = null,
   personalConnection = null,
@@ -165,7 +167,9 @@ export function buildWordExtraInfo({
   const lines = [];
 
   if (meaning) {
-    lines.push(`<div>Meaning: ${escapeHtml(meaning)}</div>`);
+    lines.push(plainMeaning
+      ? `<div>${escapeHtml(meaning)}</div>`
+      : `<div>Meaning: ${escapeHtml(meaning)}</div>`);
   }
 
   if (plural) {
@@ -174,6 +178,9 @@ export function buildWordExtraInfo({
 
   if (exampleSentence) {
     lines.push(`<div>Example: ${escapeHtml(exampleSentence)}</div>`);
+    if (exampleSentenceTranslation) {
+      lines.push(`<div><small>${escapeHtml(exampleSentenceTranslation)}</small></div>`);
+    }
   }
 
   if (dictionaryForm) {

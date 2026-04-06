@@ -40,6 +40,27 @@ describe("word helpers", () => {
     expect(extractWordLexicalType(extra)).toBe("noun")
   })
 
+  test("buildWordExtraInfo can render noun meaning without the visible label and include sentence translation", () => {
+    const extra = buildWordExtraInfo({
+      meaning: "вода",
+      plainMeaning: true,
+      plural: "usually no plural",
+      exampleSentence: "Das Wasser ist kalt.",
+      exampleSentenceTranslation: "Вода холодная.",
+      metadata: {
+        canonical: "das Wasser",
+        meaning: "вода",
+        lexicalType: "noun",
+      },
+    })
+
+    expect(extra).toContain("<div>вода</div>")
+    expect(extra).not.toContain("Meaning:")
+    expect(extra).toContain("Example: Das Wasser ist kalt.")
+    expect(extra).toContain("<small>Вода холодная.</small>")
+    expect(extractWordMeaning(extra)).toBe("вода")
+  })
+
   test("normalization and tag slug keep canonical noun comparisons stable", () => {
     expect(normalizeGermanForCompare("<span>das Wasser</span>")).toBe("das wasser")
     expect(toTagSlug("das Wasser")).toBe("das-wasser")

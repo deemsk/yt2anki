@@ -46,6 +46,18 @@ function formatWordDisplay(wordData) {
     : formatPlainWord(wordData.canonical);
 }
 
+function formatWordPreviewSummary(chalk, wordData, translation, cefrLevel = null) {
+  const meta = [isNounWord(wordData) ? 'noun' : 'adj'];
+
+  if (cefrLevel) {
+    meta.push(cefrLevel);
+  }
+
+  const head = `${chalk.bold.cyan(wordData.canonical)} ${chalk.dim(`(${meta.join(', ')})`)}`;
+
+  return translation ? `${head} ${chalk.dim('—')} ${translation}` : head;
+}
+
 export function resolveWordAudioPlan(wordData = {}) {
   return {
     spokenText: String(wordData.canonical || getWordLemma(wordData) || '').trim(),
@@ -544,10 +556,18 @@ async function finalizePictureWord(prepared, options, spinner) {
   };
 
   const pluralLabel = isNounWord(wordData) ? formatPluralLabel(wordData) : null;
+  const nounExampleSentence = isNounWord(wordData)
+    ? wordData.exampleSentences?.find((sentence) => sentence?.german)?.german || null
+    : null;
+  const nounExampleTranslation = isNounWord(wordData)
+    ? wordData.exampleSentences?.find((sentence) => sentence?.german)?.russian || null
+    : null;
   const extraInfoField = buildWordExtraInfo({
     meaning: selectedMeaning.russian,
+    plainMeaning: isNounWord(wordData),
     plural: pluralLabel,
-    exampleSentence: wordData.anchorPhrase,
+    exampleSentence: nounExampleSentence || wordData.anchorPhrase,
+    exampleSentenceTranslation: nounExampleTranslation,
     contrast: wordData.opposite,
     personalConnection: confirmation.personalConnection,
     metadata,
@@ -556,21 +576,18 @@ async function finalizePictureWord(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Word preview'));
-    console.log(`  Word:      ${wordData.canonical}`);
-    console.log(`  Type:      ${wordData.lexicalType || 'noun'}`);
-    console.log(`  Meaning:   ${selectedMeaning.russian}`);
+    console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning.russian)}`);
     if (pluralLabel) {
-      console.log(`  Plural:    ${pluralLabel}`);
+      console.log(`  ${chalk.cyan('Plural:')} ${pluralLabel}`);
     }
     if (wordData.anchorPhrase) {
-      console.log(`  Anchor:    ${wordData.anchorPhrase}`);
+      console.log(`  ${chalk.cyan('Anchor:')} ${wordData.anchorPhrase}`);
     }
     if (wordData.opposite) {
-      console.log(`  Contrast:  ${wordData.opposite}`);
+      console.log(`  ${chalk.cyan('Contrast:')} ${wordData.opposite}`);
     }
-    console.log(`  Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
-    console.log(`  Audio:     ${audio.source}`);
-    console.log(`  Image:     ${imageChoice.source || imageChoice.type}`);
+    console.log(`  ${chalk.cyan('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
+    console.log(`  ${chalk.cyan('Audio:')} ${audio.source}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Note previewed'));
     return true;
   }
@@ -642,15 +659,19 @@ async function finalizeSentenceWord(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Word sentence preview'));
-    console.log(`  Word:      ${wordData.canonical}`);
-    console.log(`  Type:      ${wordData.lexicalType || 'adjective'}`);
-    if (selectedMeaning?.russian) {
-      console.log(`  Meaning:   ${selectedMeaning.russian}`);
+    console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning?.russian, sentenceData.cefr?.level || null)}`);
+    console.log(`  ${chalk.cyan('Sentence:')} ${sentenceData.german}`);
+    if (sentenceData.ipa) {
+      console.log(`  ${chalk.cyan('IPA:')} ${sentenceData.ipa}`);
     }
-    console.log(`  Mode:      sentence-form`);
-    console.log(`  Sentence:  ${sentenceData.german}`);
-    if (imageChoice) {
-      console.log(`  Image:     ${imageChoice.source || imageChoice.type}`);
+    if (sentenceData.russian) {
+      console.log(`  ${chalk.cyan('Russian:')} ${sentenceData.russian}`);
+    }
+    if (wordData.opposite) {
+      console.log(`  ${chalk.cyan('Contrast:')} ${wordData.opposite}`);
+    }
+    if (chosenSentence?.focusForm) {
+      console.log(`  ${chalk.cyan('Focus form:')} ${chosenSentence.focusForm}`);
     }
     console.log(chalk.yellow('\n⚡ DRY RUN: Word sentence previewed'));
     return true;

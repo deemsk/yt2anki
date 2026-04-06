@@ -122,6 +122,8 @@ Rules:
 - For place or institution nouns in German culture, prefer target-language visual anchors and German search terms.
 - Example: for "die Apotheke", prefer "Apotheke Schild", "Apotheke Eingang", "Apotheke innen", or "deutsche Apotheke" over generic English "pharmacy" images.
 - For nouns with multiple meanings, provide up to 3 short meaning options.
+- For accepted nouns, provide 1 short natural example sentence in German with a Russian translation that uses the noun in a common everyday context.
+- Keep noun example sentences simple, concrete, and short.
 - For adjectives with multiple meanings, keep only the concrete visual sense that matches the intended picture card.
 - Russian glosses should be concise and represent a single intended sense.
 - English glosses are metadata and may be used only as a fallback for search.

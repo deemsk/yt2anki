@@ -3,7 +3,6 @@ import { writeFile, readFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir, platform } from 'os';
 import { spawn } from 'child_process';
-import { CARD_LABELS } from './cardTypes.js';
 
 async function askText(question) {
   const rl = createInterface({
@@ -314,8 +313,14 @@ export async function confirmCardSet(cards, data, chalk, similarCards = null, au
     // Show card set preview
     const enabledCount = enabled.filter(Boolean).length;
     console.log();
-    console.log(chalk.bold(`Card set preview (${enabledCount} of ${cards.length} cards):`));
-    console.log();
+    console.log(chalk.bold('Card set preview:'));
+    if (enabledCount !== cards.length) {
+      console.log(chalk.dim(`Enabled: ${enabledCount} of ${cards.length}`));
+      console.log();
+    }
+    if (enabledCount === cards.length) {
+      console.log();
+    }
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
@@ -324,9 +329,6 @@ export async function confirmCardSet(cards, data, chalk, similarCards = null, au
       const label = enabled[i] ? chalk.bold(card.label) : chalk.dim(card.label);
 
       console.log(`${status} [${num}] ${label}`);
-      if (card.reason && card.reason !== 'default') {
-        console.log(chalk.dim(`    Why:   ${card.reason}`));
-      }
       console.log(chalk.dim(`    Front: ${formatCardFront(card)}`));
       console.log(chalk.dim(`    Back:  ${formatCardBack(card)}`));
       console.log();

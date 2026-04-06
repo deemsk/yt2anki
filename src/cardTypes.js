@@ -18,6 +18,15 @@ export const CARD_LABELS = {
   cloze: '✳ Grammar',
 };
 
+export function normalizeRussianHint(text = '') {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return /[А-Яа-яЁё]/.test(trimmed) ? trimmed : null;
+}
+
 /**
  * Generate a comprehension card (audio-first).
  * Front: [audio] + optional context
@@ -93,7 +102,7 @@ export function generateProductionCard(data, situation, sourceId, reason = 'high
     reason,
     front: {
       russian: data.russian,
-      situation: situation || null,
+      situation: normalizeRussianHint(situation),
     },
     back: {
       german: data.german,
