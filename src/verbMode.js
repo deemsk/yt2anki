@@ -473,7 +473,7 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
     console.log(`  Meaning:   ${selectedMeaning.russian}`);
     console.log(`  Mode:      sentence-form`);
     console.log(`  Sentence:  ${sentenceData.german}`);
-    console.log(`  Form card: ${confirmation.addDictionaryForm ? 'yes' : 'no'}`);
+    console.log(`  Form card: ${addDictionaryForm ? 'yes' : 'no'}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Verb sentence previewed'));
     return true;
   }
@@ -495,7 +495,7 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
     ],
   });
 
-  if (confirmation.addDictionaryForm) {
+  if (addDictionaryForm) {
     await createDictionaryFormNote(
       verbData,
       selectedMeaning,
