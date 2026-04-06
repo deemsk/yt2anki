@@ -1,6 +1,36 @@
-import { buildSentenceImageMeaning } from "../src/wordMode.js"
+import { buildSentenceImageMeaning, resolveWordAudioPlan } from "../src/wordMode.js"
 
 describe("word mode sentence image helpers", () => {
+  test("resolveWordAudioPlan keeps noun TTS on the canonical form with article", () => {
+    expect(
+      resolveWordAudioPlan({
+        lexicalType: "noun",
+        canonical: "der Arzt",
+        lemma: "Arzt",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        spokenText: "der Arzt",
+        preferHumanAudio: false,
+      })
+    )
+  })
+
+  test("resolveWordAudioPlan still allows human pronunciation audio for non-nouns", () => {
+    expect(
+      resolveWordAudioPlan({
+        lexicalType: "adjective",
+        canonical: "früh",
+        lemma: "früh",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        spokenText: "früh",
+        preferHumanAudio: true,
+      })
+    )
+  })
+
   test("buildSentenceImageMeaning prefers noun-anchored adjective phrases before bare adjective glosses", () => {
     const meaning = buildSentenceImageMeaning(
       {

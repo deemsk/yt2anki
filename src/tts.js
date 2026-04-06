@@ -109,29 +109,34 @@ async function generateClip(text, outputPath, voiceName, options = {}) {
   await writeFile(outputPath, Buffer.from(response.audioContent));
 }
 
-/**
- * Concatenate audio files with lead-in silence and pause between them
- */
-async function concatenateWithPause(files, outputPath, pauseDuration = 1.0, leadIn = 0.4) {
-  // Filter: add lead-in silence + first clip + pause + second clip
-  // adelay adds silence at the start (in milliseconds)
-  const leadInMs = Math.round(leadIn * 1000);
+async function finalizeClip(inputPath, outputPath, { leadIn = 0, volume = 1.2 } = {}) {
+  const filters = [];
+  const leadInMs = Math.round(Math.max(0, leadIn) * 1000);
+
+  if (leadInMs > 0) {
+    filters.push(`adelay=${leadInMs}|${leadInMs}`);
+  }
+
+  if (volume !== 1) {
+    filters.push(`volume=${volume}`);
+  }
 
   const args = [
-    '-i', files[0],
-    '-i', files[1],
-    '-filter_complex',
-    `[0:a]adelay=${leadInMs}|${leadInMs},apad=pad_dur=${pauseDuration}[a0];[a0][1:a]concat=n=2:v=0:a=1,volume=1.2`,
+    '-i', inputPath,
     '-y',
-    outputPath,
   ];
 
+  if (filters.length > 0) {
+    args.splice(2, 0, '-filter:a', filters.join(','));
+  }
+
+  args.push(outputPath);
   await execFileAsync('ffmpeg', args);
 }
 
 /**
  * Generate speech audio from German text using Google Cloud TTS
- * Creates: [slow version] + [pause] + [normal version]
+ * Creates a single slow clip.
  *
  * @param {string} text - German text to speak
  * @param {string} outputPath - Path to save the audio file
@@ -141,24 +146,16 @@ export async function generateSpeech(text, outputPath) {
   await mkdir(config.dataDir, { recursive: true });
 
   const voice = getNextVoice();
-  const pauseDuration = config.ttsPause || 1.0;
   const leadIn = config.audioLeadIn || 0.4;
 
-  const slowPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_slow.mp3');
-  await generateClip(text, slowPath, voice, {
+  const rawPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_raw.mp3');
+  await generateClip(text, rawPath, voice, {
     slow: true,
     audioConfig: { pitch: -1.0 },
   });
 
-  const normalPath = outputPath.replace(/\.(m4a|aac|mp3)$/, '_normal.mp3');
-  await generateClip(text, normalPath, voice, {
-    slow: false,
-    audioConfig: { speakingRate: config.ttsNormalRate || 0.9 },
-  });
-
-  await concatenateWithPause([slowPath, normalPath], outputPath, pauseDuration, leadIn);
-  await unlink(slowPath);
-  await unlink(normalPath);
+  await finalizeClip(rawPath, outputPath, { leadIn });
+  await unlink(rawPath);
 
   return outputPath;
 }
@@ -185,7 +182,7 @@ export async function generateSimpleSpeech(text, outputPath, options = {}) {
       : { speakingRate: requestedRate != null ? requestedRate : (config.ttsNormalRate || 0.9) },
   });
 
-  await execFileAsync('ffmpeg', ['-i', rawPath, '-filter:a', 'volume=1.2', '-y', outputPath]);
+  await finalizeClip(rawPath, outputPath);
   await unlink(rawPath);
 
   return outputPath;

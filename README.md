@@ -16,7 +16,7 @@ Create Anki flashcards from YouTube videos — auto-extract audio clips, transcr
 **Word mode** (nouns and adjectives):
 - Create Fluent Forever-style notes for German nouns and adjectives
 - Pick an image manually from Brave/Openverse/Wikimedia previews
-- Prefer Wikimedia pronunciation audio, fall back to Google TTS
+- Use single slow audio clips; nouns are spoken with their article
 - Store nouns with article and gender color, plus plural/back-side info
 - Store imageable adjectives with a concrete anchor phrase and optional contrast on the back
 - Route non-visual but common adjectives into sentence cards instead of skipping them
@@ -209,6 +209,10 @@ Edit `~/.yt2anki.json`:
   "dataDir": "/tmp/yt2anki"
 }
 ```
+
+`ttsSpeed` is the main rate used for generated word and sentence audio. `ttsPause` is a legacy
+setting from the old repeated slow+normal sentence audio and is no longer used in the default
+word/verb flows.
 
 `googleTtsVoices` controls which Google Cloud TTS voices are rotated when generating speech.
 

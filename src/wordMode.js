@@ -46,6 +46,14 @@ function formatWordDisplay(wordData) {
     : formatPlainWord(wordData.canonical);
 }
 
+export function resolveWordAudioPlan(wordData = {}) {
+  return {
+    spokenText: String(wordData.canonical || getWordLemma(wordData) || '').trim(),
+    preferHumanAudio: !isNounWord(wordData),
+    speed: config.ttsSpeed || 0.75,
+  };
+}
+
 function buildWordMetadata(wordData, selectedMeaning, frequencyInfo) {
   return {
     canonical: wordData.canonical,
@@ -197,6 +205,7 @@ async function ensureWordSetup(deck, dryRun) {
 async function buildWordAudio(wordData, spinner) {
   spinner.start('Resolving pronunciation audio...');
   let wiktionaryIpa = null;
+  const audioPlan = resolveWordAudioPlan(wordData);
 
   try {
     const pronunciation = await resolveWordPronunciation(wordData);
@@ -205,7 +214,7 @@ async function buildWordAudio(wordData, spinner) {
       wiktionaryIpa = pronunciation.ipa;
     }
 
-    if (pronunciation?.audioPath) {
+    if (audioPlan.preferHumanAudio && pronunciation?.audioPath) {
       spinner.succeed(wiktionaryIpa
         ? 'Using Wikimedia human audio and Wiktionary IPA'
         : 'Using Wikimedia human audio');
@@ -219,10 +228,17 @@ async function buildWordAudio(wordData, spinner) {
   }
 
   const audioPath = join(config.dataDir, `word_tts_${Date.now()}.mp3`);
-  await generateSimpleSpeech(wordData.canonical, audioPath, { speed: 0.9, ipa: wiktionaryIpa });
-  spinner.succeed(wiktionaryIpa
-    ? 'Using Google TTS fallback audio (IPA from Wiktionary)'
-    : 'Using Google TTS fallback audio');
+  await generateSimpleSpeech(audioPlan.spokenText, audioPath, {
+    speed: audioPlan.speed,
+    ipa: wiktionaryIpa,
+  });
+  spinner.succeed(audioPlan.preferHumanAudio
+    ? (wiktionaryIpa
+      ? 'Using Google TTS fallback audio (IPA from Wiktionary)'
+      : 'Using Google TTS fallback audio')
+    : (wiktionaryIpa
+      ? 'Using Google TTS noun audio with article (IPA from Wiktionary)'
+      : 'Using Google TTS noun audio with article'));
   return {
     audioPath,
     source: 'Google TTS',

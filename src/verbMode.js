@@ -87,7 +87,7 @@ async function buildVerbAudio(verbData, spinner) {
 
   const audioPath = join(config.dataDir, `verb_tts_${Date.now()}.mp3`);
   await generateSimpleSpeech(verbData.infinitive, audioPath, {
-    speed: 0.9,
+    speed: config.ttsSpeed || 0.75,
     ipa: wiktionaryIpa,
   });
   spinner.succeed(wiktionaryIpa

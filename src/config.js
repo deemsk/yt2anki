@@ -31,9 +31,9 @@ const defaults = {
 
   // Audio
   audioFormat: 'mp3',
-  ttsSpeed: 0.75,     // Slow clip SSML prosody rate (0.75 = 25% slower, natural floor for Neural2)
-  ttsNormalRate: 0.9, // Normal clip speaking rate via audioConfig (0.9 = 10% slower than native)
-  ttsPause: 1.0,      // Pause between slow and normal (seconds)
+  ttsSpeed: 0.75,     // Main speech rate for generated word and sentence audio
+  ttsNormalRate: 0.9, // Default rate for explicit single-clip non-slow TTS calls
+  ttsPause: 1.0,      // Legacy setting from the old slow+normal repeated sentence audio
   audioLeadIn: 0.4,   // Silence at start of audio (seconds) for brain to tune in
   wordImagePreviewCount: 12,
   wordImageSearchResults: 12,

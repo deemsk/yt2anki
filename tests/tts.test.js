@@ -44,7 +44,7 @@ describe("TTS SSML generation", () => {
   })
 
   // -------------------------------------------------------------------------
-  // generateSpeech — slow + normal clips
+  // generateSpeech — single slow clip
   // -------------------------------------------------------------------------
 
   test("slow clip uses SSML prosody rate from config.ttsSpeed", async () => {
@@ -68,25 +68,13 @@ describe("TTS SSML generation", () => {
     expect(slowCall.audioConfig.pitch).toBe(-1.0)
   })
 
-  test("normal clip has no prosody rate wrapper in SSML", async () => {
+  test("sentence audio no longer synthesizes a second normal clip", async () => {
     await generateSpeech("Test", "/tmp/test.mp3")
 
-    const normalCall = mockSynthesizeSpeech.mock.calls[1][0]
-    expect(normalCall.input.ssml).not.toMatch(/prosody/)
-    expect(normalCall.input.ssml).toContain("Test")
+    expect(mockSynthesizeSpeech).toHaveBeenCalledTimes(1)
   })
 
-  test("normal clip uses speakingRate from config.ttsNormalRate", async () => {
-    config.ttsNormalRate = 0.9
-
-    await generateSpeech("Test", "/tmp/test.mp3")
-
-    const normalCall = mockSynthesizeSpeech.mock.calls[1][0]
-    expect(normalCall.audioConfig.speakingRate).toBe(0.9)
-    expect(normalCall.audioConfig.pitch).toBeUndefined()
-  })
-
-  test("both clips include headphone-class-device effectsProfileId", async () => {
+  test("sentence clip includes headphone-class-device effectsProfileId", async () => {
     await generateSpeech("Test", "/tmp/test.mp3")
 
     for (const [req] of mockSynthesizeSpeech.mock.calls) {
@@ -101,15 +89,6 @@ describe("TTS SSML generation", () => {
 
     const slowCall = mockSynthesizeSpeech.mock.calls[0][0]
     expect(slowCall.input.ssml).toMatch(/prosody rate="65%"/)
-  })
-
-  test("normal rate reflects custom config.ttsNormalRate", async () => {
-    config.ttsNormalRate = 0.85
-
-    await generateSpeech("Test", "/tmp/test.mp3")
-
-    const normalCall = mockSynthesizeSpeech.mock.calls[1][0]
-    expect(normalCall.audioConfig.speakingRate).toBe(0.85)
   })
 
   // -------------------------------------------------------------------------
