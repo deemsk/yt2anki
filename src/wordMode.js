@@ -3,6 +3,7 @@ import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
+import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import {
   applyChosenSentenceGloss,
@@ -12,6 +13,7 @@ import {
   formatPlainWord,
   formatPluralLabel,
   getArticleNormalizationWarning,
+  getPrimaryExampleSentence,
   getWordLemma,
   normalizeGermanForCompare,
   toTagSlug,
@@ -424,6 +426,19 @@ async function prepareWord(rawInput, options, spinner) {
       return { rejected: true };
     }
 
+    let lexicalCefr = null;
+    try {
+      spinner.start('Estimating lexical CEFR...');
+      lexicalCefr = await estimateLexicalCEFR(wordData.canonical, {
+        lexicalType: wordData.lexicalType || 'noun',
+        meaning: selectedMeaning.russian,
+      });
+      spinner.stop();
+    } catch (err) {
+      spinner.stop();
+      console.log(chalk.dim(`Lexical CEFR skipped: ${err.message}`));
+    }
+
     spinner.start('Searching images...');
     const imageCandidates = await searchWordImages(wordData, selectedMeaning, {
       pageSize: config.wordImagePreviewCount || 6,
@@ -444,6 +459,7 @@ async function prepareWord(rawInput, options, spinner) {
       wordData,
       frequencyInfo,
       selectedMeaning,
+      lexicalCefr,
       duplicateInfo,
       imageChoice,
       audio,
@@ -539,6 +555,7 @@ async function finalizePictureWord(prepared, options, spinner) {
   const confirmation = await confirmWordSelection({
     wordData,
     selectedMeaning,
+    cefrLevel: prepared.lexicalCefr?.level || null,
     frequencyInfo,
     duplicateInfo,
     imageChoice,
@@ -557,18 +574,13 @@ async function finalizePictureWord(prepared, options, spinner) {
   };
 
   const pluralLabel = isNounWord(wordData) ? formatPluralLabel(wordData) : null;
-  const nounExampleSentence = isNounWord(wordData)
-    ? wordData.exampleSentences?.find((sentence) => sentence?.german)?.german || null
-    : null;
-  const nounExampleTranslation = isNounWord(wordData)
-    ? wordData.exampleSentences?.find((sentence) => sentence?.german)?.russian || null
-    : null;
+  const nounExample = isNounWord(wordData) ? getPrimaryExampleSentence(wordData) : { german: null, russian: null };
   const extraInfoField = buildWordExtraInfo({
     meaning: selectedMeaning.russian,
     plainMeaning: isNounWord(wordData),
     plural: pluralLabel,
-    exampleSentence: nounExampleSentence || wordData.anchorPhrase,
-    exampleSentenceTranslation: nounExampleTranslation,
+    exampleSentence: nounExample.german || wordData.anchorPhrase,
+    exampleSentenceTranslation: nounExample.russian,
     contrast: wordData.opposite,
     personalConnection: confirmation.personalConnection,
     metadata,
@@ -577,9 +589,15 @@ async function finalizePictureWord(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Word preview'));
-    console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning.russian)}`);
+    console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning.russian, prepared.lexicalCefr?.level || null)}`);
     if (pluralLabel) {
       console.log(`  ${chalk.cyan('Plural:')} ${pluralLabel}`);
+    }
+    if (nounExample.german) {
+      console.log(`  ${chalk.cyan('Example:')} ${nounExample.german}`);
+      if (nounExample.russian) {
+        console.log(`  ${chalk.cyan('Example (RU):')} ${nounExample.russian}`);
+      }
     }
     if (wordData.anchorPhrase) {
       console.log(`  ${chalk.cyan('Anchor:')} ${wordData.anchorPhrase}`);

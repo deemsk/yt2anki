@@ -9,6 +9,7 @@ import {
   formatIpaHtml,
   formatPronunciationField,
   getArticleNormalizationWarning,
+  getPrimaryExampleSentence,
   getWordLemma,
   normalizeWordIpa,
   normalizeGermanForCompare,
@@ -100,6 +101,21 @@ describe("word helpers", () => {
   test("getWordLemma works for nouns and adjectives", () => {
     expect(getWordLemma({ canonical: "das Wasser", lemma: "Wasser" })).toBe("Wasser")
     expect(getWordLemma({ canonical: "rot", lexicalType: "adjective" })).toBe("rot")
+  })
+
+  test("getPrimaryExampleSentence extracts the first usable example sentence and translation", () => {
+    expect(
+      getPrimaryExampleSentence({
+        exampleSentences: [
+          { german: "", russian: "ignored" },
+          { german: "Das Wasser ist kalt.", russian: "Вода холодная." },
+          { german: "Ich trinke Wasser.", russian: "Я пью воду." },
+        ],
+      })
+    ).toEqual({
+      german: "Das Wasser ist kalt.",
+      russian: "Вода холодная.",
+    })
   })
 
   test("applyChosenSentenceGloss keeps the selected Russian sentence gloss", () => {

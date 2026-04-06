@@ -258,3 +258,13 @@ export function formatPluralLabel(wordData) {
 
   return 'plural unknown';
 }
+
+export function getPrimaryExampleSentence(wordData = {}) {
+  const sentences = Array.isArray(wordData.exampleSentences) ? wordData.exampleSentences : [];
+  const match = sentences.find((sentence) => sentence?.german);
+
+  return {
+    german: match?.german || null,
+    russian: match?.russian || null,
+  };
+}

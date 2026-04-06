@@ -51,7 +51,7 @@ jest.unstable_mockModule("../src/secrets.js", () => ({
   resolveSecret: jest.fn(async (v) => v || "test-key"),
 }))
 
-const { estimateCEFR, estimateCEFRBatch } = await import("../src/cefr.js")
+const { estimateCEFR, estimateCEFRBatch, estimateLexicalCEFR } = await import("../src/cefr.js")
 
 // ---------------------------------------------------------------------------
 
@@ -173,6 +173,18 @@ describe("CEFR estimation", () => {
     expect(result.level).toBeDefined()
     expect(result.confidence).toBeDefined()
     expect(result.signals).toBeDefined()
+    expect(result.signals.llm).toBe(result.level)
+  })
+
+  test("estimateLexicalCEFR classifies a single lexical item", async () => {
+    const result = await estimateLexicalCEFR("der Bahnhof", {
+      lexicalType: "noun",
+      meaning: "вокзал",
+    })
+
+    expect(result.level).toBeDefined()
+    expect(["A1", "A2", "B1", "B2", "C1"]).toContain(result.level)
+    expect(result.confidence).toBeDefined()
     expect(result.signals.llm).toBe(result.level)
   })
 

@@ -7,7 +7,7 @@ import { platform, tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
 import { config } from './config.js';
-import { escapeHtml, formatPluralLabel, getWordLemma, normalizeGermanForCompare } from './wordUtils.js';
+import { escapeHtml, formatPluralLabel, getPrimaryExampleSentence, getWordLemma, normalizeGermanForCompare } from './wordUtils.js';
 import { askReviewFeedback, playAudio } from './confirm.js';
 import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './wordSources.js';
 
@@ -481,6 +481,7 @@ export async function chooseWordSentence(wordData, preferredSentence = null) {
 export async function confirmWordSelection({
   wordData,
   selectedMeaning,
+  cefrLevel = null,
   frequencyInfo,
   duplicateInfo,
   imageChoice,
@@ -493,7 +494,7 @@ export async function confirmWordSelection({
 
   async function showPreview() {
     console.log();
-    console.log(buildWordSummaryLine(wordData, selectedMeaning.russian));
+    console.log(buildWordSummaryLine(wordData, selectedMeaning.russian, cefrLevel));
     if (wordData.ipa) {
       console.log(`${label('IPA:')} ${wordData.ipa}`);
     }
@@ -506,6 +507,13 @@ export async function confirmWordSelection({
       }
     } else {
       console.log(`${label('Plural:')} ${formatPluralLabel(wordData)}`);
+      const example = getPrimaryExampleSentence(wordData);
+      if (example.german) {
+        console.log(`${label('Example:')} ${example.german}`);
+        if (example.russian) {
+          console.log(`${label('Example (RU):')} ${example.russian}`);
+        }
+      }
     }
     console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`${label('Audio:')} ${audioSource}`);

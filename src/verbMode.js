@@ -3,6 +3,7 @@ import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
+import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
@@ -258,6 +259,19 @@ async function prepareVerb(rawInput, options, spinner) {
       return { rejected: true };
     }
 
+    let lexicalCefr = null;
+    try {
+      spinner.start('Estimating lexical CEFR...');
+      lexicalCefr = await estimateLexicalCEFR(verbData.infinitive, {
+        lexicalType: 'verb',
+        meaning: selectedMeaning.russian,
+      });
+      spinner.stop();
+    } catch (err) {
+      spinner.stop();
+      console.log(chalk.dim(`Lexical CEFR skipped: ${err.message}`));
+    }
+
     spinner.start('Searching images...');
     const imageCandidates = await searchVerbImages(verbData, selectedMeaning, {
       pageSize: config.wordImagePreviewCount || 12,
@@ -281,6 +295,7 @@ async function prepareVerb(rawInput, options, spinner) {
       route,
       verbData,
       selectedMeaning,
+      lexicalCefr,
       frequencyInfo,
       duplicateInfo,
       imageChoice,
@@ -376,7 +391,7 @@ async function finalizePictureVerb(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Verb preview'));
-    console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian)}`);
+    console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, prepared.lexicalCefr?.level || null)}`);
     if (verbData.ipa) {
       console.log(`  ${chalk.cyan('IPA:')} ${verbData.ipa}`);
     }

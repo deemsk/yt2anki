@@ -102,6 +102,7 @@ export async function chooseVerbSentence(verbData, preferredSentence = null) {
 export async function confirmPictureVerbSelection({
   verbData,
   selectedMeaning,
+  cefrLevel = null,
   frequencyInfo,
   duplicateInfo,
   imageChoice,
@@ -124,7 +125,7 @@ export async function confirmPictureVerbSelection({
 
   while (true) {
     console.log();
-    console.log(formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian));
+    console.log(formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, cefrLevel));
     if (verbData.ipa) {
       console.log(`${label('IPA:')} ${verbData.ipa}`);
     }

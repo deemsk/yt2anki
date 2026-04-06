@@ -31,6 +31,15 @@ export async function estimateCEFR(sentence) {
   };
 }
 
+export async function estimateLexicalCEFR(german, options = {}) {
+  const level = await getLexicalLLMLevel(german, options);
+  return {
+    level,
+    confidence: 0.85,
+    signals: { llm: level },
+  };
+}
+
 /**
  * Batch estimate CEFR levels for multiple sentences
  * @param {string[]} sentences - Array of German sentences
@@ -77,6 +86,46 @@ Important:
       {
         role: 'user',
         content: sentence,
+      },
+    ],
+    max_tokens: 5,
+    temperature: 0,
+  });
+
+  const level = response.choices[0].message.content.trim().toUpperCase();
+  return LEVELS.includes(level) ? level : 'B1';
+}
+
+async function getLexicalLLMLevel(german, options = {}) {
+  const client = await getClient();
+  const lexicalType = String(options.lexicalType || '').trim() || 'word';
+  const meaning = String(options.meaning || '').trim();
+
+  const response = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a German language expert. Classify the CEFR difficulty of a single German lexical item for a learner.
+
+Reply with ONLY one level: A1, A2, B1, B2, or C1.
+
+Guidelines:
+- A1: very basic everyday words most beginners learn immediately
+- A2: common daily-life words and high-frequency concrete vocabulary
+- B1: solid intermediate vocabulary, common but not beginner-core
+- B2: more advanced, less frequent, nuanced, or topic-specific vocabulary
+- C1: rare, formal, literary, or specialized vocabulary
+
+Important:
+- Judge the difficulty of knowing and using the word itself, not sentence grammar.
+- If a meaning gloss is provided, use it only to disambiguate the intended sense.
+- Prefer the most common learner sense when the word is ambiguous.`,
+      },
+      {
+        role: 'user',
+        content: `German: ${german}
+Type: ${lexicalType}${meaning ? `\nMeaning: ${meaning}` : ''}`,
       },
     ],
     max_tokens: 5,
