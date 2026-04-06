@@ -1,7 +1,7 @@
 {
   "name": "yt2anki",
   "version": "1.0.0",
-  "description": "Create Anki cards from YouTube videos for German learning",
+  "description": "Create German Anki cards from clips, text, words, and grammar prompts",
   "type": "module",
   "bin": {
     "yt2anki": "./src/index.js"

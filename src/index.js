@@ -111,7 +111,7 @@ async function rebuildReviewedCardSetPreview(currentData, feedback, spinner) {
 
 program
   .name('yt2anki')
-  .description('Create Anki cards from YouTube videos for German learning')
+  .description('Create German Anki cards from clips, text, words, and grammar prompts')
   .version('1.0.0');
 
 program

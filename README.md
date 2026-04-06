@@ -1,45 +1,49 @@
 # yt2anki
 
-Create Anki flashcards from YouTube videos — auto-extract audio clips, transcribe German speech, generate IPA, and translate to Russian.
+Create German Anki cards from clips, selected text, words, and grammar prompts.
 
-## Features
+yt2anki started as a YouTube clip tool, but it is no longer just that. The current app can:
+- turn bookmarked YouTube clips into audio-first sentence cards
+- process selected text from any webpage
+- build Fluent Forever-style noun, adjective, and verb cards
+- generate grammar cloze cards for inflection-heavy patterns
 
-**Video mode** (YouTube):
-- Mark timestamps while watching YouTube in Safari
-- Download and cut audio clips automatically
-- Transcribe German speech using local Whisper (offline, free)
+## Main Workflows
 
-**Text mode** (any webpage):
-- Select German text on any webpage
-- Generate voice-over using OpenAI TTS
+### Clip workflow
+- mark YouTube timestamps with the bookmarklet
+- copy them to the clipboard
+- download the audio, transcribe it, clean up the German, add IPA and Russian, then create cards in Anki
 
-**Lexical mode** (nouns, adjectives, verbs):
-- Create Fluent Forever-style notes for German nouns and adjectives
-- Create Fluent Forever-style notes for German verbs through the same command
-- Pick an image manually from Brave/Openverse/Wikimedia previews
-- Use single slow audio clips; nouns are spoken with their article
-- Store nouns with article and gender color, plus plural/back-side info
-- Store imageable adjectives with a concrete anchor phrase and optional contrast on the back
-- Route non-visual but common adjectives into sentence cards instead of skipping them
-- Route verbs into picture-word or sentence/form mode
-- Use picture-word cards for highly imageable action verbs
-- Use sentence cards plus optional dictionary-form cards for abstract or grammar-heavy verbs
-- Generate example sentences automatically when verbs are better learned in context
+### Text workflow
+- send selected text from a webpage with the text bookmarklet, or type phrases manually in the terminal
+- generate sentence cards without going through the YouTube clip pipeline
 
-**Grammar mode**:
-- Create true Anki `Cloze` notes for inflection-heavy grammar families
-- Start with possessive determiner paradigms such as `mein`, `dein`, `sein`, `unser`, and `euer`
-- Generate one cloze note per grammatical slot, with duplicate checks by family + lemma + slot
+### Lexical workflow
+- use one command, `words`, for nouns, adjectives, and verbs
+- pass one item for immediate processing, or start it with no argument for mixed interactive batches
+- route each item to the right workflow internally
 
-**Both modes:**
-- Generate IPA transcription and Russian translation
-- Auto-correct transcription errors and punctuation
-- During sentence previews, use `[R]eview` to tell AI what looks wrong and regenerate the draft
-- Create Anki cards with audio via AnkiConnect
+### Grammar workflow
+- create true Anki `Cloze` notes for grammar families
+- currently focused on possessive determiners like `mein`, `dein`, `sein`, `unser`, and `euer`
+
+## What The App Generates
+
+### Sentence cards
+- audio-first comprehension cards
+- optional dialogue, production, pattern, and cloze cards from the same sentence when the analysis supports them
+
+### Lexical cards
+- picture-word noun cards with article-aware audio
+- picture-word adjective cards when the adjective is clearly imageable
+- sentence-based adjective cards when a single image is not enough
+- picture-word or sentence-based verb cards, plus optional dictionary-form cards when the encountered form is non-obvious
+
+### Grammar cards
+- cloze notes built from grammatical slots rather than isolated tables
 
 ## Card Format
-
-yt2anki now creates multiple card types from the same source sentence, depending on the analysis result.
 
 | Card Type | Front | Back |
 |-----------|-------|------|
@@ -49,140 +53,151 @@ yt2anki now creates multiple card types from the same source sentence, depending
 | Pattern | Pattern label + base example | Multiple example sentences + Russian gloss |
 | Cloze | German sentence with blank + Russian + optional hint | Answer + full German sentence |
 
-The default and most common card is the comprehension card, which is audio-first on the front.
+The default sentence card is the audio-first comprehension card.
 
-## Prerequisites
+## Requirements
+
+### Always required
+
+- Node.js
+- Anki desktop
+- AnkiConnect add-on
+
+Install AnkiConnect:
+1. Open Anki
+2. Go to `Tools -> Add-ons -> Get Add-ons...`
+3. Enter `2055492159`
+4. Restart Anki
+
+### Required for clip mode
 
 ```bash
-# Install tools
 brew install yt-dlp ffmpeg whisper-cpp
+```
 
-# Download Whisper model (~150MB, run once)
+Download the Whisper model once:
+
+```bash
 curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
-
-# Install Anki desktop app
-# Download from https://apps.ankiweb.net
-
-# Install AnkiConnect add-on (required for API access)
-# 1. Open Anki
-# 2. Tools → Add-ons → Get Add-ons...
-# 3. Enter code: 2055492159
-# 4. Click OK → Restart Anki
-# 5. Keep Anki running while using yt2anki
 ```
+
+If you only use lexical or grammar workflows, you do not need the YouTube/Whisper toolchain.
 
 ## Setup
 
 ```bash
-# Clone and install
 git clone https://github.com/deemsk/yt2anki.git
 cd yt2anki
 npm install
 
-# Create config file
 npm run init
-
-# Add your OpenAI API key
 open ~/.yt2anki.json
 
-# Verify setup
 npm run check
-npm run test:integration
 ```
 
-## Usage
+## Quick Start
 
-### Install bookmarklets
+### From YouTube clips
 
 ```bash
-npm run bookmarklet        # Video mode (YouTube)
-npm run bookmarklet:text   # Text mode (any webpage)
+npm run bookmarklet
+npm start
 ```
 
-Create Safari bookmarks, edit them, and paste the bookmarklet URLs.
+How it works:
+1. Open a YouTube video in Safari
+2. Use the bookmarklet to mark clips
+3. Copy the clip list to the clipboard
+4. Run `npm start` or `npm run clip`
 
-### Video Mode (YouTube)
+### From selected text
 
-1. Open a YouTube video
-2. Click **yt2anki** bookmarklet (panel appears)
-3. Press **M** to mark start, **M** again to mark end
-4. Repeat for multiple clips
-5. Press **E** to copy clips to clipboard
-6. Run `npm start`
+```bash
+npm run bookmarklet:text
+npm start
+```
 
-### Text Mode (any webpage)
-
+How it works:
 1. Select German text on any webpage
-2. Click **yt2anki Text** bookmarklet
+2. Run the text bookmarklet
 3. Run `npm start`
 
-### Lexical Mode
+### From typed text in the terminal
+
+```bash
+npm run text
+```
+
+Enter one German phrase per line.
+
+### From words
 
 ```bash
 npm run words -- "das Wasser"
 npm run words -- "laufen"
 npm run words
+```
+
+- one argument: process a single lexical item immediately
+- no arguments: enter mixed interactive mode for nouns, adjectives, and verbs
+
+Useful overrides for single items:
+
+```bash
+npm run words -- "wichtig" --meaning "важный"
+npm run words -- "laufen" --sentence "Ich laufe jeden Morgen."
+```
+
+### From grammar prompts
+
+```bash
 npm run grammar -- possessive mein
 ```
 
-The `words` command handles nouns, adjectives, and verbs through one entrypoint.
-If you pass one lexical item, it processes it immediately. If you pass no item, it enters
-interactive batch mode and lets you mix nouns, adjectives, and verbs line by line.
+## Lexical Notes
 
-Noun/adjective picture cards use the `2. Picture Words` note type and fall back to the
-regular sentence note type for adjectives that are better learned in context. During
-creation you choose the intended meaning, then either pick an image or confirm an example
-sentence before the note is added.
+The lexical workflow is built around actual card types, not just dictionary lookups.
 
-Imageable adjectives such as colors, sizes, textures, and visible states can go through
-picture-word mode. Abstract or weakly visual adjectives are routed into sentence cards
-so frequent words like `wichtig` do not get dropped from the workflow.
+- nouns use the `2. Picture Words` note type for picture cards
+- noun audio includes the article, for example `der Arzt`
+- noun back sides can include plural and a short example sentence
+- imageable adjectives stay in picture-word mode
+- non-visual but useful adjectives move into sentence cards instead of being skipped
+- verbs are routed into picture-word or sentence mode depending on how learnable they are from a single image
 
-The same command routes imageable verbs to picture-word cards and routes abstract or form-heavy
-verbs to sentence cards with an optional dictionary-form note.
+If `braveApiKey` is configured, Brave image search is tried first, with Openverse and Wikimedia as fallbacks.
 
-Grammar mode uses the Anki `Cloze` note type and currently starts with the `possessive`
-family. It generates one note per slot such as nominative masculine singular or dative
-plural, so forms like `mein`, `meinen`, and `meinem` are learned through cloze sentences
-instead of isolated tables.
-
-If `braveApiKey` is configured, Brave image search is queried first and
-Openverse/Wikimedia remain as fallbacks.
-
-### Options
-
-```bash
-npm start             # Process from clipboard
-npm run clip -- -n    # Dry run (preview only)
-```
+During sentence previews, use `[R]eview` to tell AI what looks wrong and let it regenerate the draft.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `npm start` | Process clips from clipboard |
-| `npm run clip -- -n` | Dry run (preview without creating cards) |
+| `npm start` | Process clipboard data from the bookmarklets |
+| `npm run clip` | Process clips from clipboard explicitly |
+| `npm run text` | Enter phrases manually in the terminal |
 | `npm run words -- <item>` | Create one lexical note for a noun, adjective, or verb |
-| `npm run words` | Create mixed lexical notes interactively |
-| `npm run grammar -- <family> <lemma>` | Create grammar cloze notes, e.g. `possessive mein` |
-| `npm run add -- <url> -s 0:10 -e 0:15` | Add single card manually |
-| `npm run process -- <file.json>` | Process markers JSON file |
-| `npm run check` | Quick check of installed tools, API key, and AnkiConnect |
-| `npm run test:integration` | Test all integrations end-to-end |
+| `npm run words` | Create lexical notes interactively from mixed input |
+| `npm run grammar -- <family> <lemma>` | Create grammar cloze notes |
+| `npm run add -- <url> -s 0:10 -e 0:15` | Add one clip manually from YouTube |
+| `npm run process -- <file.json>` | Process a saved markers JSON file |
+| `npm run check` | Check local tools, API key, and AnkiConnect |
+| `npm run test:integration` | Run end-to-end integration checks |
 | `npm test` | Run Jest tests |
-| `npm run config` | Show current configuration |
-| `npm run init` | Create config file |
-| `npm run bookmarklet` | Copy video bookmarklet to clipboard |
-| `npm run bookmarklet:text` | Copy text bookmarklet to clipboard |
+| `npm run config` | Show the resolved configuration |
+| `npm run init` | Create the config file |
+| `npm run bookmarklet` | Build and copy the YouTube bookmarklet |
+| `npm run bookmarklet:text` | Build and copy the text-selection bookmarklet |
 
-## Keyboard Shortcuts (bookmarklet)
+## Bookmarklet Keys
 
 | Key | Action |
 |-----|--------|
-| **M** | Mark start/end |
-| **E** | Copy clips to clipboard |
-| **H** | Hide/show panel |
+| `M` | Mark clip start/end |
+| `E` | Copy clips to clipboard |
+| `H` | Hide/show panel |
 
 ## Configuration
 
@@ -211,29 +226,21 @@ Edit `~/.yt2anki.json`:
 }
 ```
 
-`ttsSpeed` is the main rate used for generated word and sentence audio. `ttsPause` is a legacy
-setting from the old repeated slow+normal sentence audio and is no longer used in the default
-word/verb flows.
+Notes:
+- `ankiDeck` still defaults to `German::YouTube` for backward compatibility; you can rename it to something broader.
+- `ttsSpeed` is the main rate used for generated word and sentence audio.
+- `ttsPause` is a legacy setting from the old repeated sentence-audio flow and is no longer used in the default word/verb paths.
+- `wordNoteType` is used for picture-word cards.
+- `grammarNoteType` should point to an Anki cloze model with `Text` and `Back Extra` or `Extra`.
 
-`googleTtsVoices` controls which Google Cloud TTS voices are rotated when generating speech.
+## Stack
 
-`wordNoteType` controls the note type used for picture-word cards. The v1 word mode assumes a
-Fluent Forever-compatible `2. Picture Words` note type exists in Anki.
-
-`grammarNoteType` controls the note type used for grammar cloze cards. The current grammar mode
-expects a Cloze-compatible model with `Text` and `Back Extra` (or `Extra`) fields.
-
-`braveApiKey` is optional. If set, word and verb picture modes query Brave image search before
-Openverse and Wikimedia.
-
-## Tech Stack
-
-- **yt-dlp** — YouTube audio download
-- **ffmpeg** — Audio cutting
-- **whisper.cpp** — Local speech-to-text
-- **OpenAI API** — IPA, translation, routing, enrichment
-- **Google Cloud TTS** — sentence and word audio
-- **AnkiConnect** — Card creation
+- `yt-dlp` for YouTube audio download
+- `ffmpeg` for audio cutting
+- `whisper.cpp` for local speech-to-text
+- OpenAI API for enrichment, routing, translation, IPA, and review
+- Google Cloud TTS for generated audio
+- AnkiConnect for note creation
 
 ## License
 
