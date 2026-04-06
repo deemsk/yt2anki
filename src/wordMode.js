@@ -8,6 +8,7 @@ import {
   applyChosenSentenceGloss,
   buildWordExtraInfo,
   formatGenderColoredWord,
+  formatPronunciationField,
   formatPlainWord,
   formatPluralLabel,
   getArticleNormalizationWarning,
@@ -599,7 +600,7 @@ async function finalizePictureWord(prepared, options, spinner) {
   spinner.start('Creating Anki note...');
   const imageFilename = await storeMedia(imagePath);
   const audioFilename = await storeAudio(audio.audioPath);
-  const pronunciationField = `[sound:${audioFilename}]<br>${wordData.ipa || ''}`;
+  const pronunciationField = formatPronunciationField(audioFilename, wordData.ipa);
 
   await createPictureWordNote({
     canonical: wordData.canonical,

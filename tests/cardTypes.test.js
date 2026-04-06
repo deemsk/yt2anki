@@ -35,4 +35,22 @@ describe("card type helpers", () => {
     expect(withRussian.front.situation).toBe("в кафе")
     expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain("<small>в кафе</small>")
   })
+
+  test("formatCardForAnki wraps IPA with the neutral IPA class", () => {
+    const fields = formatCardForAnki(
+      generateProductionCard(
+        {
+          german: "Ich möchte einen Kaffee.",
+          ipa: "[ɪç ˈmœçtə ˈaɪ̯nən ˈkafeː]",
+          russian: "Я хочу кофе.",
+        },
+        "в кафе",
+        "test-3"
+      ),
+      "clip.mp3"
+    )
+
+    expect(fields.Back).toContain('class="yt2anki-ipa"')
+    expect(fields.Back).toContain("color:var(--yt2anki-ipa, #475569)")
+  })
 })

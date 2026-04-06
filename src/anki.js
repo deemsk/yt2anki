@@ -8,6 +8,7 @@ import {
   extractCanonicalWord,
   extractWordLexicalType,
   extractWordMeaning,
+  formatIpaHtml,
   normalizeGermanForCompare,
   parseWordMetadataComment,
   toTagSlug,
@@ -126,7 +127,8 @@ export async function createNote({
   }
 
   // Format back: German + IPA + Russian
-  let back = `${german}<br>${ipa}<br>${russian}`;
+  const backParts = [german, formatIpaHtml(ipa), russian].filter(Boolean);
+  let back = backParts.join('<br>');
   if (metadata) {
     back += buildWordMetadataComment(metadata);
   }

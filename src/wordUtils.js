@@ -1,8 +1,10 @@
 const GENDER_COLORS = {
   masculine: '#2563eb',
   feminine: '#dc2626',
-  neuter: '#111111',
+  neuter: '#0f766e',
 };
+
+const IPA_COLOR = '#475569';
 
 const ARTICLE_IPA = {
   der: 'deːɐ̯',
@@ -87,11 +89,31 @@ export function toTagSlug(text = '') {
 
 export function formatGenderColoredWord(canonical, gender) {
   const color = GENDER_COLORS[gender] || GENDER_COLORS.neuter;
-  return `<span style="color:${color};font-weight:600;">${escapeHtml(canonical)}</span>`;
+  const genderClass = `yt2anki-gender-${escapeHtml(gender || 'neuter')}`;
+  return `<span class="yt2anki-gender ${genderClass}" style="color:var(--${genderClass}, ${color});font-weight:600;">${escapeHtml(canonical)}</span>`;
 }
 
 export function formatPlainWord(canonical) {
   return `<span style="font-weight:600;">${escapeHtml(canonical)}</span>`;
+}
+
+export function formatIpaHtml(ipa = '') {
+  const value = String(ipa || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  return `<span class="yt2anki-ipa" style="color:var(--yt2anki-ipa, ${IPA_COLOR});font-size:0.92em;font-style:italic;">${escapeHtml(value)}</span>`;
+}
+
+export function formatPronunciationField(audioFilename, ipa = '') {
+  const parts = [`[sound:${String(audioFilename || '').trim()}]`];
+  const formattedIpa = formatIpaHtml(ipa);
+  if (formattedIpa) {
+    parts.push(formattedIpa);
+  }
+
+  return parts.join('<br>');
 }
 
 export function getWordLemma(wordData = {}) {

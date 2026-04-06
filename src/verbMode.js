@@ -4,7 +4,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, toTagSlug } from './wordUtils.js';
+import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
 import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection } from './verbConfirm.js';
@@ -394,7 +394,7 @@ async function finalizePictureVerb(prepared, options, spinner) {
   spinner.start('Creating verb note...');
   const imageFilename = await storeMedia(imagePath);
   const audioFilename = await storeAudio(audio.audioPath);
-  const pronunciationField = `[sound:${audioFilename}]<br>${verbData.ipa || ''}`;
+  const pronunciationField = formatPronunciationField(audioFilename, verbData.ipa);
 
   await createPictureWordNote({
     canonical: verbData.infinitive,

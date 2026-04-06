@@ -6,6 +6,8 @@ import {
   extractWordLexicalType,
   extractWordMeaning,
   formatGenderColoredWord,
+  formatIpaHtml,
+  formatPronunciationField,
   getArticleNormalizationWarning,
   getWordLemma,
   normalizeWordIpa,
@@ -19,7 +21,22 @@ describe("word helpers", () => {
     const html = formatGenderColoredWord("das Wasser", "neuter")
 
     expect(html).toContain("das Wasser")
-    expect(html).toContain("color:#111111")
+    expect(html).toContain('class="yt2anki-gender yt2anki-gender-neuter"')
+    expect(html).toContain("color:var(--yt2anki-gender-neuter, #0f766e)")
+  })
+
+  test("formatIpaHtml renders IPA as neutral secondary text", () => {
+    const html = formatIpaHtml("[das baːt]")
+
+    expect(html).toContain('class="yt2anki-ipa"')
+    expect(html).toContain("color:var(--yt2anki-ipa, #475569)")
+    expect(html).toContain("[das baːt]")
+  })
+
+  test("formatPronunciationField joins audio and formatted IPA", () => {
+    const field = formatPronunciationField("bad.mp3", "[das baːt]")
+
+    expect(field).toBe('[sound:bad.mp3]<br><span class="yt2anki-ipa" style="color:var(--yt2anki-ipa, #475569);font-size:0.92em;font-style:italic;">[das baːt]</span>')
   })
 
   test("buildWordExtraInfo stores hidden metadata for duplicate checks", () => {

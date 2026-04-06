@@ -9,6 +9,8 @@
  * - Cloze: Grammar feature with blank
  */
 
+import { formatIpaHtml } from './wordUtils.js';
+
 // Task labels for each card type
 export const CARD_LABELS = {
   comprehension: '🎧 Listen',
@@ -253,7 +255,7 @@ export function formatCardForAnki(card, audioFilename) {
         front += `<br><small>Context: ${card.front.context}</small>`;
       }
       // Back: german + ipa + russian
-      back = `${card.back.german}<br>${card.back.ipa}<br>${card.back.russian}`;
+      back = [card.back.german, formatIpaHtml(card.back.ipa), card.back.russian].filter(Boolean).join('<br>');
       break;
 
     case 'dialogue':
@@ -273,7 +275,7 @@ export function formatCardForAnki(card, audioFilename) {
         front += `<br><small>${card.front.situation}</small>`;
       }
       // Back: german + ipa + audio
-      back = `${card.back.german}<br>${card.back.ipa}<br>[sound:${audioFilename}]`;
+      back = [card.back.german, formatIpaHtml(card.back.ipa), `[sound:${audioFilename}]`].filter(Boolean).join('<br>');
       break;
 
     case 'pattern':
