@@ -1,4 +1,5 @@
 import { createInterface } from 'readline';
+import chalk from 'chalk';
 import { askReviewFeedback, playAudio } from './confirm.js';
 
 function ask(question) {
@@ -13,6 +14,26 @@ function ask(question) {
       resolve(answer.trim());
     });
   });
+}
+
+function label(text) {
+  return chalk.cyan(text);
+}
+
+export function formatVerbPreviewSummary(chalkRef, verbData, translation, cefrLevel = null) {
+  const meta = ['verb'];
+
+  if (cefrLevel) {
+    meta.push(cefrLevel);
+  }
+
+  const head = `${chalkRef.bold.cyan(verbData.infinitive)} ${chalkRef.dim(`(${meta.join(', ')})`)}`;
+  return translation ? `${head} ${chalkRef.dim('—')} ${translation}` : head;
+}
+
+export function resolveVerbFocusForm(verbData, chosenSentence = null) {
+  return chosenSentence?.focusForm ||
+    (verbData.displayForm && verbData.displayForm !== verbData.infinitive ? verbData.displayForm : null);
 }
 
 export async function chooseVerbSentence(verbData, preferredSentence = null) {
@@ -103,22 +124,22 @@ export async function confirmPictureVerbSelection({
 
   while (true) {
     console.log();
-    console.log(`Verb: ${verbData.infinitive}`);
-    console.log(`${verbData.ipa || ''}  ${selectedMeaning.russian}`.trim());
-    console.log('Mode: picture-word');
-    console.log(`Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
-    console.log(`Audio: ${audioSource}`);
-    console.log(`Image: ${imageChoice.source || imageChoice.type}`);
-    console.log(`Dictionary form card: ${dictionaryFormEnabled ? 'yes' : 'no'}`);
+    console.log(formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian));
+    if (verbData.ipa) {
+      console.log(`${label('IPA:')} ${verbData.ipa}`);
+    }
+    console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
+    console.log(`${label('Audio:')} ${audioSource}`);
+    console.log(`${label('Dictionary form card:')} ${dictionaryFormEnabled ? 'yes' : 'no'}`);
     if (theme) {
-      console.log(`Theme: ${theme}`);
+      console.log(`${label('Theme:')} ${theme}`);
     }
     if (personalConnection) {
-      console.log(`Personal connection: ${personalConnection}`);
+      console.log(`${label('Personal connection:')} ${personalConnection}`);
     }
     if (duplicateInfo.headwordMatches.length > 0) {
       console.log();
-      console.log('Existing notes with the same lemma:');
+      console.log(label('Existing notes with the same lemma:'));
       duplicateInfo.headwordMatches.slice(0, 3).forEach((match) => {
         console.log(`  - ${match.canonical}${match.meaning ? ` (${match.meaning})` : ''}`);
       });
@@ -178,25 +199,23 @@ export async function confirmSentenceVerbSelection({
 
   while (true) {
     console.log();
-    console.log(`Verb: ${verbData.infinitive}`);
-    if (verbData.displayForm && verbData.displayForm !== verbData.infinitive) {
-      console.log(`Encountered form: ${verbData.displayForm}`);
+    console.log(formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, sentenceData.cefr?.level || null));
+    console.log(`${label('Sentence:')} ${sentenceData.german}`);
+    if (sentenceData.ipa) {
+      console.log(`${label('IPA:')} ${sentenceData.ipa}`);
     }
-    console.log(`Meaning: ${selectedMeaning.russian}`);
-    console.log('Mode: sentence-form');
-    console.log(`Sentence: ${sentenceData.german}`);
-    console.log(`${sentenceData.ipa || ''}  ${sentenceData.russian}`.trim());
-    if (sentenceData.cefr?.level) {
-      console.log(`CEFR: ${sentenceData.cefr.level}`);
+    if (sentenceData.russian) {
+      console.log(`${label('Russian:')} ${sentenceData.russian}`);
     }
-    if (chosenSentence?.focusForm) {
-      console.log(`Focus form: ${chosenSentence.focusForm}`);
+    const focusForm = resolveVerbFocusForm(verbData, chosenSentence);
+    if (focusForm) {
+      console.log(`${label('Focus form:')} ${focusForm}`);
     }
-    console.log(`Dictionary form card: ${dictionaryFormEnabled ? 'yes' : 'no'}`);
+    console.log(`${label('Dictionary form card:')} ${dictionaryFormEnabled ? 'yes' : 'no'}`);
 
     if (similarCards.length > 0) {
       console.log();
-      console.log('Similar cards found:');
+      console.log(label('Similar cards found:'));
       similarCards.slice(0, 3).forEach((card) => {
         console.log(`  - ${card.similarity}% "${card.german}"`);
       });

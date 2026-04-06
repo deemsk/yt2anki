@@ -7,7 +7,7 @@ import { getWordFrequencyInfo } from './wordFrequency.js';
 import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
-import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection } from './verbConfirm.js';
+import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection, formatVerbPreviewSummary, resolveVerbFocusForm } from './verbConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchVerbImages } from './wordSources.js';
 import {
   checkConnection,
@@ -376,13 +376,13 @@ async function finalizePictureVerb(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Verb preview'));
-    console.log(`  Verb:      ${verbData.infinitive}`);
-    console.log(`  Meaning:   ${selectedMeaning.russian}`);
-    console.log(`  Mode:      picture-word`);
-    console.log(`  Frequency: ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
-    console.log(`  Audio:     ${audio.source}`);
-    console.log(`  Image:     ${imageChoice.source || imageChoice.type}`);
-    console.log(`  Form card: ${confirmation.addDictionaryForm ? 'yes' : 'no'}`);
+    console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian)}`);
+    if (verbData.ipa) {
+      console.log(`  ${chalk.cyan('IPA:')} ${verbData.ipa}`);
+    }
+    console.log(`  ${chalk.cyan('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
+    console.log(`  ${chalk.cyan('Audio:')} ${audio.source}`);
+    console.log(`  ${chalk.cyan('Dictionary form card:')} ${confirmation.addDictionaryForm ? 'yes' : 'no'}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Verb note previewed'));
     return true;
   }
@@ -469,11 +469,19 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
   if (options.dryRun) {
     console.log();
     console.log(chalk.bold('Verb sentence preview'));
-    console.log(`  Verb:      ${verbData.infinitive}`);
-    console.log(`  Meaning:   ${selectedMeaning.russian}`);
-    console.log(`  Mode:      sentence-form`);
-    console.log(`  Sentence:  ${sentenceData.german}`);
-    console.log(`  Form card: ${addDictionaryForm ? 'yes' : 'no'}`);
+    console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, sentenceData.cefr?.level || null)}`);
+    console.log(`  ${chalk.cyan('Sentence:')} ${sentenceData.german}`);
+    if (sentenceData.ipa) {
+      console.log(`  ${chalk.cyan('IPA:')} ${sentenceData.ipa}`);
+    }
+    if (sentenceData.russian) {
+      console.log(`  ${chalk.cyan('Russian:')} ${sentenceData.russian}`);
+    }
+    const focusForm = resolveVerbFocusForm(verbData, chosenSentence);
+    if (focusForm) {
+      console.log(`  ${chalk.cyan('Focus form:')} ${focusForm}`);
+    }
+    console.log(`  ${chalk.cyan('Dictionary form card:')} ${addDictionaryForm ? 'yes' : 'no'}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Verb sentence previewed'));
     return true;
   }
