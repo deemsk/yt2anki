@@ -88,7 +88,9 @@ describe("anki helpers", () => {
                 },
                 {
                   fields: {
-                    Front: { value: "[sound:reply.m4a]<br><b>Antworte</b>" },
+                    Front: {
+                      value: '[sound:reply.m4a]<div class="yt2anki-task">💬 ТВОЙ ОТВЕТ</div><div>Ответь по-немецки вслух</div><div>Это ответ собеседнику, не перевод</div><div>💬 Твой ответ: ______</div>',
+                    },
                     Back: { value: "Ganz gut.<br><small>Нормально</small>" },
                   },
                 },

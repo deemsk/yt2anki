@@ -187,9 +187,9 @@ function formatCardFront(card) {
       if (card.front.context) front += ` (${card.front.context})`;
       return front;
     case 'dialogue':
-      return `[audio] ${card.front.prompt}`;
+      return '[audio] 💬 Ответь по-немецки вслух';
     case 'production':
-      let prodFront = card.front.russian;
+      let prodFront = `🗣 Скажи по-немецки: ${card.front.russian}`;
       if (card.front.situation) prodFront += ` (${card.front.situation})`;
       return prodFront;
     case 'pattern':

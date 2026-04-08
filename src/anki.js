@@ -439,6 +439,13 @@ function extractSearchableText(note) {
   return lines.filter((line) => {
     if (!line) return false;
     if (line === 'Antworte') return false;
+    if (/^(💬\s*)?тво[йе]\s+ответ\b/i.test(line)) return false;
+    if (/^ответь\s+по-немецки\b/i.test(line)) return false;
+    if (/^это\s+ответ\s+собеседнику\b/i.test(line)) return false;
+    if (/^(🗣\s*)?скажи\s+по-немецки\b/i.test(line)) return false;
+    if (/^передай\s+это\s+по-немецки\b/i.test(line)) return false;
+    if (/^это\s+перевод\s+в\s+немецкую\s+фразу\b/i.test(line)) return false;
+    if (/^(🧭\s*)?подсказка:/i.test(line)) return false;
     if (line.startsWith('Context:')) return false;
     if (/^\[.*\]$/.test(line)) return false; // IPA-only line
     return true;

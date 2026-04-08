@@ -1,4 +1,4 @@
-import { formatCardForAnki, generateProductionCard, normalizeRussianHint } from "../src/cardTypes.js"
+import { formatCardForAnki, generateDialogueCard, generateProductionCard, normalizeRussianHint } from "../src/cardTypes.js"
 
 describe("card type helpers", () => {
   test("normalizeRussianHint keeps Russian learner hints", () => {
@@ -31,9 +31,12 @@ describe("card type helpers", () => {
     )
 
     expect(withEnglish.front.situation).toBeNull()
-    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toBe("Я хочу кофе.")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("🗣")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Скажи по-немецки")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Я хочу кофе.")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).not.toContain("ordering coffee")
     expect(withRussian.front.situation).toBe("в кафе")
-    expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain("<small>в кафе</small>")
+    expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain("🧭 Подсказка: в кафе")
   })
 
   test("formatCardForAnki wraps IPA with the neutral IPA class", () => {
@@ -52,5 +55,29 @@ describe("card type helpers", () => {
 
     expect(fields.Back).toContain('class="yt2anki-ipa"')
     expect(fields.Back).toContain("color:var(--yt2anki-ipa, #475569)")
+  })
+
+  test("dialogue cards render an explicit reply task block", () => {
+    const fields = formatCardForAnki(
+      generateDialogueCard(
+        {
+          german: "Wie geht's?",
+          ipa: "[viː ɡeːts]",
+          russian: "Как дела?",
+        },
+        {
+          german: "Ganz gut.",
+          russian: "Нормально.",
+        },
+        "test-4"
+      ),
+      "reply.mp3"
+    )
+
+    expect(fields.Front).toContain("[sound:reply.mp3]")
+    expect(fields.Front).toContain("💬")
+    expect(fields.Front).toContain("Ответь по-немецки вслух")
+    expect(fields.Front).toContain("Твой ответ: ______")
+    expect(fields.Back).toContain("Ganz gut.")
   })
 })

@@ -9,7 +9,7 @@
  * - Cloze: Grammar feature with blank
  */
 
-import { formatIpaHtml } from './wordUtils.js';
+import { escapeHtml, formatIpaHtml } from './wordUtils.js';
 
 // Task labels for each card type
 export const CARD_LABELS = {
@@ -20,6 +20,23 @@ export const CARD_LABELS = {
   cloze: '✳ Grammar',
 };
 
+const TASK_PANEL_STYLES = {
+  dialogue: {
+    border: 'rgba(245, 158, 11, 0.55)',
+    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(249, 115, 22, 0.10))',
+    kicker: 'rgba(146, 64, 14, 0.95)',
+    slotBorder: 'rgba(217, 119, 6, 0.45)',
+    slotBackground: 'rgba(255, 255, 255, 0.55)',
+  },
+  production: {
+    border: 'rgba(14, 165, 233, 0.45)',
+    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(16, 185, 129, 0.10))',
+    kicker: 'rgba(8, 47, 73, 0.95)',
+    slotBorder: 'rgba(6, 182, 212, 0.35)',
+    slotBackground: 'rgba(255, 255, 255, 0.48)',
+  },
+};
+
 export function normalizeRussianHint(text = '') {
   const trimmed = String(text || '').trim();
   if (!trimmed) {
@@ -27,6 +44,45 @@ export function normalizeRussianHint(text = '') {
   }
 
   return /[А-Яа-яЁё]/.test(trimmed) ? trimmed : null;
+}
+
+function buildTaskPanel(type, { emoji, kicker, main, sub = null }) {
+  const style = TASK_PANEL_STYLES[type];
+  return `<div class="yt2anki-task yt2anki-task-${type}" style="margin:12px 0 10px;padding:12px 14px;border-radius:16px;border:2px solid ${style.border};background:${style.background};text-align:left;">
+  <div class="yt2anki-task-kicker" style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${style.kicker};">${emoji} ${escapeHtml(kicker)}</div>
+  <div class="yt2anki-task-main" style="margin-top:6px;font-size:18px;font-weight:700;line-height:1.2;">${escapeHtml(main)}</div>
+  ${sub ? `<div class="yt2anki-task-sub" style="margin-top:6px;font-size:13px;line-height:1.35;opacity:0.86;">${escapeHtml(sub)}</div>` : ''}
+</div>`;
+}
+
+function buildDialogueFront(audioFilename) {
+  const style = TASK_PANEL_STYLES.dialogue;
+  return `[sound:${audioFilename}]` +
+    buildTaskPanel('dialogue', {
+      emoji: '💬',
+      kicker: 'ТВОЙ ОТВЕТ',
+      main: 'Ответь по-немецки вслух',
+      sub: 'Это ответ собеседнику, не перевод',
+    }) +
+    `<div class="yt2anki-reply-slot" style="padding:10px 12px;border-radius:14px;border:1.5px dashed ${style.slotBorder};background:${style.slotBackground};font-size:15px;font-weight:600;text-align:left;">💬 Твой ответ: ______</div>`;
+}
+
+function buildProductionFront(russian, situation = null) {
+  const style = TASK_PANEL_STYLES.production;
+  let front = buildTaskPanel('production', {
+    emoji: '🗣',
+    kicker: 'СКАЖИ ПО-НЕМЕЦКИ',
+    main: 'Скажи по-немецки вслух',
+    sub: 'Это перевод в немецкую фразу, а не ответ собеседнику',
+  });
+
+  front += `<div class="yt2anki-production-source" style="margin-top:10px;padding:12px 14px;border-radius:16px;border:1.5px solid ${style.slotBorder};background:${style.slotBackground};font-size:20px;font-weight:700;line-height:1.28;text-align:left;">${escapeHtml(russian)}</div>`;
+
+  if (situation) {
+    front += `<div class="yt2anki-production-hint" style="margin-top:8px;font-size:13px;line-height:1.35;text-align:left;opacity:0.86;">🧭 Подсказка: ${escapeHtml(situation)}</div>`;
+  }
+
+  return front;
 }
 
 /**
@@ -59,7 +115,7 @@ export function generateComprehensionCard(data, sourceId, reason = 'default') {
 
 /**
  * Generate a dialogue card (conversational response practice).
- * Front: [audio] + "Antworte" prompt
+ * Front: [audio] + explicit reply task prompt
  * Back: Response (German only, for quick comprehension)
  *
  * @param {Object} data - Enriched sentence data
@@ -76,7 +132,7 @@ export function generateDialogueCard(data, response, sourceId, reason = 'convers
     reason,
     front: {
       audio: true,
-      prompt: 'Antworte',
+      prompt: 'Ответь по-немецки',
     },
     back: {
       german: response.german,
@@ -259,8 +315,8 @@ export function formatCardForAnki(card, audioFilename) {
       break;
 
     case 'dialogue':
-      // Front: audio + "Antworte" prompt
-      front = `[sound:${audioFilename}]<br><b>${card.front.prompt}</b>`;
+      // Front: audio + explicit reply task block
+      front = buildDialogueFront(audioFilename);
       // Back: response
       back = card.back.german;
       if (card.back.russian) {
@@ -269,11 +325,8 @@ export function formatCardForAnki(card, audioFilename) {
       break;
 
     case 'production':
-      // Front: russian + situation
-      front = card.front.russian;
-      if (card.front.situation) {
-        front += `<br><small>${card.front.situation}</small>`;
-      }
+      // Front: explicit production task + russian prompt
+      front = buildProductionFront(card.front.russian, card.front.situation);
       // Back: german + ipa + audio
       back = [card.back.german, formatIpaHtml(card.back.ipa), `[sound:${audioFilename}]`].filter(Boolean).join('<br>');
       break;
