@@ -1,4 +1,4 @@
-import { buildBareLexicalAdjectiveFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
+import { buildBareLexicalAdjectiveFallback, buildEverydayFamilyNounFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -74,6 +74,16 @@ describe("word enricher retries", () => {
         rejectionReason: "Input is not a noun or adjective.",
       })
     ).toBe(false)
+  })
+
+  test("retries colloquial family noun rejections for inputs like Opa", () => {
+    expect(
+      shouldRetryBareLexicalRejection("opa", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "The input 'opa' is a colloquial term for 'grandfather' and does not meet the criteria for a strong learner card in word mode.",
+      })
+    ).toBe(true)
   })
 
   test("builds a sentence-form adjective fallback for stubborn bare lexical misses", () => {
@@ -191,5 +201,26 @@ describe("word enricher retries", () => {
         recommendedMode: "sentence-form",
       })
     ).toBe(true)
+  })
+
+  test("builds an everyday family noun fallback for Opa when the model rejects it as colloquial", () => {
+    expect(
+      buildEverydayFamilyNounFallback("opa", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "too colloquial",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        shouldCreateWordCard: true,
+        lexicalType: "noun",
+        canonical: "der Opa",
+        lemma: "Opa",
+        article: "der",
+        gender: "masculine",
+        plural: "Opas",
+        recommendedMode: "picture-word",
+      })
+    )
   })
 })

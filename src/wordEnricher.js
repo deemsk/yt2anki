@@ -74,6 +74,89 @@ const NON_ADJECTIVE_BARE_ADVERBS = new Set([
   'rechts',
 ]);
 
+const EVERYDAY_FAMILY_NOUN_FALLBACKS = {
+  opa: {
+    article: 'der',
+    gender: 'masculine',
+    canonical: 'der Opa',
+    lemma: 'Opa',
+    plural: 'Opas',
+    meanings: [
+      {
+        russian: 'дедушка',
+        english: 'grandpa',
+        imageSearchTerms: ['Opa Enkel', 'Opa Familie', 'älterer Mann Enkel'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Mein Opa ist nett.',
+        russian: 'Мой дедушка добрый.',
+      },
+    ],
+  },
+  oma: {
+    article: 'die',
+    gender: 'feminine',
+    canonical: 'die Oma',
+    lemma: 'Oma',
+    plural: 'Omas',
+    meanings: [
+      {
+        russian: 'бабушка',
+        english: 'grandma',
+        imageSearchTerms: ['Oma Enkel', 'Oma Familie', 'ältere Frau Enkel'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Meine Oma ist nett.',
+        russian: 'Моя бабушка добрая.',
+      },
+    ],
+  },
+  mama: {
+    article: 'die',
+    gender: 'feminine',
+    canonical: 'die Mama',
+    lemma: 'Mama',
+    plural: 'Mamas',
+    meanings: [
+      {
+        russian: 'мама',
+        english: 'mom',
+        imageSearchTerms: ['Mama Kind', 'Mama Familie', 'Mutter Kind'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Meine Mama ist hier.',
+        russian: 'Моя мама здесь.',
+      },
+    ],
+  },
+  papa: {
+    article: 'der',
+    gender: 'masculine',
+    canonical: 'der Papa',
+    lemma: 'Papa',
+    plural: 'Papas',
+    meanings: [
+      {
+        russian: 'папа',
+        english: 'dad',
+        imageSearchTerms: ['Papa Kind', 'Papa Familie', 'Vater Kind'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Mein Papa ist hier.',
+        russian: 'Мой папа здесь.',
+      },
+    ],
+  },
+};
+
 async function getClient() {
   if (!openai) {
     const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
@@ -104,6 +187,8 @@ Analyze a single German input for noun-or-adjective flashcards in word mode.
 Rules:
 - Accept ONLY nouns and adjectives that can work as strong learner cards in word mode.
 - Reject verbs, adverbs, and full unrelated phrases that are not nouns or adjectives.
+- Do not reject a noun solely because it is colloquial if it is common everyday family vocabulary.
+- Everyday kinship nouns like "Opa", "Oma", "Mama", and "Papa" are valid learner cards and should be accepted.
 - Always set lexicalType to noun or adjective.
 - Always normalize accepted nouns into canonical singular form with article.
 - Always normalize accepted adjectives into the positive/base form with no article.
@@ -380,6 +465,10 @@ export function shouldRetryBareLexicalRejection(input, result = {}) {
     return !NON_ADJECTIVE_BARE_ADVERBS.has(normalizeGermanForCompare(input));
   }
 
+  if (/colloquial|strong learner card|criteria/.test(rejectionReason)) {
+    return Object.hasOwn(EVERYDAY_FAMILY_NOUN_FALLBACKS, normalizeGermanForCompare(input));
+  }
+
   return /not a noun or adjective|fragment|abbreviation|unclear|unrecognized|unknown/.test(rejectionReason);
 }
 
@@ -414,6 +503,34 @@ export function buildBareLexicalAdjectiveFallback(input, result = {}) {
   };
 }
 
+export function buildEverydayFamilyNounFallback(input, result = {}) {
+  const fallback = EVERYDAY_FAMILY_NOUN_FALLBACKS[normalizeGermanForCompare(input)];
+  if (!fallback) {
+    return result;
+  }
+
+  return sanitizeWordAnalysis({
+    ...result,
+    shouldCreateWordCard: true,
+    rejectionReason: null,
+    lexicalType: 'noun',
+    register: 'colloquial',
+    isImageable: true,
+    imageabilityReason: 'everyday family member, clear visual depiction',
+    recommendedMode: 'picture-word',
+    noPlural: false,
+    article: fallback.article,
+    gender: fallback.gender,
+    canonical: fallback.canonical,
+    lemma: fallback.lemma,
+    plural: fallback.plural,
+    meanings: fallback.meanings,
+    exampleSentences: fallback.exampleSentences,
+    anchorPhrase: null,
+    opposite: null,
+  });
+}
+
 async function requestWordAnalysis(client, input, options = {}) {
   const response = await client.chat.completions.create({
     model: config.openaiModel,
@@ -441,10 +558,23 @@ export async function enrichWord(input) {
 
   if (shouldRetryBareLexicalRejection(input, result)) {
     const retried = await requestWordAnalysis(client, input, { forceBareLexicalCandidate: true });
+    if (retried.shouldCreateWordCard === false) {
+      const familyFallback = buildEverydayFamilyNounFallback(input, retried);
+      if (familyFallback !== retried) {
+        return familyFallback;
+      }
+    }
     if (shouldRetryBareLexicalRejection(input, retried)) {
       return buildBareLexicalAdjectiveFallback(input, retried);
     }
     return retried;
+  }
+
+  if (result.shouldCreateWordCard === false) {
+    const familyFallback = buildEverydayFamilyNounFallback(input, result);
+    if (familyFallback !== result) {
+      return familyFallback;
+    }
   }
 
   return result;
