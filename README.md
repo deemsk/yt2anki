@@ -1,8 +1,10 @@
-# yt2anki
+# DerDieDeck
 
-Create German Anki cards from clips, selected text, words, and grammar prompts.
+DerDieDeck creates German Anki cards from clips, selected text, words, and grammar prompts.
 
-yt2anki started as a YouTube clip tool, but it is no longer just that. The current app can:
+![DerDieDeck picture-word cards](docs/images/derdiedeck-playing-cards.png)
+
+DerDieDeck started as a clip-first workflow, but it now covers four distinct study paths:
 - turn bookmarked YouTube clips into audio-first sentence cards
 - process selected text from any webpage
 - build Fluent Forever-style noun, adjective, and verb cards
@@ -48,8 +50,8 @@ yt2anki started as a YouTube clip tool, but it is no longer just that. The curre
 | Card Type | Front | Back |
 |-----------|-------|------|
 | Comprehension | `[audio]` + optional context | German + IPA + Russian |
-| Dialogue | `[audio]` + `Antworte` | German reply, optional Russian hint |
-| Production | Russian + optional situation | German + IPA + `[audio]` |
+| Dialogue | `[audio]` + reply task block | German reply, optional Russian hint |
+| Production | Russian prompt + speaking task block | German + IPA + `[audio]` |
 | Pattern | Pattern label + base example | Multiple example sentences + Russian gloss |
 | Cloze | German sentence with blank + Russian + optional hint | Answer + full German sentence |
 
@@ -87,12 +89,12 @@ If you only use lexical or grammar workflows, you do not need the YouTube/Whispe
 ## Setup
 
 ```bash
-git clone https://github.com/deemsk/yt2anki.git
-cd yt2anki
+git clone https://github.com/deemsk/yt2anki.git derdiedeck
+cd derdiedeck
 npm install
 
 npm run init
-open ~/.yt2anki.json
+open ~/.derdiedeck.json
 
 npm run check
 ```
@@ -201,7 +203,9 @@ During sentence previews, use `[R]eview` to tell AI what looks wrong and let it 
 
 ## Configuration
 
-Edit `~/.yt2anki.json`:
+DerDieDeck prefers `~/.derdiedeck.json` and still reads `~/.yt2anki.json` as a legacy fallback.
+
+Edit `~/.derdiedeck.json`:
 
 ```json
 {
@@ -222,7 +226,7 @@ Edit `~/.yt2anki.json`:
   "audioLeadIn": 0.4,
   "wordImagePreviewCount": 12,
   "wordImageSearchResults": 12,
-  "dataDir": "/tmp/yt2anki"
+  "dataDir": "/tmp/derdiedeck"
 }
 ```
 

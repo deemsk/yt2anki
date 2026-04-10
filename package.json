@@ -1,9 +1,10 @@
 {
-  "name": "yt2anki",
+  "name": "derdiedeck",
   "version": "1.0.0",
   "description": "Create German Anki cards from clips, text, words, and grammar prompts",
   "type": "module",
   "bin": {
+    "derdiedeck": "./src/index.js",
     "yt2anki": "./src/index.js"
   },
   "scripts": {

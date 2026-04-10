@@ -2,7 +2,20 @@ import { homedir, tmpdir } from 'os';
 import { join } from 'path';
 import { readFileSync, existsSync } from 'fs';
 
-const CONFIG_PATH = join(homedir(), '.yt2anki.json');
+const PRIMARY_CONFIG_PATH = join(homedir(), '.derdiedeck.json');
+const LEGACY_CONFIG_PATH = join(homedir(), '.yt2anki.json');
+
+function resolveConfigPath() {
+  if (existsSync(PRIMARY_CONFIG_PATH)) {
+    return PRIMARY_CONFIG_PATH;
+  }
+
+  if (existsSync(LEGACY_CONFIG_PATH)) {
+    return LEGACY_CONFIG_PATH;
+  }
+
+  return PRIMARY_CONFIG_PATH;
+}
 
 // Default configuration
 const defaults = {
@@ -14,7 +27,7 @@ const defaults = {
   grammarNoteType: 'Cloze',
 
   // Paths
-  dataDir: join(tmpdir(), 'yt2anki'),
+  dataDir: join(tmpdir(), 'derdiedeck'),
   whisperModel: 'base',
 
   // OpenAI
@@ -39,16 +52,18 @@ const defaults = {
   wordImageSearchResults: 12,
 };
 
-// Load user config from ~/.yt2anki.json
+const ACTIVE_CONFIG_PATH = resolveConfigPath();
+
+// Load user config from ~/.derdiedeck.json, falling back to ~/.yt2anki.json
 function loadConfig() {
   let userConfig = {};
 
-  if (existsSync(CONFIG_PATH)) {
+  if (existsSync(ACTIVE_CONFIG_PATH)) {
     try {
-      const content = readFileSync(CONFIG_PATH, 'utf-8');
+      const content = readFileSync(ACTIVE_CONFIG_PATH, 'utf-8');
       userConfig = JSON.parse(content);
     } catch (err) {
-      console.error(`Warning: Could not parse ${CONFIG_PATH}: ${err.message}`);
+      console.error(`Warning: Could not parse ${ACTIVE_CONFIG_PATH}: ${err.message}`);
     }
   }
 
@@ -56,4 +71,6 @@ function loadConfig() {
 }
 
 export const config = loadConfig();
-export const CONFIG_PATH_DISPLAY = CONFIG_PATH;
+export const CONFIG_PATH_DISPLAY = PRIMARY_CONFIG_PATH;
+export const ACTIVE_CONFIG_PATH_DISPLAY = ACTIVE_CONFIG_PATH;
+export const LEGACY_CONFIG_PATH_DISPLAY = LEGACY_CONFIG_PATH;

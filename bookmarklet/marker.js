@@ -1,9 +1,9 @@
-// YouTube Timestamp Marker for yt2anki
+// YouTube Timestamp Marker for DerDieDeck
 // CSP-compliant version using DOM APIs
 
 (function() {
-  if (window.yt2ankiMarker) {
-    window.yt2ankiMarker.toggle();
+  if (window.derDieDeckMarker) {
+    window.derDieDeckMarker.toggle();
     return;
   }
 
@@ -12,7 +12,7 @@
   // Create style element
   const style = document.createElement('style');
   style.textContent = `
-    #yt2anki-ui {
+    #derdiedeck-ui {
       position: fixed; top: 10px; right: 10px;
       background: rgba(0,0,0,0.9); color: white;
       padding: 12px 16px; border-radius: 8px;
@@ -20,30 +20,30 @@
       z-index: 999999; min-width: 200px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
-    #yt2anki-ui.hidden { display: none; }
-    #yt2anki-ui h3 { margin: 0 0 8px; font-size: 14px; color: #4CAF50; }
-    #yt2anki-ui .hint { color: #888; font-size: 11px; margin-bottom: 8px; }
-    #yt2anki-ui .status { padding: 6px 8px; background: #333; border-radius: 4px; margin: 8px 0; }
-    #yt2anki-ui .status.recording { background: #c62828; animation: yt2anki-pulse 1s infinite; }
-    @keyframes yt2anki-pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
-    #yt2anki-ui .clips { max-height: 150px; overflow-y: auto; margin: 8px 0; }
-    #yt2anki-ui .clip { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #333; }
-    #yt2anki-ui .clip .times { color: #81C784; }
-    #yt2anki-ui .clip .remove { color: #e57373; cursor: pointer; margin-left: 8px; }
-    #yt2anki-ui .buttons { display: flex; gap: 8px; margin-top: 8px; }
-    #yt2anki-ui button { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; }
-    #yt2anki-ui .btn-export { background: #4CAF50; color: white; }
-    #yt2anki-ui .btn-export:disabled { background: #333; cursor: not-allowed; }
-    #yt2anki-ui .btn-clear { background: #555; color: white; }
+    #derdiedeck-ui.hidden { display: none; }
+    #derdiedeck-ui h3 { margin: 0 0 8px; font-size: 14px; color: #4CAF50; }
+    #derdiedeck-ui .hint { color: #888; font-size: 11px; margin-bottom: 8px; }
+    #derdiedeck-ui .status { padding: 6px 8px; background: #333; border-radius: 4px; margin: 8px 0; }
+    #derdiedeck-ui .status.recording { background: #c62828; animation: derdiedeck-pulse 1s infinite; }
+    @keyframes derdiedeck-pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
+    #derdiedeck-ui .clips { max-height: 150px; overflow-y: auto; margin: 8px 0; }
+    #derdiedeck-ui .clip { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #333; }
+    #derdiedeck-ui .clip .times { color: #81C784; }
+    #derdiedeck-ui .clip .remove { color: #e57373; cursor: pointer; margin-left: 8px; }
+    #derdiedeck-ui .buttons { display: flex; gap: 8px; margin-top: 8px; }
+    #derdiedeck-ui button { flex: 1; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; }
+    #derdiedeck-ui .btn-export { background: #4CAF50; color: white; }
+    #derdiedeck-ui .btn-export:disabled { background: #333; cursor: not-allowed; }
+    #derdiedeck-ui .btn-clear { background: #555; color: white; }
   `;
   document.head.appendChild(style);
 
   // Build UI with DOM APIs
   const ui = document.createElement('div');
-  ui.id = 'yt2anki-ui';
+  ui.id = 'derdiedeck-ui';
 
   const title = document.createElement('h3');
-  title.textContent = 'yt2anki Marker';
+  title.textContent = 'DerDieDeck Marker';
   ui.appendChild(title);
 
   const hint = document.createElement('div');
@@ -176,5 +176,5 @@
     updateUI();
   };
 
-  window.yt2ankiMarker = { toggle };
+  window.derDieDeckMarker = { toggle };
 })();

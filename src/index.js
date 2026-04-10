@@ -11,7 +11,7 @@ import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
 import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
-import { config, CONFIG_PATH_DISPLAY } from './config.js';
+import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
@@ -110,7 +110,7 @@ async function rebuildReviewedCardSetPreview(currentData, feedback, spinner) {
 }
 
 program
-  .name('yt2anki')
+  .name('derdiedeck')
   .description('Create German Anki cards from clips, text, words, and grammar prompts')
   .version('1.0.0');
 
@@ -145,7 +145,7 @@ program
 
 program
   .command('init')
-  .description('Create config file at ~/.yt2anki.json')
+  .description('Create config file at ~/.derdiedeck.json')
   .action(initConfig);
 
 program
@@ -351,7 +351,7 @@ async function addSingleCard(url, options) {
 }
 
 async function checkSetup() {
-  console.log(chalk.bold('\nChecking yt2anki setup...\n'));
+  console.log(chalk.bold('\nChecking DerDieDeck setup...\n'));
 
   // Check tools
   const tools = ['yt-dlp', 'ffmpeg', 'whisper-cli'];
@@ -413,12 +413,12 @@ async function checkSetup() {
   }
 
   console.log();
-  console.log(chalk.dim('Run "yt2anki test" for full integration testing'));
+  console.log(chalk.dim('Run "derdiedeck test" for full integration testing'));
   console.log();
 }
 
 async function testIntegrations(options) {
-  console.log(chalk.bold('\n🧪 Testing yt2anki integrations...\n'));
+  console.log(chalk.bold('\n🧪 Testing DerDieDeck integrations...\n'));
 
   const { execSync, spawn } = await import('child_process');
   const { resolveSecret } = await import('./secrets.js');
@@ -663,7 +663,7 @@ async function testIntegrations(options) {
     console.log(chalk.dim('Warnings are non-blocking — dry-run mode works without Anki.\n'));
   } else {
     console.log(chalk.yellow(`\n${results.passed} passed, ${results.warned} warned, ${results.failed} failed`));
-    console.log(chalk.dim('Fix the issues above before using yt2anki\n'));
+    console.log(chalk.dim('Fix the issues above before using DerDieDeck\n'));
     process.exit(1);
   }
 }
@@ -680,11 +680,8 @@ async function ankiConnectRequest(action, params = {}) {
 }
 
 async function initConfig() {
-  const { writeFile, access } = await import('fs/promises');
-  const { homedir } = await import('os');
-  const { join } = await import('path');
-
-  const configPath = join(homedir(), '.yt2anki.json');
+  const { writeFile, access, readFile } = await import('fs/promises');
+  const configPath = CONFIG_PATH_DISPLAY;
 
   // Check if already exists
   try {
@@ -707,7 +704,18 @@ async function initConfig() {
     whisperModel: 'base',
   };
 
-  await writeFile(configPath, JSON.stringify(defaultConfig, null, 2) + '\n');
+  let initialConfig = defaultConfig;
+  if (LEGACY_CONFIG_PATH_DISPLAY !== configPath) {
+    try {
+      const legacyContent = await readFile(LEGACY_CONFIG_PATH_DISPLAY, 'utf-8');
+      initialConfig = { ...defaultConfig, ...JSON.parse(legacyContent) };
+      console.log(chalk.dim(`Migrating settings from legacy config: ${LEGACY_CONFIG_PATH_DISPLAY}`));
+    } catch {
+      // No legacy config or unreadable legacy config; keep defaults.
+    }
+  }
+
+  await writeFile(configPath, JSON.stringify(initialConfig, null, 2) + '\n');
 
   console.log(chalk.green(`\n✓ Created config file: ${configPath}\n`));
   console.log('Edit it to add your settings:');
@@ -729,8 +737,11 @@ async function showConfig() {
   const { existsSync } = await import('fs');
 
   console.log(chalk.bold('\nCurrent Configuration\n'));
-  console.log(chalk.dim(`Config file: ${CONFIG_PATH_DISPLAY}`));
-  console.log(chalk.dim(`Exists: ${existsSync(CONFIG_PATH_DISPLAY) ? 'yes' : 'no'}\n`));
+  console.log(chalk.dim(`Config file: ${ACTIVE_CONFIG_PATH_DISPLAY}`));
+  if (ACTIVE_CONFIG_PATH_DISPLAY !== CONFIG_PATH_DISPLAY) {
+    console.log(chalk.dim(`Preferred path: ${CONFIG_PATH_DISPLAY} (legacy fallback still works)`));
+  }
+  console.log(chalk.dim(`Exists: ${existsSync(ACTIVE_CONFIG_PATH_DISPLAY) ? 'yes' : 'no'}\n`));
 
   const displayConfig = { ...config };
   // Mask API key
@@ -766,7 +777,7 @@ async function processClipboard(options) {
     } else if (data.url && data.clips) {
       await processVideoMode(data, options, spinner, dryRun);
     } else {
-      throw new Error('Invalid clipboard data. Use yt2anki bookmarklet first.');
+      throw new Error('Invalid clipboard data. Use the DerDieDeck bookmarklet first.');
     }
   } catch (err) {
     spinner.fail(err.message);

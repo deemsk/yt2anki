@@ -218,7 +218,7 @@ function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) 
 }
 
 async function openImagePreview(wordData, meaning, candidates, page, totalPages) {
-  const previewDir = join(tmpdir(), 'yt2anki-previews');
+  const previewDir = join(tmpdir(), 'derdiedeck-previews');
   await mkdir(previewDir, { recursive: true });
   const previewPath = join(previewDir, `word-preview-${Date.now()}.html`);
   const cachedCandidates = await cachePreviewImages(candidates, previewDir);

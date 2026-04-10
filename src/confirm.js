@@ -107,7 +107,7 @@ export async function askContext() {
 // Open card data in editor, returns edited data
 export async function editCardData(cardData) {
   const editor = process.env.EDITOR || process.env.VISUAL || 'nano';
-  const tempFile = join(tmpdir(), `yt2anki-edit-${Date.now()}.txt`);
+  const tempFile = join(tmpdir(), `derdiedeck-edit-${Date.now()}.txt`);
 
   // Write card data to temp file
   const content = `# Edit card data below. Lines starting with # are ignored.

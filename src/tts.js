@@ -2,7 +2,7 @@ import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 import { writeFile, mkdir, unlink } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { config } from './config.js';
+import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { resolveSecret } from './secrets.js';
 
 const execFileAsync = promisify(execFile);
@@ -100,7 +100,7 @@ async function generateClip(text, outputPath, voiceName, options = {}) {
         'Google TTS credentials not found. Run:\n' +
         '  gcloud auth application-default login\n' +
         '  gcloud auth application-default set-quota-project YOUR_PROJECT_ID\n' +
-        'Or set "googleTtsKeyFile" in ~/.yt2anki.json'
+        `Or set "googleTtsKeyFile" in ${CONFIG_PATH_DISPLAY}`
       );
     }
     throw err;

@@ -274,7 +274,7 @@ async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'yt2anki/1.0',
+      'User-Agent': 'DerDieDeck/1.0',
       ...(options.headers || {}),
     },
   });
@@ -1363,7 +1363,7 @@ function inferExtension(url, contentType, fallbackExt) {
 async function downloadRemoteAsset(url, prefix, fallbackExt, outputDir = config.dataDir) {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'yt2anki/1.0',
+      'User-Agent': 'DerDieDeck/1.0',
     },
   });
 

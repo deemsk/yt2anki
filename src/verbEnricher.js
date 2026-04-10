@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { config } from './config.js';
+import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { normalizeGermanForCompare, normalizeWordIpa } from './wordUtils.js';
 import { resolveSecret } from './secrets.js';
 
@@ -9,7 +9,7 @@ async function getClient() {
   if (!openai) {
     const apiKey = await resolveSecret(config.openaiApiKey || process.env.OPENAI_API_KEY);
     if (!apiKey) {
-      throw new Error('OpenAI API key not set. Add to ~/.yt2anki.json or set OPENAI_API_KEY env var');
+      throw new Error(`OpenAI API key not set. Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
     }
     openai = new OpenAI({ apiKey });
   }

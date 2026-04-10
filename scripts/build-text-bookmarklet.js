@@ -20,10 +20,10 @@ async function build() {
 
   const bookmarklet = `javascript:${encodeURIComponent(code)}`;
 
-  console.log('\n📝 yt2anki Text Bookmarklet\n');
+  console.log('\n📝 DerDieDeck Text Bookmarklet\n');
   console.log('To install:');
   console.log('1. Create a new bookmark in Safari');
-  console.log('2. Name it "yt2anki Text"');
+  console.log('2. Name it "DerDieDeck Text"');
   console.log('3. Paste this as the URL:\n');
   console.log('─'.repeat(60));
   console.log(bookmarklet);

@@ -39,10 +39,10 @@ async function build() {
 
   const bookmarklet = `javascript:${encodeURIComponent(code)}`;
 
-  console.log('\n📚 yt2anki Bookmarklet\n');
+  console.log('\n📚 DerDieDeck Video Bookmarklet\n');
   console.log('To install:');
   console.log('1. Create a new bookmark in Safari');
-  console.log('2. Name it "yt2anki Marker"');
+  console.log('2. Name it "DerDieDeck Marker"');
   console.log('3. Paste this as the URL:\n');
   console.log('─'.repeat(60));
   console.log(bookmarklet);
@@ -50,7 +50,7 @@ async function build() {
   console.log('\nUsage on YouTube:');
   console.log('- Click bookmarklet to activate');
   console.log('- Press M to mark start/end of clips');
-  console.log('- Press E to send clips to server');
+  console.log('- Press E to copy clips to the clipboard');
   console.log('- Press H to hide/show panel');
 
   // Also save to file
