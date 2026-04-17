@@ -1,5 +1,6 @@
 import {
   applyChosenSentenceGloss,
+  buildWordSentenceContrastFooter,
   buildWordExtraInfo,
   extractLeadingArticle,
   extractCanonicalWord,
@@ -38,6 +39,14 @@ describe("word helpers", () => {
     const field = formatPronunciationField("bad.mp3", "[das baːt]")
 
     expect(field).toBe('[sound:bad.mp3]<br><span class="yt2anki-ipa" style="color:var(--yt2anki-ipa, #475569);font-size:0.92em;font-style:italic;">[das baːt]</span>')
+  })
+
+  test("buildWordSentenceContrastFooter renders a dedicated adjective contrast block", () => {
+    const footer = buildWordSentenceContrastFooter("klein")
+
+    expect(footer).toContain('class="yt2anki-word-contrast"')
+    expect(footer).toContain("Contrast:")
+    expect(footer).toContain("klein")
   })
 
   test("buildWordExtraInfo stores hidden metadata for duplicate checks", () => {

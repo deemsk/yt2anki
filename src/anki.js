@@ -4,13 +4,16 @@ import { config } from './config.js';
 import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
 import {
+  buildWordSentenceContrastFooter,
   buildWordMetadataComment,
+  escapeHtml,
   extractCanonicalWord,
   extractWordLexicalType,
   extractWordMeaning,
   formatIpaHtml,
   normalizeGermanForCompare,
   parseWordMetadataComment,
+  stripHtml,
   toTagSlug,
 } from './wordUtils.js';
 
@@ -86,6 +89,29 @@ export async function storeAudio(audioPath) {
   return storeMedia(audioPath);
 }
 
+export function buildSentenceNoteFront({
+  audioFilename,
+  context = null,
+  imageFilename = null,
+  frontFooterHtml = null,
+}) {
+  let front = `[sound:${String(audioFilename || '').trim()}]`;
+
+  if (context) {
+    front += `<div class="yt2anki-front-context" style="margin:12px auto 10px;max-width:420px;padding:10px 14px;border-radius:16px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:14px;line-height:1.35;text-align:center;">Context: ${escapeHtml(context)}</div>`;
+  }
+
+  if (imageFilename) {
+    front += `<div class="yt2anki-front-image" style="margin:12px auto 0;max-width:420px;"><img src="${escapeHtml(imageFilename)}" style="display:block;width:100%;height:auto;border-radius:20px;box-shadow:0 14px 34px rgba(15, 23, 42, 0.14);" /></div>`;
+  }
+
+  if (frontFooterHtml) {
+    front += frontFooterHtml;
+  }
+
+  return front;
+}
+
 /**
  * Create Anki note with audio (legacy single-card method)
  * Audio-first format for comprehension:
@@ -109,6 +135,7 @@ export async function createNote({
   audioFilename,
   context = null,
   imageFilename = null,
+  frontFooterHtml = null,
   addReversed = true,
   cefr = null,
   metadata = null,
@@ -118,13 +145,12 @@ export async function createNote({
   const deckName = deck || config.ankiDeck;
 
   // Format front: Audio + optional context (audio-first for comprehension)
-  let front = `[sound:${audioFilename}]`;
-  if (context) {
-    front += `<br>Context: ${context}`;
-  }
-  if (imageFilename) {
-    front += `<br><img src="${imageFilename}" />`;
-  }
+  const front = buildSentenceNoteFront({
+    audioFilename,
+    context,
+    imageFilename,
+    frontFooterHtml,
+  });
 
   // Format back: German + IPA + Russian
   const backParts = [german, formatIpaHtml(ipa), russian].filter(Boolean);
@@ -362,6 +388,15 @@ export async function getNoteFields(modelName) {
   return ankiConnect('modelFieldNames', { modelName });
 }
 
+export async function updateNoteFields(noteId, fields) {
+  return ankiConnect('updateNoteFields', {
+    note: {
+      id: noteId,
+      fields,
+    },
+  });
+}
+
 /**
  * Normalize German text for comparison
  */
@@ -448,6 +483,7 @@ function extractSearchableText(note) {
     if (/^это\s+перевод\s+в\s+немецкую\s+фразу\b/i.test(line)) return false;
     if (/^(🧭\s*)?подсказка:/i.test(line)) return false;
     if (line.startsWith('Context:')) return false;
+    if (line.startsWith('Contrast:')) return false;
     if (/^\[.*\]$/.test(line)) return false; // IPA-only line
     return true;
   });
@@ -482,6 +518,22 @@ function extractAllFieldValues(note) {
   return Object.values(note.fields || {})
     .map((field) => field?.value || '')
     .join(' ');
+}
+
+function extractAudioFilenameFromFront(front = '') {
+  const match = String(front).match(/\[sound:([^\]]+)\]/i);
+  return match ? match[1].trim() : null;
+}
+
+function extractImageFilenameFromFront(front = '') {
+  const match = String(front).match(/<img[^>]+src="([^"]+)"/i);
+  return match ? match[1].trim() : null;
+}
+
+function extractLegacyAdjectiveContrast(front = '') {
+  const text = stripHtml(String(front).replace(/\[sound:[^\]]+\]/gi, ' '));
+  const match = text.match(/Contrast:\s*(.+?)(?:\s*\|\s*|$)/i);
+  return match ? match[1].trim() : null;
 }
 
 function extractGrammarMetadataFromNote(note) {
@@ -682,5 +734,67 @@ export async function findGrammarDuplicates({
   return {
     exactMatches: [],
     lemmaMatches,
+  };
+}
+
+export async function migrateAdjectiveSentenceFronts({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:mode-word-sentence tag:word-adjective',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const front = note.fields?.Front?.value || '';
+    const audioFilename = extractAudioFilenameFromFront(front);
+
+    if (!audioFilename) {
+      skipped++;
+      continue;
+    }
+
+    const imageFilename = extractImageFilenameFromFront(front);
+    const contrast = extractLegacyAdjectiveContrast(front);
+    const nextFront = buildSentenceNoteFront({
+      audioFilename,
+      imageFilename,
+      frontFooterHtml: buildWordSentenceContrastFooter(contrast),
+    });
+
+    if (front === nextFront) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { Front: nextFront });
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      audioFilename,
+      imageFilename,
+      contrast,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
   };
 }

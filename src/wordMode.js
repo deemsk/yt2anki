@@ -7,6 +7,7 @@ import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import {
   applyChosenSentenceGloss,
+  buildWordSentenceContrastFooter,
   buildWordExtraInfo,
   formatGenderColoredWord,
   formatPronunciationField,
@@ -87,15 +88,12 @@ function resolveWordRoute(wordData = {}) {
   return wordData.recommendedMode === 'sentence-form' ? 'sentence-form' : 'picture-word';
 }
 
-function buildWordSentenceContext(wordData) {
-  const label = wordData.lexicalType === 'adjective' ? 'Adjective' : 'Word';
-  const parts = [`${label}: ${wordData.canonical}`];
-
-  if (wordData.opposite) {
-    parts.push(`Contrast: ${wordData.opposite}`);
+function buildWordSentenceFrontFooter(wordData) {
+  if ((wordData?.lexicalType || 'adjective') !== 'adjective') {
+    return null;
   }
 
-  return parts.join(' | ');
+  return buildWordSentenceContrastFooter(wordData?.opposite || null);
 }
 
 function buildSentenceImageTerms(wordData, chosenSentence) {
@@ -712,8 +710,8 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     ipa: sentenceData.ipa,
     russian: sentenceData.russian,
     audioFilename,
-    context: buildWordSentenceContext(wordData),
     imageFilename,
+    frontFooterHtml: buildWordSentenceFrontFooter(wordData),
     cefr: sentenceData.cefr,
     metadata: {
       canonical: wordData.canonical,

@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -185,6 +185,12 @@ program
   .option('-n, --dry-run', 'Preview grammar notes without creating them')
   .option('-d, --deck <name>', 'Anki deck name', config.ankiDeck)
   .action(processSingleGrammar);
+
+program
+  .command('migrate-adjective-fronts')
+  .description('Rewrite existing adjective sentence-card fronts to the newer image/contrast layout')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runAdjectiveFrontMigration);
 
 program.parse();
 
@@ -758,6 +764,54 @@ async function showConfig() {
     console.log(`  ${chalk.cyan(key)}: ${value || chalk.dim('(not set)')}`);
   }
   console.log();
+}
+
+async function runAdjectiveFrontMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning adjective sentence cards...'
+      : 'Migrating adjective sentence cards...');
+    const result = await migrateAdjectiveSentenceFronts({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Adjective front migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId}${entry.contrast ? ` (${entry.contrast})` : ''}`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Migrated ${result.updated} adjective sentence cards`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
 }
 
 async function processClipboard(options) {
