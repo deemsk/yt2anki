@@ -31,6 +31,21 @@ describe("word mode sentence image helpers", () => {
     )
   })
 
+  test("resolveWordAudioPlan treats adverbs like sentence-based lexical items", () => {
+    expect(
+      resolveWordAudioPlan({
+        lexicalType: "adverb",
+        canonical: "sofort",
+        lemma: "sofort",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        spokenText: "sofort",
+        preferHumanAudio: true,
+      })
+    )
+  })
+
   test("buildSentenceImageMeaning prefers noun-anchored adjective phrases before bare adjective glosses", () => {
     const meaning = buildSentenceImageMeaning(
       {

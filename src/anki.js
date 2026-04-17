@@ -498,7 +498,7 @@ function extractWordMetadataFromSentenceNote(note) {
   }
 
   const tags = Array.isArray(note.tags) ? note.tags : [];
-  const lexicalTag = tags.find((tag) => /^word-(noun|adjective|verb)$/i.test(tag)) || null;
+  const lexicalTag = tags.find((tag) => /^word-(noun|adjective|adverb|verb)$/i.test(tag)) || null;
   const canonicalTag = tags.find((tag) => /^canonical-/i.test(tag)) || null;
   const lemmaTag = tags.find((tag) => /^lemma-/i.test(tag)) || null;
 

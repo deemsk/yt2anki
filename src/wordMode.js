@@ -44,6 +44,13 @@ function isNounWord(wordData = {}) {
   return (wordData.lexicalType || 'noun') === 'noun';
 }
 
+function formatLexicalPreviewType(wordData = {}) {
+  const lexicalType = wordData.lexicalType || 'noun';
+  if (lexicalType === 'adjective') return 'adj';
+  if (lexicalType === 'adverb') return 'adv';
+  return 'noun';
+}
+
 function formatWordDisplay(wordData) {
   return isNounWord(wordData)
     ? formatGenderColoredWord(wordData.canonical, wordData.gender)
@@ -51,7 +58,7 @@ function formatWordDisplay(wordData) {
 }
 
 function formatWordPreviewSummary(chalk, wordData, translation, cefrLevel = null) {
-  const meta = [isNounWord(wordData) ? 'noun' : 'adj'];
+  const meta = [formatLexicalPreviewType(wordData)];
 
   if (cefrLevel) {
     meta.push(cefrLevel);
@@ -83,6 +90,10 @@ function buildWordMetadata(wordData, selectedMeaning, frequencyInfo) {
 function resolveWordRoute(wordData = {}) {
   if (isNounWord(wordData)) {
     return 'picture-word';
+  }
+
+  if (wordData.lexicalType === 'adverb') {
+    return 'sentence-form';
   }
 
   return wordData.recommendedMode === 'sentence-form' ? 'sentence-form' : 'picture-word';
@@ -287,7 +298,7 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
     ipa: sentenceData.ipa,
     russian: sentenceData.russian,
   }, feedback, {
-    cardPurpose: `Sentence-form ${wordData.lexicalType || 'adjective'} card for "${wordData.canonical}"`,
+    cardPurpose: `Sentence-form ${wordData.lexicalType || 'word'} card for "${wordData.canonical}"`,
     requiredTerms: focusForm ? [focusForm] : [],
     extraGuidance: 'Keep the sentence short, natural, and centered on the target word.',
     includeImageBrief: true,
@@ -372,7 +383,7 @@ async function prepareWord(rawInput, options, spinner) {
   }
 
   if (route === 'sentence-form' && !structuredAnalysis) {
-    spinner.warn(`Rejected: ${wordData.rejectionReason || 'not enough adjective analysis for sentence cards'}`);
+    spinner.warn(`Rejected: ${wordData.rejectionReason || 'not enough lexical analysis for sentence cards'}`);
     return { rejected: true };
   }
 
@@ -771,7 +782,7 @@ export async function processWordBatch(options = {}) {
       output: process.stdout,
     });
 
-    console.log(chalk.bold('\nEnter German nouns or adjectives (one per line, empty line to finish):\n'));
+    console.log(chalk.bold('\nEnter German nouns, adjectives, or adverbs (one per line, empty line to finish):\n'));
 
     const words = await new Promise((resolve) => {
       const entries = [];

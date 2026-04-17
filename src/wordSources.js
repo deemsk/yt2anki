@@ -516,6 +516,10 @@ function classifyWordConcept(wordData, selectedMeaning) {
     return 'adjective';
   }
 
+  if (wordData?.lexicalType === 'adverb') {
+    return 'adverb';
+  }
+
   const bare = normalizeGermanForCompare(getWordLemma(wordData));
   const english = normalizeGermanForCompare(selectedMeaning?.english || '');
 
@@ -746,6 +750,25 @@ function buildAdjectiveEntries(wordData, selectedMeaning) {
   }));
 }
 
+function buildAdverbEntries(wordData, selectedMeaning) {
+  const lemma = getWordLemma(wordData);
+  const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
+  const entries = [];
+
+  pushQueryEntries(
+    entries,
+    specificTerms.filter((term) => looksGermanQueryTerm(term, lemma)),
+    'prototype',
+    'de'
+  );
+
+  if (lemma) {
+    pushQueryEntries(entries, [lemma], 'generic', 'de');
+  }
+
+  return entries;
+}
+
 function buildWordImageQueryEntries(wordData, selectedMeaning) {
   const englishGlossValue = selectedMeaning?.english ? String(selectedMeaning.english).trim() : '';
   const specificTerms = dedupeTerms(selectedMeaning?.imageSearchTerms || []);
@@ -755,6 +778,8 @@ function buildWordImageQueryEntries(wordData, selectedMeaning) {
 
   if (conceptClass === 'adjective') {
     entries.push(...buildAdjectiveEntries(wordData, selectedMeaning));
+  } else if (conceptClass === 'adverb') {
+    entries.push(...buildAdverbEntries(wordData, selectedMeaning));
   } else if (conceptClass === 'substance') {
     entries.push(...buildSubstanceEntries(wordData, selectedMeaning));
   } else if (conceptClass === 'institution') {
@@ -775,7 +800,7 @@ function buildWordImageQueryEntries(wordData, selectedMeaning) {
     entries.push(...buildObjectEntries(wordData));
   }
 
-  if (conceptClass !== 'adjective') {
+  if (conceptClass !== 'adjective' && conceptClass !== 'adverb') {
     pushQueryEntries(
       entries,
       specificTerms.filter((term) => looksGermanQueryTerm(term, getWordLemma(wordData))),
@@ -1049,6 +1074,7 @@ function rankImageResult(result, context = {}) {
   const bucket = result.queryBucket || 'generic';
   const bucketWeights = {
     adjective: { contrast: 20, prototype: 12, generic: 0 },
+    adverb: { prototype: 12, generic: 0 },
     substance: { container: 18, action: 10, source: 6, prototype: 8, generic: -2 },
     institution: { sign: 18, exterior: 16, service: 12, interior: 8, context: 8, prototype: 6, generic: -4 },
     dwelling: { exterior: 16, context: 14, interior: 8, prototype: 6, generic: -4 },
@@ -1071,6 +1097,14 @@ function rankImageResult(result, context = {}) {
       score += 8;
     }
 
+    score += scoreVisualBrief(normalizedCombinedText, result, visualBrief);
+
+    if (/icon|logo|symbol|diagram|chart|infographic|palette|swatch|hex\b/.test(combinedText)) {
+      score -= 18;
+    }
+  }
+
+  if (conceptClass === 'adverb') {
     score += scoreVisualBrief(normalizedCombinedText, result, visualBrief);
 
     if (/icon|logo|symbol|diagram|chart|infographic|palette|swatch|hex\b/.test(combinedText)) {

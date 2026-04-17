@@ -7,7 +7,7 @@ DerDieDeck creates German Anki cards from clips, selected text, words, and gramm
 DerDieDeck started as a clip-first workflow, but it now covers four distinct study paths:
 - turn bookmarked YouTube clips into audio-first sentence cards
 - process selected text from any webpage
-- build Fluent Forever-style noun, adjective, and verb cards
+- build Fluent Forever-style noun, adjective, adverb, and verb cards
 - generate grammar cloze cards for inflection-heavy patterns
 
 ## Main Workflows
@@ -22,7 +22,7 @@ DerDieDeck started as a clip-first workflow, but it now covers four distinct stu
 - generate sentence cards without going through the YouTube clip pipeline
 
 ### Lexical workflow
-- use one command, `words`, for nouns, adjectives, and verbs
+- use one command, `words`, for nouns, adjectives, adverbs, and verbs
 - pass one item for immediate processing, or start it with no argument for mixed interactive batches
 - route each item to the right workflow internally
 
@@ -40,6 +40,7 @@ DerDieDeck started as a clip-first workflow, but it now covers four distinct stu
 - picture-word noun cards with article-aware audio
 - picture-word adjective cards when the adjective is clearly imageable
 - sentence-based adjective cards when a single image is not enough
+- sentence-based adverb cards for words like `sofort`, `oft`, or `dort`
 - picture-word or sentence-based verb cards, plus optional dictionary-form cards when the encountered form is non-obvious
 
 ### Grammar cards
@@ -143,7 +144,7 @@ npm run words
 ```
 
 - one argument: process a single lexical item immediately
-- no arguments: enter mixed interactive mode for nouns, adjectives, and verbs
+- no arguments: enter mixed interactive mode for nouns, adjectives, adverbs, and verbs
 
 Useful overrides for single items:
 
@@ -167,6 +168,7 @@ The lexical workflow is built around actual card types, not just dictionary look
 - noun back sides can include plural and a short example sentence
 - imageable adjectives stay in picture-word mode
 - non-visual but useful adjectives move into sentence cards instead of being skipped
+- adverbs are routed into sentence-form notes with short scene-based examples
 - verbs are routed into picture-word or sentence mode depending on how learnable they are from a single image
 
 If `braveApiKey` is configured, Brave image search is tried first, with Openverse and Wikimedia as fallbacks.
@@ -180,7 +182,7 @@ During sentence previews, use `[R]eview` to tell AI what looks wrong and let it 
 | `npm start` | Process clipboard data from the bookmarklets |
 | `npm run clip` | Process clips from clipboard explicitly |
 | `npm run text` | Enter phrases manually in the terminal |
-| `npm run words -- <item>` | Create one lexical note for a noun, adjective, or verb |
+| `npm run words -- <item>` | Create one lexical note for a noun, adjective, adverb, or verb |
 | `npm run words` | Create lexical notes interactively from mixed input |
 | `npm run grammar -- <family> <lemma>` | Create grammar cloze notes |
 | `npm run add -- <url> -s 0:10 -e 0:15` | Add one clip manually from YouTube |

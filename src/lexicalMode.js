@@ -89,7 +89,7 @@ export function chooseLexicalRouteFromAnalyses(wordAnalysis = {}, verbAnalysis =
 
 function describeWordAnalysis(result = {}) {
   if (!result?.canonical) {
-    return 'noun/adjective analysis unavailable';
+    return 'word analysis unavailable';
   }
 
   const type = result.lexicalType || 'noun';
@@ -113,10 +113,10 @@ async function askLexicalRoute(rawInput, classification) {
   console.log(chalk.yellow(`Could not confidently classify "${rawInput}".`));
   console.log(chalk.dim(
     classification.reason === 'both-plausible'
-      ? 'Both noun/adjective and verb analyses look plausible.'
-      : 'Both noun/adjective and verb analyses look weak.'
+      ? 'Both word and verb analyses look plausible.'
+      : 'Both word and verb analyses look weak.'
   ));
-  console.log(chalk.dim(`  noun/adjective: ${describeWordAnalysis(classification.wordAnalysis)}`));
+  console.log(chalk.dim(`  word: ${describeWordAnalysis(classification.wordAnalysis)}`));
   console.log(chalk.dim(`  verb:           ${describeVerbAnalysis(classification.verbAnalysis)}`));
 
   while (true) {
@@ -148,7 +148,7 @@ async function detectLexicalRoute(rawInput) {
   const classification = chooseLexicalRouteFromAnalyses(wordAnalysis, verbAnalysis);
 
   if (classification.route) {
-    spinner.succeed(`Using ${classification.route === 'word' ? 'noun/adjective' : 'verb'} workflow`);
+    spinner.succeed(`Using ${classification.route === 'word' ? 'word' : 'verb'} workflow`);
     return classification;
   }
 
@@ -161,7 +161,7 @@ async function detectLexicalRoute(rawInput) {
     };
   }
 
-  console.log(chalk.dim(`Using ${chosenRoute === 'word' ? 'noun/adjective' : 'verb'} workflow.`));
+  console.log(chalk.dim(`Using ${chosenRoute === 'word' ? 'word' : 'verb'} workflow.`));
   const analysisResult = chosenRoute === 'word'
     ? (classification.wordPlausible ? classification.wordAnalysis : null)
     : (classification.verbPlausible ? classification.verbAnalysis : null);
@@ -213,7 +213,7 @@ export async function processLexicalCommand(inputParts, options = {}) {
       return;
     }
 
-    console.log(chalk.bold('\nEnter German nouns, adjectives, or verbs (one per line, empty line to finish):\n'));
+    console.log(chalk.bold('\nEnter German nouns, adjectives, adverbs, or verbs (one per line, empty line to finish):\n'));
 
     const rl = createInterface({
       input: process.stdin,

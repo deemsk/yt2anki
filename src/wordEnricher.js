@@ -174,24 +174,25 @@ function buildWordSystemPrompt({ forceVisibleNoun = false, forceBareLexicalCandi
 - Visible scene nouns like "der Himmel", "die Sonne", "der Mond", "die Wolke", "das Meer", "der Wald" are imageable and should be accepted.
 - Only reject if the input is clearly not a noun or cannot be normalized into a noun.` : '';
   const lexicalRetryInstructions = forceBareLexicalCandidate ? `
-- The user explicitly entered a single bare German word for word mode. It may be a lowercase noun or a bare adjective.
+- The user explicitly entered a single bare German word for word mode. It may be a lowercase noun, adjective, or adverb.
 - Do not reject solely because the input is short, lowercase, or lacks an article.
 - Short adjectives like "eng", "breit", "weich", "froh", and "leer" are valid adjective inputs and should not be treated as fragments or abbreviations.
 - If the bare word can function as both adjective and adverb in German, prefer the adjective analysis for word mode.
-- If the input is plausibly a noun or adjective, return the best lexical analysis instead of rejecting it.` : '';
+- If the input is plausibly a noun, adjective, or common adverb, return the best lexical analysis instead of rejecting it.` : '';
 
   return `You are a German language expert and Fluent Forever consultant.
 
-Analyze a single German input for noun-or-adjective flashcards in word mode.
+Analyze a single German input for noun, adjective, or adverb flashcards in word mode.
 
 Rules:
-- Accept ONLY nouns and adjectives that can work as strong learner cards in word mode.
-- Reject verbs, adverbs, and full unrelated phrases that are not nouns or adjectives.
+- Accept nouns, adjectives, and common adverbs that can work as strong learner cards in word mode.
+- Reject verbs, modal particles, and unrelated full phrases that are not suitable lexical cards.
 - Do not reject a noun solely because it is colloquial if it is common everyday family vocabulary.
 - Everyday kinship nouns like "Opa", "Oma", "Mama", and "Papa" are valid learner cards and should be accepted.
-- Always set lexicalType to noun or adjective.
+- Always set lexicalType to noun, adjective, or adverb.
 - Always normalize accepted nouns into canonical singular form with article.
 - Always normalize accepted adjectives into the positive/base form with no article.
+- Always normalize accepted adverbs into the base lexical form with no article.
 - Visible natural things and scene nouns such as "der Himmel", "die Sonne", "der Mond", "die Wolke", "der Stern", "der Regenbogen", "das Meer", and "der Wald" are imageable and should usually be accepted.
 - Basic everyday nouns that can be represented with stable visual proxies or familiar situations should also usually be accepted.
 - Examples: "der Preis" with a price tag, "der Termin" with a calendar entry, "das Datum" with a marked date, "der Montag" with a calendar page, "die Frage" with a person asking or a question mark.
@@ -220,8 +221,13 @@ Rules:
 - Example: for "groß", prefer "großer Hund neben kleinem Hund" or "großes Auto" over just "groß".
 - Use recommendedMode="picture-word" for nouns and for strongly imageable adjectives.
 - Use recommendedMode="sentence-form" for adjectives that are common and useful but not learnable from a single stable image.
+- Use recommendedMode="sentence-form" for accepted adverbs.
+- Common adverbs like "sofort", "oft", "später", "früher", "dort", "hier", "oben", "unten", "zusammen", and "allein" should usually be accepted when they can be taught through short concrete example sentences.
+- Modal particles and discourse fillers such as "doch", "ja", "mal", and "halt" should usually be rejected unless the input has a clear stable lexical adverb reading.
 - For sentence-form adjectives, provide 2-3 short natural example sentences in German with Russian translations.
+- For sentence-form adverbs, provide 2-3 short natural example sentences in German with Russian translations.
 - For each sentence-form adjective example sentence, include imageBrief with a strong German searchQuery, 3-6 German queryVariants, a short sceneSummary, a focusRole that says what visually conveys the adjective, 2-5 mustShow constraints, 2-5 avoid constraints, and a concise imagePrompt.
+- For each sentence-form adverb example sentence, include imageBrief with a strong German searchQuery, 3-6 German queryVariants, a short sceneSummary, a focusRole that says what visually conveys the adverb in the scene or timing, 2-5 mustShow constraints, 2-5 avoid constraints, and a concise imagePrompt.
 - searchQuery and queryVariants should emphasize the noun or scene carrying the adjective, not the adjective in isolation.
 - Example: for "Ich finde das Kleid hässlich", prefer "hässliches Kleid" over just "hässlich".
 - For interpersonal or social adjectives such as "nett", "freundlich", "höflich", "hilfsbereit", "gemein", or "unhöflich", the imageBrief must depict observable behavior, not just a person label.
@@ -229,8 +235,9 @@ Rules:
 - For these social adjectives, mustShow should include the visible interaction or gesture, and avoid should explicitly include portraits, selfies, headshots, glamour photos, and isolated person shots when they hide the adjective.
 - IPA must be in square brackets.
 - For nouns, return the plain plural noun without article. If the noun usually has no plural, set noPlural=true.
-- For adjectives, set article, gender, plural to null and noPlural to false.
-- If you reject an identifiable noun or adjective, still return best-effort values for canonical, lemma, meanings, and imageability fields.
+- For adjectives and adverbs, set article, gender, plural to null and noPlural to false.
+- For adverbs, set anchorPhrase and opposite to null.
+- If you reject an identifiable noun, adjective, or adverb, still return best-effort values for canonical, lemma, meanings, and imageability fields.
 ${retryInstructions}
 ${lexicalRetryInstructions}
 
@@ -277,7 +284,7 @@ Respond in JSON only:
   ]
 }
 
-lexicalType must be one of: noun, adjective.
+lexicalType must be one of: noun, adjective, adverb.
 recommendedMode must be one of: picture-word, sentence-form.
 Gender must be one of: masculine, feminine, neuter.
 Register must be one of: neutral, colloquial, formal, specialized.
@@ -327,7 +334,11 @@ export function shouldSuppressAdjectiveContrast(result = {}) {
 }
 
 function sanitizeWordAnalysis(result = {}) {
-  const lexicalType = result.lexicalType === 'adjective' ? 'adjective' : 'noun';
+  const lexicalType = result.lexicalType === 'adjective'
+    ? 'adjective'
+    : result.lexicalType === 'adverb'
+      ? 'adverb'
+      : 'noun';
   const lemma = String(result.lemma || result.bareNoun || result.canonical || '').trim();
   const article = lexicalType === 'noun' ? String(result.article || '').trim() : null;
   const canonical = lexicalType === 'noun'
@@ -340,10 +351,12 @@ function sanitizeWordAnalysis(result = {}) {
     lemma: lexicalType === 'noun' ? lemma.replace(/^(der|die|das)\s+/i, '') : lemma,
     article,
     gender: lexicalType === 'noun' ? result.gender || null : null,
-    recommendedMode: result.recommendedMode === 'sentence-form' ||
-      (lexicalType === 'adjective' && (result.isImageable === false || result.shouldCreateWordCard === false))
+    recommendedMode: lexicalType === 'adverb'
       ? 'sentence-form'
-      : 'picture-word',
+      : result.recommendedMode === 'sentence-form' ||
+      (lexicalType === 'adjective' && (result.isImageable === false || result.shouldCreateWordCard === false))
+        ? 'sentence-form'
+        : 'picture-word',
     plural: lexicalType === 'noun' ? result.plural || null : null,
     noPlural: lexicalType === 'noun' ? Boolean(result.noPlural) : false,
     anchorPhrase: lexicalType === 'adjective' ? String(result.anchorPhrase || '').trim() || null : null,
@@ -371,8 +384,8 @@ function sanitizeWordAnalysis(result = {}) {
   return sanitized;
 }
 
-function hydrateFallbackAdjectiveAnalysis(input, result = {}) {
-  if (result.lexicalType !== 'adjective') {
+function hydrateFallbackModifierAnalysis(input, result = {}) {
+  if (result.lexicalType !== 'adjective' && result.lexicalType !== 'adverb') {
     return result;
   }
 
@@ -405,7 +418,7 @@ function looksLikeBareLexicalInput(input = '') {
 }
 
 export function hasStructuredWordAnalysis(result = {}) {
-  if (result.lexicalType === 'adjective') {
+  if (result.lexicalType === 'adjective' || result.lexicalType === 'adverb') {
     return Boolean(
       result.canonical &&
       (result.lemma || result.bareNoun)
@@ -423,7 +436,7 @@ export function hasStructuredWordAnalysis(result = {}) {
 }
 
 export function canProceedWithWeakWordCard(result = {}) {
-  return result.lexicalType !== 'adjective' && hasStructuredWordAnalysis(result);
+  return (result.lexicalType || 'noun') === 'noun' && hasStructuredWordAnalysis(result);
 }
 
 export function shouldRetryImageableNounRejection(input, result = {}) {
@@ -503,6 +516,59 @@ export function buildBareLexicalAdjectiveFallback(input, result = {}) {
   };
 }
 
+export function shouldFallbackBareAdverbRejection(input, result = {}) {
+  if (!result || result.shouldCreateWordCard !== false) {
+    return false;
+  }
+
+  if (!looksLikeBareLexicalInput(input)) {
+    return false;
+  }
+
+  const rejectionReason = normalizeGermanForCompare(result.rejectionReason || '');
+  if (!/adverb/.test(rejectionReason)) {
+    return false;
+  }
+
+  if (!NON_ADJECTIVE_BARE_ADVERBS.has(normalizeGermanForCompare(input))) {
+    return false;
+  }
+
+  const frequencyInfo = getWordFrequencyInfo(input);
+  return Boolean(frequencyInfo.rank && frequencyInfo.rank <= 5000);
+}
+
+export function buildBareLexicalAdverbFallback(input, result = {}) {
+  const rawInput = String(input || '').trim();
+  const fallbackMeanings = Array.isArray(result.meanings)
+    ? result.meanings.filter(Boolean).slice(0, 3)
+    : [];
+  const fallbackSentences = Array.isArray(result.exampleSentences)
+    ? result.exampleSentences.filter((sentence) => sentence?.german).slice(0, 3)
+    : [];
+
+  return {
+    ...result,
+    shouldCreateWordCard: false,
+    rejectionReason: result.rejectionReason || 'Bare adverb; falling back to sentence-form adverb mode.',
+    lexicalType: 'adverb',
+    canonical: rawInput || result.canonical || result.lemma || '',
+    lemma: rawInput || result.lemma || result.canonical || '',
+    article: null,
+    gender: null,
+    recommendedMode: 'sentence-form',
+    isImageable: false,
+    imageabilityReason: result.imageabilityReason || 'better learned in sentence context',
+    plural: null,
+    noPlural: false,
+    bareNoun: null,
+    anchorPhrase: null,
+    opposite: null,
+    meanings: fallbackMeanings,
+    exampleSentences: fallbackSentences,
+  };
+}
+
 export function buildEverydayFamilyNounFallback(input, result = {}) {
   const fallback = EVERYDAY_FAMILY_NOUN_FALLBACKS[normalizeGermanForCompare(input)];
   if (!fallback) {
@@ -542,7 +608,7 @@ async function requestWordAnalysis(client, input, options = {}) {
     temperature: 0.2,
   });
 
-  return hydrateFallbackAdjectiveAnalysis(
+  return hydrateFallbackModifierAnalysis(
     input,
     sanitizeWordAnalysis(JSON.parse(response.choices[0].message.content))
   );
@@ -558,6 +624,9 @@ export async function enrichWord(input) {
 
   if (shouldRetryBareLexicalRejection(input, result)) {
     const retried = await requestWordAnalysis(client, input, { forceBareLexicalCandidate: true });
+    if (shouldFallbackBareAdverbRejection(input, retried)) {
+      return buildBareLexicalAdverbFallback(input, retried);
+    }
     if (retried.shouldCreateWordCard === false) {
       const familyFallback = buildEverydayFamilyNounFallback(input, retried);
       if (familyFallback !== retried) {
@@ -571,6 +640,9 @@ export async function enrichWord(input) {
   }
 
   if (result.shouldCreateWordCard === false) {
+    if (shouldFallbackBareAdverbRejection(input, result)) {
+      return buildBareLexicalAdverbFallback(input, result);
+    }
     const familyFallback = buildEverydayFamilyNounFallback(input, result);
     if (familyFallback !== result) {
       return familyFallback;

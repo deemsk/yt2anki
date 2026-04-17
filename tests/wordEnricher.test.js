@@ -1,4 +1,4 @@
-import { buildBareLexicalAdjectiveFallback, buildEverydayFamilyNounFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
+import { buildBareLexicalAdjectiveFallback, buildBareLexicalAdverbFallback, buildEverydayFamilyNounFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldFallbackBareAdverbRejection, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -67,6 +67,16 @@ describe("word enricher retries", () => {
     ).toBe(false)
   })
 
+  test("marks common bare adverb rejections for sentence-form adverb fallback", () => {
+    expect(
+      shouldFallbackBareAdverbRejection("sofort", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "The input 'sofort' is an adverb and does not meet the criteria for nouns or adjectives that can work as strong learner cards in word mode.",
+      })
+    ).toBe(true)
+  })
+
   test("does not retry rare unknown bare inputs through the lexical path", () => {
     expect(
       shouldRetryBareLexicalRejection("xqzpt", {
@@ -98,6 +108,24 @@ describe("word enricher retries", () => {
         lexicalType: "adjective",
         canonical: "eng",
         lemma: "eng",
+        recommendedMode: "sentence-form",
+        isImageable: false,
+      })
+    )
+  })
+
+  test("builds a sentence-form adverb fallback for common bare adverbs", () => {
+    expect(
+      buildBareLexicalAdverbFallback("sofort", {
+        shouldCreateWordCard: false,
+        lexicalType: "noun",
+        rejectionReason: "The input is an adverb.",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        lexicalType: "adverb",
+        canonical: "sofort",
+        lemma: "sofort",
         recommendedMode: "sentence-form",
         isImageable: false,
       })
@@ -188,6 +216,19 @@ describe("word enricher retries", () => {
         recommendedMode: "sentence-form",
         meanings: [{ russian: "важный", english: "important" }],
         exampleSentences: [{ german: "Das ist wichtig.", russian: "Это важно." }],
+      })
+    ).toBe(true)
+  })
+
+  test("keeps structured adverb analyses usable for sentence-form fallback", () => {
+    expect(
+      hasStructuredWordAnalysis({
+        lexicalType: "adverb",
+        canonical: "sofort",
+        lemma: "sofort",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "сразу", english: "immediately" }],
+        exampleSentences: [{ german: "Komm sofort.", russian: "Иди немедленно." }],
       })
     ).toBe(true)
   })

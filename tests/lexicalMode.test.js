@@ -29,6 +29,30 @@ describe("lexical mode router", () => {
     )
   })
 
+  test("chooseLexicalRouteFromAnalyses routes adverb inputs through the word workflow", () => {
+    const result = chooseLexicalRouteFromAnalyses(
+      {
+        lexicalType: "adverb",
+        canonical: "sofort",
+        lemma: "sofort",
+        shouldCreateWordCard: false,
+        exampleSentences: [{ german: "Komm sofort.", russian: "Иди немедленно." }],
+      },
+      {
+        infinitive: "",
+        shouldCreateVerbCard: false,
+        meanings: [],
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        route: "word",
+        reason: "word-only",
+      })
+    )
+  })
+
   test("chooseLexicalRouteFromAnalyses routes verb inputs automatically", () => {
     const result = chooseLexicalRouteFromAnalyses(
       {

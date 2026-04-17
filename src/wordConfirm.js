@@ -38,7 +38,10 @@ function formatImageSelectionLabel(imageChoice) {
 }
 
 function formatLexicalType(wordData) {
-  return (wordData.lexicalType || 'noun') === 'adjective' ? 'adj' : 'noun';
+  const lexicalType = wordData.lexicalType || 'noun';
+  if (lexicalType === 'adjective') return 'adj';
+  if (lexicalType === 'adverb') return 'adv';
+  return 'noun';
 }
 
 function buildWordSummaryLine(wordData, translation, cefrLevel = null) {
@@ -372,7 +375,7 @@ export async function chooseImage(wordData, meaning, candidates) {
       console.log(`  ${index + 1}. image ${index + 1}`);
     });
 
-    const answer = await ask(`[0-${pageCandidates.length}] select, [N]ext, [B]ack, [U]rl/path: `);
+    const answer = await ask(`[0] none, [1-${pageCandidates.length}] select, [S]kip, [N]ext, [B]ack, [U]rl/path: `);
     const normalized = answer.toLowerCase();
 
     if (normalized === '0' || normalized === 'none' || normalized === 's' || normalized === 'skip') {

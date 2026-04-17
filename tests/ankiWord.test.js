@@ -315,4 +315,53 @@ describe("word note helpers", () => {
       }),
     ])
   })
+
+  test("findSentenceWordDuplicates falls back to adverb tags when hidden metadata is absent", async () => {
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [31], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 31,
+                  fields: {
+                    Front: { value: "[sound:sofort.mp3]<br><img src=\"sofort.jpg\" />" },
+                    Back: { value: "Komm sofort.<br>[kɔm zɔˈfɔʁt]<br>Иди немедленно." },
+                  },
+                  tags: ["yt2anki", "mode-word-sentence", "word-adverb", "canonical-sofort", "lemma-sofort"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const duplicates = await findSentenceWordDuplicates({
+      canonical: "sofort",
+      lexicalType: "adverb",
+    })
+
+    expect(duplicates.headwordMatches).toEqual([
+      expect.objectContaining({
+        noteId: 31,
+        canonical: "sofort",
+        lexicalType: "adverb",
+      }),
+    ])
+  })
 })
