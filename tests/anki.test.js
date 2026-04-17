@@ -85,7 +85,7 @@ describe("anki helpers", () => {
     })
 
     const note = requests[0].params.note
-    expect(note.fields.Front).toContain('class="yt2anki-front-image"')
+    expect(note.fields.Front).toContain('<img src="gross.jpg" />')
     expect(note.fields.Front).toContain("gross.jpg")
     expect(note.fields.Front).toContain("yt2anki-word-contrast")
     expect(note.fields.Front).not.toContain("Context:")
@@ -150,7 +150,7 @@ describe("anki helpers", () => {
     const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
     expect(updateRequest.params.note.id).toBe(21)
     expect(updateRequest.params.note.fields.Front).toContain('[sound:gross.mp3]')
-    expect(updateRequest.params.note.fields.Front).toContain('class="yt2anki-front-image"')
+    expect(updateRequest.params.note.fields.Front).toContain('<img src="gross.jpg" />')
     expect(updateRequest.params.note.fields.Front).toContain("gross.jpg")
     expect(updateRequest.params.note.fields.Front).toContain('class="yt2anki-word-contrast"')
     expect(updateRequest.params.note.fields.Front).not.toContain("Context:")

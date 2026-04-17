@@ -123,10 +123,8 @@ export function buildWordSentenceContrastFooter(contrast = null) {
   }
 
   return `<div class="yt2anki-word-contrast" style="margin:14px auto 0;max-width:420px;text-align:center;">
-  <div style="display:inline-block;min-width:140px;padding:10px 16px;border-radius:18px;background:linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(15, 118, 110, 0.14));box-shadow:inset 0 0 0 1px rgba(14, 116, 144, 0.12);">
-    <span style="display:block;font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#0f766e;">Contrast:</span>
-    <span style="display:block;margin-top:4px;font-size:22px;font-weight:700;line-height:1.15;color:#0f172a;">${escapeHtml(value)}</span>
-  </div>
+  <span style="display:block;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0f766e;">Contrast</span>
+  <span style="display:block;margin-top:4px;font-size:20px;font-weight:600;line-height:1.15;color:#0f766e;">${escapeHtml(value)}</span>
 </div>`;
 }
 

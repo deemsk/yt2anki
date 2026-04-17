@@ -102,7 +102,7 @@ export function buildSentenceNoteFront({
   }
 
   if (imageFilename) {
-    front += `<div class="yt2anki-front-image" style="margin:12px auto 0;max-width:420px;"><img src="${escapeHtml(imageFilename)}" style="display:block;width:100%;height:auto;border-radius:20px;box-shadow:0 14px 34px rgba(15, 23, 42, 0.14);" /></div>`;
+    front += `<br><img src="${escapeHtml(imageFilename)}" />`;
   }
 
   if (frontFooterHtml) {

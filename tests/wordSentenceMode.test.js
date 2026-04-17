@@ -134,7 +134,7 @@ describe("word mode sentence flow", () => {
 
     const payload = mockCreateNote.mock.calls[0][0]
     expect(payload.context).toBeUndefined()
-    expect(payload.frontFooterHtml).toContain("Contrast:")
+    expect(payload.frontFooterHtml).toContain("Contrast")
     expect(payload.frontFooterHtml).toContain("klein")
   })
 })

@@ -45,7 +45,7 @@ describe("word helpers", () => {
     const footer = buildWordSentenceContrastFooter("klein")
 
     expect(footer).toContain('class="yt2anki-word-contrast"')
-    expect(footer).toContain("Contrast:")
+    expect(footer).toContain("Contrast")
     expect(footer).toContain("klein")
   })
 
