@@ -31,12 +31,12 @@ describe("card type helpers", () => {
     )
 
     expect(withEnglish.front.situation).toBeNull()
-    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("🗣")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Скажи по-немецки")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Я хочу кофе.")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).not.toContain("ordering coffee")
     expect(withRussian.front.situation).toBe("в кафе")
-    expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain("🧭 Подсказка: в кафе")
+    expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain('class="yt2anki-production-hint"')
+    expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain(">в кафе<")
   })
 
   test("formatCardForAnki wraps IPA with the neutral IPA class", () => {

@@ -107,6 +107,7 @@ describe("verb mode sentence flow", () => {
         shouldCreateVerbCard: true,
         infinitive: "gehören",
         displayForm: "gehört",
+        ipa: "[ɡəˈhøːʁən]",
         recommendedMode: "sentence-form",
         meanings: [{ russian: "принадлежать", english: "belong" }],
       },
@@ -121,13 +122,50 @@ describe("verb mode sentence flow", () => {
       german: "Der Hund gehört meiner Schwester.",
       russian: "Собака принадлежит моей сестре.",
       context: "gehört -> gehören",
+      contextStyle: "plain",
       deck: "German::Test",
       tags: expect.arrayContaining(["mode-verb-sentence"]),
     }))
     expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
       front: "gehört",
+      back: expect.stringContaining('class="yt2anki-ipa"'),
       deck: "German::Test",
       tags: expect.arrayContaining(["mode-verb-dictionary"]),
     }))
+  })
+
+  test("runVerbWorkflow omits synthetic fallback context when focus form matches the infinitive", async () => {
+    mockChooseVerbSentence.mockResolvedValueOnce({
+      german: "Wir müssen das Ziel erreichen.",
+      russian: "Мы должны достичь цели.",
+      focusForm: "erreichen",
+    })
+    mockConfirmSentenceVerbSelection.mockResolvedValueOnce({
+      confirmed: true,
+      addDictionaryForm: false,
+    })
+
+    const added = await runVerbWorkflow("erreichen", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "erreichen",
+        displayForm: "erreichen",
+        ipa: "[ɛˈʁaɪ̯çn̩]",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "достигать", english: "reach" }],
+      },
+      meaning: "достигать",
+      sentence: "Wir müssen das Ziel erreichen.",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
+      context: null,
+      contextStyle: "plain",
+      deck: "German::Test",
+    }))
+    expect(mockCreateBasicNote).not.toHaveBeenCalled()
   })
 })

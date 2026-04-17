@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
-import { formatCardForAnki, CARD_LABELS } from './cardTypes.js';
+import { buildProductionFront, formatCardForAnki, CARD_LABELS } from './cardTypes.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
 import {
   buildWordSentenceContrastFooter,
@@ -92,13 +92,18 @@ export async function storeAudio(audioPath) {
 export function buildSentenceNoteFront({
   audioFilename,
   context = null,
+  contextStyle = 'boxed',
   imageFilename = null,
   frontFooterHtml = null,
 }) {
   let front = `[sound:${String(audioFilename || '').trim()}]`;
 
   if (context) {
-    front += `<div class="yt2anki-front-context" style="margin:12px auto 10px;max-width:420px;padding:10px 14px;border-radius:16px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:14px;line-height:1.35;text-align:center;">Context: ${escapeHtml(context)}</div>`;
+    if (contextStyle === 'plain') {
+      front += `<br>Context: ${escapeHtml(context)}`;
+    } else {
+      front += `<div class="yt2anki-front-context" style="margin:12px auto 10px;max-width:420px;padding:10px 14px;border-radius:16px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:14px;line-height:1.35;text-align:center;">Context: ${escapeHtml(context)}</div>`;
+    }
   }
 
   if (imageFilename) {
@@ -134,6 +139,7 @@ export async function createNote({
   russian,
   audioFilename,
   context = null,
+  contextStyle = 'boxed',
   imageFilename = null,
   frontFooterHtml = null,
   addReversed = true,
@@ -148,6 +154,7 @@ export async function createNote({
   const front = buildSentenceNoteFront({
     audioFilename,
     context,
+    contextStyle,
     imageFilename,
     frontFooterHtml,
   });
@@ -536,6 +543,41 @@ function extractLegacyAdjectiveContrast(front = '') {
   return match ? match[1].trim() : null;
 }
 
+function extractContextFromFront(front = '') {
+  const match = String(front).match(/Context:\s*([^<]+)/i);
+  return match ? stripHtml(match[1]) : null;
+}
+
+function isSyntheticVerbContext(context = '') {
+  return /^verb:\s+/i.test(String(context).trim());
+}
+
+function isProductionInstructionLine(line = '') {
+  const normalized = String(line)
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalized.includes('скажи по-немецки')
+    || normalized.startsWith('передай это по-немецки')
+    || normalized.startsWith('это перевод в немецкую фразу');
+}
+
+function extractProductionFrontData(front = '') {
+  const lines = extractFieldLines(
+    String(front)
+      .replace(/<\/div>/gi, '<br>')
+      .replace(/<\/p>/gi, '<br>')
+  );
+  const situationLine = lines.find((line) => /^(🧭\s*)?подсказка:/i.test(line)) || null;
+  const russian = lines.find((line) => !isProductionInstructionLine(line) && line !== situationLine) || null;
+  const situation = situationLine
+    ? situationLine.replace(/^(🧭\s*)?подсказка:\s*/i, '').trim() || null
+    : null;
+
+  return { russian, situation };
+}
+
 function extractGrammarMetadataFromNote(note) {
   const embedded = parseGrammarMetadataComment(extractAllFieldValues(note));
   if (embedded) {
@@ -787,6 +829,193 @@ export async function migrateAdjectiveSentenceFronts({ dryRun = false } = {}) {
       audioFilename,
       imageFilename,
       contrast,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}
+
+export async function migrateProductionCardFronts({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:card-production',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const front = note.fields?.Front?.value || '';
+    const { russian, situation } = extractProductionFrontData(front);
+
+    if (!russian) {
+      skipped++;
+      continue;
+    }
+
+    const nextFront = buildProductionFront(russian, situation);
+
+    if (front === nextFront) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { Front: nextFront });
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      russian,
+      situation,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}
+
+export async function migrateVerbSentenceFronts({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:mode-verb-sentence',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const front = note.fields?.Front?.value || '';
+    const audioFilename = extractAudioFilenameFromFront(front);
+    const context = extractContextFromFront(front);
+    const imageFilename = extractImageFilenameFromFront(front);
+
+    if (!audioFilename) {
+      skipped++;
+      continue;
+    }
+
+    const nextContext = context && !isSyntheticVerbContext(context) ? context : null;
+
+    const nextFront = buildSentenceNoteFront({
+      audioFilename,
+      context: nextContext,
+      contextStyle: 'plain',
+      imageFilename,
+    });
+
+    if (front === nextFront) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { Front: nextFront });
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      context: nextContext,
+      imageFilename,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}
+
+export async function migrateVerbDictionaryIpaBacks({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:mode-verb-dictionary',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const back = note.fields?.Back?.value || '';
+
+    if (back.includes('class="yt2anki-ipa"')) {
+      skipped++;
+      continue;
+    }
+
+    const lines = extractFieldLines(back);
+    const ipaIndex = lines.findIndex((line) => /^\[[^\]]+\]$/.test(line));
+
+    if (lines.length === 0 || ipaIndex === -1) {
+      skipped++;
+      continue;
+    }
+
+    const nextBack = lines.map((line, index) => {
+      if (index === ipaIndex) {
+        return formatIpaHtml(line);
+      }
+
+      return escapeHtml(line);
+    }).join('<br>');
+
+    if (back === nextBack) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { Back: nextBack });
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      infinitive: lines[0] || null,
+      ipa: lines[ipaIndex] || null,
     });
     updated++;
   }

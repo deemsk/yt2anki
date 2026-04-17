@@ -1,4 +1,4 @@
-import { createBasicNote, createPictureWordNote } from "../src/anki.js"
+import { createBasicNote, createPictureWordNote, migrateVerbDictionaryIpaBacks } from "../src/anki.js"
 import { buildWordExtraInfo } from "../src/wordUtils.js"
 
 describe("verb note helpers", () => {
@@ -70,5 +70,68 @@ describe("verb note helpers", () => {
     expect(requests[0].params.note.fields.Back).toContain("laufen")
     expect(requests[0].params.note.fields["Add Reverse"]).toBe("1")
     expect(requests[0].params.note.tags).toContain("mode-verb-dictionary")
+  })
+
+  test("migrateVerbDictionaryIpaBacks rewrites plain IPA lines with shared styling", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [88], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 88,
+                  fields: {
+                    Front: { value: "erreichen" },
+                    Back: { value: "erreichen<br>[ɛˈʁaɪ̯çn̩]<br>достигать" },
+                  },
+                  tags: ["yt2anki", "mode-verb-dictionary"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateVerbDictionaryIpaBacks()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: 1,
+        updated: 1,
+        skipped: 0,
+      })
+    )
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(88)
+    expect(updateRequest.params.note.fields.Back).toContain('class="yt2anki-ipa"')
+    expect(updateRequest.params.note.fields.Back).toContain("erreichen")
+    expect(updateRequest.params.note.fields.Back).toContain("достигать")
   })
 })

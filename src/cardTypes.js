@@ -28,13 +28,6 @@ const TASK_PANEL_STYLES = {
     slotBorder: 'rgba(217, 119, 6, 0.45)',
     slotBackground: 'rgba(255, 255, 255, 0.55)',
   },
-  production: {
-    border: 'rgba(14, 165, 233, 0.45)',
-    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.14), rgba(16, 185, 129, 0.10))',
-    kicker: 'rgba(8, 47, 73, 0.95)',
-    slotBorder: 'rgba(6, 182, 212, 0.35)',
-    slotBackground: 'rgba(255, 255, 255, 0.48)',
-  },
 };
 
 export function normalizeRussianHint(text = '') {
@@ -67,19 +60,12 @@ function buildDialogueFront(audioFilename) {
     `<div class="yt2anki-reply-slot" style="padding:10px 12px;border-radius:14px;border:1.5px dashed ${style.slotBorder};background:${style.slotBackground};font-size:15px;font-weight:600;text-align:left;">💬 Твой ответ: ______</div>`;
 }
 
-function buildProductionFront(russian, situation = null) {
-  const style = TASK_PANEL_STYLES.production;
-  let front = buildTaskPanel('production', {
-    emoji: '🗣',
-    kicker: 'СКАЖИ ПО-НЕМЕЦКИ',
-    main: 'Скажи по-немецки вслух',
-    sub: 'Это перевод в немецкую фразу, а не ответ собеседнику',
-  });
-
-  front += `<div class="yt2anki-production-source" style="margin-top:10px;padding:12px 14px;border-radius:16px;border:1.5px solid ${style.slotBorder};background:${style.slotBackground};font-size:20px;font-weight:700;line-height:1.28;text-align:left;">${escapeHtml(russian)}</div>`;
+export function buildProductionFront(russian, situation = null) {
+  let front = '<div class="yt2anki-production-prompt" style="margin-bottom:8px;font-size:15px;font-weight:700;line-height:1.25;text-align:left;">🗣 Скажи по-немецки</div>';
+  front += `<div class="yt2anki-production-source" style="font-size:20px;font-weight:700;line-height:1.28;text-align:left;">${escapeHtml(russian)}</div>`;
 
   if (situation) {
-    front += `<div class="yt2anki-production-hint" style="margin-top:8px;font-size:13px;line-height:1.35;text-align:left;opacity:0.86;">🧭 Подсказка: ${escapeHtml(situation)}</div>`;
+    front += `<div class="yt2anki-production-hint" style="margin-top:8px;font-size:13px;line-height:1.35;text-align:left;opacity:0.86;">${escapeHtml(situation)}</div>`;
   }
 
   return front;

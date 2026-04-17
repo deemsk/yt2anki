@@ -1,4 +1,4 @@
-import { createNote, findSimilarCards, migrateAdjectiveSentenceFronts } from "../src/anki.js"
+import { createNote, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -154,6 +154,192 @@ describe("anki helpers", () => {
     expect(updateRequest.params.note.fields.Front).toContain("gross.jpg")
     expect(updateRequest.params.note.fields.Front).toContain('class="yt2anki-word-contrast"')
     expect(updateRequest.params.note.fields.Front).not.toContain("Context:")
+  })
+
+  test("migrateProductionCardFronts rewrites boxed production fronts to the plain layout", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [44], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 44,
+                  fields: {
+                    Front: { value: '<div class="yt2anki-task yt2anki-task-production">🗣 СКАЖИ ПО-НЕМЕЦКИ</div><div>Скажи по-немецки вслух</div><div>Это перевод в немецкую фразу, а не ответ собеседнику</div><div class="yt2anki-production-source">Я хочу кофе.</div><div class="yt2anki-production-hint">🧭 Подсказка: в кафе</div>' },
+                    Back: { value: "Ich möchte einen Kaffee.<br>[ɪç ˈmœçtə ˈaɪ̯nən ˈkafeː]<br>Я хочу кофе." },
+                  },
+                  tags: ["yt2anki", "card-production"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateProductionCardFronts()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: 1,
+        updated: 1,
+        skipped: 0,
+      })
+    )
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(44)
+    expect(updateRequest.params.note.fields.Front).toContain("Скажи по-немецки")
+    expect(updateRequest.params.note.fields.Front).toContain("Я хочу кофе.")
+    expect(updateRequest.params.note.fields.Front).toContain(">в кафе<")
+    expect(updateRequest.params.note.fields.Front).not.toContain("yt2anki-task-production")
+  })
+
+  test("migrateVerbSentenceFronts rewrites boxed verb contexts to the plain layout", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [55], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 55,
+                  fields: {
+                    Front: { value: '[sound:gehoert.mp3]<div class="yt2anki-front-context" style="margin:12px auto 10px;max-width:420px;padding:10px 14px;border-radius:16px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:14px;line-height:1.35;text-align:center;">Context: gehört -&gt; gehören</div>' },
+                    Back: { value: "Der Hund gehört meiner Schwester.<br>[deːɐ̯ hʊnt ɡəˈhøːɐ̯t ˈmaɪ̯nɐ ˈʃvɛstɐ]<br>Собака принадлежит моей сестре." },
+                  },
+                  tags: ["yt2anki", "mode-verb-sentence"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateVerbSentenceFronts()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: 1,
+        updated: 1,
+        skipped: 0,
+      })
+    )
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(55)
+    expect(updateRequest.params.note.fields.Front).toBe("[sound:gehoert.mp3]<br>Context: gehört -&gt; gehören")
+  })
+
+  test("migrateVerbSentenceFronts drops synthetic fallback verb contexts", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [56], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 56,
+                  fields: {
+                    Front: { value: '[sound:erreichen.mp3]<br>Context: Verb: erreichen' },
+                    Back: { value: "Wir müssen das Ziel erreichen.<br>[viːɐ̯ ˈmʏsn̩ das tsiːl ɛɐ̯ˈʁaɪ̯çn̩]<br>Мы должны достичь цели." },
+                  },
+                  tags: ["yt2anki", "mode-verb-sentence"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateVerbSentenceFronts()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: 1,
+        updated: 1,
+        skipped: 0,
+      })
+    )
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(56)
+    expect(updateRequest.params.note.fields.Front).toBe("[sound:erreichen.mp3]")
   })
 
   test("findSimilarCards matches current audio-first cards using back-side German text", async () => {

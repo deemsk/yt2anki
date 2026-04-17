@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { config } from './config.js';
 import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { applyChosenSentenceGloss, buildWordExtraInfo, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
+import { applyChosenSentenceGloss, buildWordExtraInfo, formatIpaHtml, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
 import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection, formatVerbPreviewSummary, resolveVerbFocusForm } from './verbConfirm.js';
@@ -186,7 +186,7 @@ async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, de
   const displayForm = focusForm || verbData.displayForm || verbData.infinitive;
   const backParts = [verbData.infinitive];
   if (verbData.ipa) {
-    backParts.push(verbData.ipa);
+    backParts.push(formatIpaHtml(verbData.ipa));
   }
   if (selectedMeaning?.russian) {
     backParts.push(selectedMeaning.russian);
@@ -511,7 +511,8 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
     ipa: sentenceData.ipa,
     russian: sentenceData.russian,
     audioFilename,
-    context: buildDictionaryFormContext(verbData, chosenSentence.focusForm) || `Verb: ${verbData.infinitive}`,
+    context: buildDictionaryFormContext(verbData, chosenSentence.focusForm),
+    contextStyle: 'plain',
     cefr: sentenceData.cefr,
     deck: options.deck,
     tags: [
