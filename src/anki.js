@@ -236,10 +236,11 @@ export async function createPictureWordNote({
   modelName = config.wordNoteType || PICTURE_WORD_MODEL,
 }) {
   const deckName = deck || config.ankiDeck;
+  const resolvedImageSource = imageSource || 'none';
 
   const fields = {
     [PICTURE_WORD_FIELDS.word]: coloredWord,
-    [PICTURE_WORD_FIELDS.picture]: `<img src="${imageFilename}" />`,
+    [PICTURE_WORD_FIELDS.picture]: imageFilename ? `<img src="${imageFilename}" />` : '',
     [PICTURE_WORD_FIELDS.extra]: extraInfoField,
     [PICTURE_WORD_FIELDS.pronunciation]: pronunciationField,
     [PICTURE_WORD_FIELDS.spelling]: '',
@@ -252,7 +253,7 @@ export async function createPictureWordNote({
     `freq-${frequencyBand}`,
     `lemma-${toTagSlug(lemma)}`,
     `canonical-${toTagSlug(canonical)}`,
-    `img-${toTagSlug(imageSource)}`,
+    `img-${toTagSlug(resolvedImageSource)}`,
     `audio-${toTagSlug(audioSource)}`,
   ];
 

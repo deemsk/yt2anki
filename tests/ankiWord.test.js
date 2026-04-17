@@ -49,6 +49,44 @@ describe("word note helpers", () => {
     expect(requests[0].params.note.fields.Picture).toContain("wasser.jpg")
   })
 
+  test("createPictureWordNote can leave the picture field blank when no image is chosen", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      requests.push(JSON.parse(options.body))
+      return {
+        async json() {
+          return { result: 322, error: null }
+        },
+      }
+    }
+
+    await createPictureWordNote({
+      canonical: "ziemlich",
+      coloredWord: "<span>ziemlich</span>",
+      imageFilename: null,
+      pronunciationField: "[sound:ziemlich.mp3]<br>[ˈtsiːmlɪç]",
+      extraInfoField: buildWordExtraInfo({
+        meaning: "довольно",
+        metadata: {
+          canonical: "ziemlich",
+          meaning: "довольно",
+          lexicalType: "adjective",
+        },
+      }),
+      frequencyBand: "core",
+      lemma: "ziemlich",
+      imageSource: null,
+      audioSource: "Google TTS",
+      lexicalType: "adjective",
+      modelName: "2. Picture Words",
+    })
+
+    const note = requests[0].params.note
+    expect(note.fields.Picture).toBe("")
+    expect(note.tags).toContain("img-none")
+  })
+
   test("findWordDuplicates distinguishes exact duplicates from same-headword warnings", async () => {
     global.fetch = async (_url, options) => {
       const body = JSON.parse(options.body)

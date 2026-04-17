@@ -317,9 +317,7 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
 
     if (imageCandidates.length > 0) {
       const revisedImageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
-      if (revisedImageChoice) {
-        imageChoice = revisedImageChoice;
-      }
+      imageChoice = revisedImageChoice;
     }
   }
 
@@ -448,8 +446,7 @@ async function prepareWord(rawInput, options, spinner) {
 
     const imageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
     if (!imageChoice) {
-      console.log(chalk.yellow('Skipped: no image selected'));
-      return { rejected: true };
+      console.log(chalk.dim('Continuing without image.'));
     }
 
     const audio = await buildWordAudio(wordData, spinner);
@@ -607,16 +604,20 @@ async function finalizePictureWord(prepared, options, spinner) {
     }
     console.log(`  ${chalk.cyan('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`  ${chalk.cyan('Audio:')} ${audio.source}`);
+    console.log(`  ${chalk.cyan('Image:')} ${imageChoice ? (imageChoice.source || imageChoice.type || 'image') : 'none'}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Note previewed'));
     return true;
   }
 
-  spinner.start('Downloading chosen image...');
-  const imagePath = await resolveImageAsset(imageChoice);
-  spinner.succeed('Image ready');
+  let imageFilename = null;
+  if (imageChoice) {
+    spinner.start('Downloading chosen image...');
+    const imagePath = await resolveImageAsset(imageChoice);
+    spinner.succeed('Image ready');
+    imageFilename = await storeMedia(imagePath);
+  }
 
   spinner.start('Creating Anki note...');
-  const imageFilename = await storeMedia(imagePath);
   const audioFilename = await storeAudio(audio.audioPath);
   const pronunciationField = formatPronunciationField(audioFilename, wordData.ipa);
 
@@ -629,7 +630,7 @@ async function finalizePictureWord(prepared, options, spinner) {
     gender: isNounWord(wordData) ? wordData.gender : null,
     frequencyBand: frequencyInfo.bandKey,
     lemma: getWordLemma(wordData),
-    imageSource: imageChoice.source || imageChoice.type,
+    imageSource: imageChoice?.source || imageChoice?.type || 'none',
     audioSource: audio.source,
     lexicalType: wordData.lexicalType || 'noun',
     theme: options.theme || null,

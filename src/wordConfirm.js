@@ -29,6 +29,14 @@ function label(text) {
   return chalk.cyan(text);
 }
 
+function formatImageSelectionLabel(imageChoice) {
+  if (!imageChoice) {
+    return 'none';
+  }
+
+  return imageChoice.source || imageChoice.type || 'image';
+}
+
 function formatLexicalType(wordData) {
   return (wordData.lexicalType || 'noun') === 'adjective' ? 'adj' : 'noun';
 }
@@ -210,7 +218,7 @@ function buildImagePreviewHtml(wordData, meaning, candidates, page, totalPages) 
 <body>
   <div class="chrome">
     <h1>${escapeHtml(wordData.canonical)} (${escapeHtml(meaning.russian)})</h1>
-    <p>Choose image ${startIndex}-${endIndex}. Page ${page + 1}/${totalPages}. Press the same number in the terminal.</p>
+    <p>Choose image ${startIndex}-${endIndex}. Page ${page + 1}/${totalPages}. Press the same number in the terminal, or 0 for none.</p>
   </div>
   <div class="grid">${items}</div>
 </body>
@@ -332,7 +340,7 @@ export async function chooseImage(wordData, meaning, candidates) {
   if (!candidates.length) {
     console.log();
     console.log(`No image candidates found for ${wordData.canonical}.`);
-    const manual = await ask('Enter image URL/local path, or press Enter to skip this word: ');
+    const manual = await ask('Enter image URL/local path, or press Enter for none: ');
     if (!manual) return null;
 
     if (/^https?:\/\//i.test(manual)) {
@@ -359,14 +367,15 @@ export async function chooseImage(wordData, meaning, candidates) {
 
     console.log();
     console.log(`Image options for ${wordData.canonical} (${meaning.russian}) - page ${page + 1}/${totalPages}:`);
+    console.log('  0. none');
     pageCandidates.forEach((candidate, index) => {
       console.log(`  ${index + 1}. image ${index + 1}`);
     });
 
-    const answer = await ask(`[1-${pageCandidates.length}] select, [N]ext, [B]ack, [U]rl/path, [S]kip: `);
+    const answer = await ask(`[0-${pageCandidates.length}] select, [N]ext, [B]ack, [U]rl/path: `);
     const normalized = answer.toLowerCase();
 
-    if (normalized === 's' || normalized === 'skip') {
+    if (normalized === '0' || normalized === 'none' || normalized === 's' || normalized === 'skip') {
       return null;
     }
 
@@ -517,6 +526,7 @@ export async function confirmWordSelection({
     }
     console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`${label('Audio:')} ${audioSource}`);
+    console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
     if (theme) {
       console.log(`${label('Theme:')} ${theme}`);
     }
@@ -604,6 +614,7 @@ export async function confirmSentenceWordSelection({
     if (chosenSentence?.focusForm) {
       console.log(`${label('Focus form:')} ${chosenSentence.focusForm}`);
     }
+    console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
 
     if (similarCards.length > 0) {
       console.log();

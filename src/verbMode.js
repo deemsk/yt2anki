@@ -285,8 +285,7 @@ async function prepareVerb(rawInput, options, spinner) {
       imageCandidates
     );
     if (!imageChoice) {
-      console.log(chalk.yellow('Skipped: no image selected'));
-      return { rejected: true };
+      console.log(chalk.dim('Continuing without image.'));
     }
 
     const audio = await buildVerbAudio(verbData, spinner);
@@ -397,17 +396,21 @@ async function finalizePictureVerb(prepared, options, spinner) {
     }
     console.log(`  ${chalk.cyan('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`  ${chalk.cyan('Audio:')} ${audio.source}`);
+    console.log(`  ${chalk.cyan('Image:')} ${imageChoice ? (imageChoice.source || imageChoice.type || 'image') : 'none'}`);
     console.log(`  ${chalk.cyan('Dictionary form card:')} ${confirmation.addDictionaryForm ? 'yes' : 'no'}`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Verb note previewed'));
     return true;
   }
 
-  spinner.start('Downloading chosen image...');
-  const imagePath = await resolveImageAsset(imageChoice);
-  spinner.succeed('Image ready');
+  let imageFilename = null;
+  if (imageChoice) {
+    spinner.start('Downloading chosen image...');
+    const imagePath = await resolveImageAsset(imageChoice);
+    spinner.succeed('Image ready');
+    imageFilename = await storeMedia(imagePath);
+  }
 
   spinner.start('Creating verb note...');
-  const imageFilename = await storeMedia(imagePath);
   const audioFilename = await storeAudio(audio.audioPath);
   const pronunciationField = formatPronunciationField(audioFilename, verbData.ipa);
 
@@ -419,7 +422,7 @@ async function finalizePictureVerb(prepared, options, spinner) {
     extraInfoField,
     frequencyBand: frequencyInfo.bandKey,
     lemma: verbData.infinitive,
-    imageSource: imageChoice.source || imageChoice.type,
+    imageSource: imageChoice?.source || imageChoice?.type || 'none',
     audioSource: audio.source,
     lexicalType: 'verb',
     deck: options.deck,
