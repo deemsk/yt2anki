@@ -382,12 +382,9 @@ async function checkSetup() {
   for (const tool of tools) {
     try {
       const { execFileSync } = await import('child_process');
-      const resolvedPath = execFileSync('which', [tool], { encoding: 'utf8' }).trim();
+      execFileSync('which', [tool], { stdio: 'ignore' });
       const label = tool === (config.ipaBinary || 'espeak-ng') ? `${tool} installed for IPA` : `${tool} installed`;
       console.log(chalk.green(`✓ ${label}`));
-      if (tool === (config.ipaBinary || 'espeak-ng')) {
-        console.log(chalk.dim(`  Path: ${resolvedPath}`));
-      }
     } catch {
       const hint = tool === (config.ipaBinary || 'espeak-ng') ? ' (install with: brew install espeak-ng)' : '';
       console.log(chalk.red(`✗ ${tool} not found${hint}`));
