@@ -31,6 +31,12 @@ const mockStoreMedia = jest.fn(async () => "word-sentence-image.jpg")
 const mockCreateNote = jest.fn(async () => 123)
 const mockGenerateSpeech = jest.fn(async () => {})
 const mockResolveImageAsset = jest.fn(async () => "/tmp/gross.jpg")
+const mockSearchWordImages = jest.fn(async () => ([{
+  source: "Brave Images",
+  downloadUrl: "https://example.com/gross.jpg",
+  previewUrl: "https://example.com/gross-preview.jpg",
+}]))
+const mockReviewEnrichedText = jest.fn()
 const mockEnrich = jest.fn(async () => ({
   german: "Das Haus ist groß.",
   ipa: "[das haʊs ɪst ɡʁoːs]",
@@ -78,11 +84,7 @@ jest.unstable_mockModule("../src/tts.js", () => ({
 jest.unstable_mockModule("../src/wordSources.js", () => ({
   resolveImageAsset: mockResolveImageAsset,
   resolveWordPronunciation: jest.fn(),
-  searchWordImages: jest.fn(async () => ([{
-    source: "Brave Images",
-    downloadUrl: "https://example.com/gross.jpg",
-    previewUrl: "https://example.com/gross-preview.jpg",
-  }])),
+  searchWordImages: mockSearchWordImages,
 }))
 
 jest.unstable_mockModule("../src/wordEnricher.js", () => ({
@@ -93,7 +95,7 @@ jest.unstable_mockModule("../src/wordEnricher.js", () => ({
 
 jest.unstable_mockModule("../src/enricher.js", () => ({
   enrich: mockEnrich,
-  reviewEnrichedText: jest.fn(),
+  reviewEnrichedText: mockReviewEnrichedText,
 }))
 
 jest.unstable_mockModule("../src/cefr.js", () => ({
@@ -114,6 +116,20 @@ describe("word mode sentence flow", () => {
       russian: "Дом большой.",
       focusForm: "groß",
     })
+    mockChooseImage.mockResolvedValue({
+      source: "Brave Images",
+      downloadUrl: "https://example.com/gross.jpg",
+      previewUrl: "https://example.com/gross-preview.jpg",
+    })
+    mockConfirmSentenceWordSelection.mockResolvedValue({
+      confirmed: true,
+    })
+    mockSearchWordImages.mockResolvedValue([{
+      source: "Brave Images",
+      downloadUrl: "https://example.com/gross.jpg",
+      previewUrl: "https://example.com/gross-preview.jpg",
+    }])
+    mockReviewEnrichedText.mockReset()
     mockEnrich.mockResolvedValue({
       german: "Das Haus ist groß.",
       ipa: "[das haʊs ɪst ɡʁoːs]",
@@ -195,5 +211,87 @@ describe("word mode sentence flow", () => {
     expect(payload.metadata.lexicalType).toBe("adverb")
     expect(payload.tags).toContain("word-adverb")
     expect(payload.frontFooterHtml).toBe(null)
+  })
+
+  test("sentence review fetches replacement images when German changes", async () => {
+    mockConfirmSentenceWordSelection
+      .mockResolvedValueOnce({ reviewFeedback: "Use coffee instead." })
+      .mockResolvedValueOnce({ confirmed: true })
+    mockReviewEnrichedText.mockResolvedValue({
+      german: "Der Kaffee ist groß.",
+      ipa: "[deːɐ̯ ˈkafeː ɪst ɡʁoːs]",
+      russian: "Кофе большой.",
+      cefr: { level: "A1" },
+    })
+
+    const added = await runWordWorkflow("groß", {
+      analysisResult: {
+        shouldCreateWordCard: true,
+        isImageable: false,
+        recommendedMode: "sentence-form",
+        lexicalType: "adjective",
+        canonical: "groß",
+        lemma: "groß",
+        opposite: "klein",
+        meanings: [{ russian: "большой", english: "big" }],
+        exampleSentences: [{ german: "Das Haus ist groß.", russian: "Дом большой." }],
+      },
+      meaning: "большой",
+      sentence: "Das Haus ist groß.",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockReviewEnrichedText).toHaveBeenCalledWith(
+      expect.objectContaining({ german: "Das Haus ist groß." }),
+      "Use coffee instead.",
+      expect.not.objectContaining({ includeImageBrief: true })
+    )
+    expect(mockSearchWordImages).toHaveBeenCalledTimes(2)
+    expect(mockChooseImage).toHaveBeenCalledTimes(2)
+
+    const payload = mockCreateNote.mock.calls.at(-1)[0]
+    expect(payload.german).toBe("Der Kaffee ist groß.")
+    expect(payload.imageFilename).toBe("word-sentence-image.jpg")
+  })
+
+  test("sentence review does not fetch replacement images for translation-only changes", async () => {
+    mockConfirmSentenceWordSelection
+      .mockResolvedValueOnce({ reviewFeedback: "Improve the Russian only." })
+      .mockResolvedValueOnce({ confirmed: true })
+    mockReviewEnrichedText.mockResolvedValue({
+      german: "Das Haus ist groß.",
+      ipa: "[das haʊs ɪst ɡʁoːs]",
+      russian: "Этот дом большой.",
+      cefr: { level: "A1" },
+    })
+
+    const added = await runWordWorkflow("groß", {
+      analysisResult: {
+        shouldCreateWordCard: true,
+        isImageable: false,
+        recommendedMode: "sentence-form",
+        lexicalType: "adjective",
+        canonical: "groß",
+        lemma: "groß",
+        opposite: "klein",
+        meanings: [{ russian: "большой", english: "big" }],
+        exampleSentences: [{ german: "Das Haus ist groß.", russian: "Дом большой." }],
+      },
+      meaning: "большой",
+      sentence: "Das Haus ist groß.",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockSearchWordImages).toHaveBeenCalledTimes(1)
+    expect(mockChooseImage).toHaveBeenCalledTimes(1)
+
+    const payload = mockCreateNote.mock.calls.at(-1)[0]
+    expect(payload.german).toBe("Das Haus ist groß.")
+    expect(payload.russian).toBe("Этот дом большой.")
+    expect(payload.imageFilename).toBe("word-sentence-image.jpg")
   })
 })

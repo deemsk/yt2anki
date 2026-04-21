@@ -301,7 +301,6 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
     cardPurpose: `Sentence-form ${wordData.lexicalType || 'word'} card for "${wordData.canonical}"`,
     requiredTerms: focusForm ? [focusForm] : [],
     extraGuidance: 'Keep the sentence short, natural, and centered on the target word.',
-    includeImageBrief: true,
   });
 
   const germanChanged = normalizeGermanForCompare(reviewed.german) !== normalizeGermanForCompare(sentenceData.german);
@@ -309,13 +308,13 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
     ...chosenSentence,
     german: reviewed.german,
     russian: reviewed.russian || chosenSentence?.russian || sentenceData.russian,
-    imageBrief: reviewed.imageBrief || (germanChanged ? null : chosenSentence?.imageBrief || null),
+    imageBrief: germanChanged ? null : chosenSentence?.imageBrief || null,
   };
   const reviewedSentenceData = applyChosenSentenceGloss(reviewed, reviewedChosenSentence);
   spinner.succeed(`Sentence reviewed: ${reviewedSentenceData.german}`);
 
   let imageChoice = germanChanged ? null : currentImageChoice;
-  if (germanChanged || reviewed.imageBrief) {
+  if (germanChanged) {
     spinner.start('Searching optional image...');
     const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, reviewedChosenSentence, wordData);
     const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
