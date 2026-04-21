@@ -3,6 +3,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
 import { enrichVerb, hasStructuredVerbAnalysis } from './verbEnricher.js';
+import { shouldCheckLexicalCorrection, suggestLexicalCorrections } from './lexicalCorrection.js';
 import { runWordWorkflow } from './wordMode.js';
 import { runVerbWorkflow } from './verbMode.js';
 
@@ -137,7 +138,144 @@ async function askLexicalRoute(rawInput, classification) {
   }
 }
 
-async function detectLexicalRoute(rawInput) {
+async function askLexicalCorrection(rawInput, suggestions = []) {
+  if (suggestions.length === 0) {
+    return {
+      input: rawInput,
+      corrected: false,
+      skipped: false,
+    };
+  }
+
+  console.log();
+
+  if (suggestions.length === 1) {
+    const [suggestion] = suggestions;
+    const reason = suggestion.reason ? chalk.dim(` (${suggestion.reason})`) : '';
+    console.log(chalk.yellow(`Maybe you meant "${suggestion.text}"?${reason}`));
+
+    while (true) {
+      const answer = await ask('Use this correction? [Y]es, [N]o, [E]dit, [S]kip: ');
+      const normalized = answer.toLowerCase();
+
+      if (normalized === '' || normalized === 'y' || normalized === 'yes') {
+        return {
+          input: suggestion.text,
+          corrected: true,
+          skipped: false,
+        };
+      }
+
+      if (normalized === 'n' || normalized === 'no') {
+        return {
+          input: rawInput,
+          corrected: false,
+          skipped: false,
+        };
+      }
+
+      if (normalized === 'e' || normalized === 'edit') {
+        const edited = await ask('Enter corrected lexical item: ');
+        return {
+          input: edited || rawInput,
+          corrected: Boolean(edited),
+          skipped: false,
+        };
+      }
+
+      if (normalized === 's' || normalized === 'skip') {
+        return {
+          input: rawInput,
+          corrected: false,
+          skipped: true,
+        };
+      }
+    }
+  }
+
+  console.log(chalk.yellow(`Maybe you meant one of these instead of "${rawInput}"?`));
+  suggestions.forEach((suggestion, index) => {
+    const reason = suggestion.reason ? chalk.dim(` (${suggestion.reason})`) : '';
+    console.log(`  ${index + 1}. ${suggestion.text}${reason}`);
+  });
+
+  while (true) {
+    const answer = await ask(`[1-${suggestions.length}] choose, [Enter=1], [N]o, [E]dit, [S]kip: `);
+    const normalized = answer.toLowerCase();
+
+    if (normalized === 'n' || normalized === 'no') {
+      return {
+        input: rawInput,
+        corrected: false,
+        skipped: false,
+      };
+    }
+
+    if (normalized === 'e' || normalized === 'edit') {
+      const edited = await ask('Enter corrected lexical item: ');
+      return {
+        input: edited || rawInput,
+        corrected: Boolean(edited),
+        skipped: false,
+      };
+    }
+
+    if (normalized === '') {
+      return {
+        input: suggestions[0].text,
+        corrected: true,
+        skipped: false,
+      };
+    }
+
+    if (normalized === 's' || normalized === 'skip') {
+      return {
+        input: rawInput,
+        corrected: false,
+        skipped: true,
+      };
+    }
+
+    const index = parseInt(normalized, 10);
+    if (!Number.isNaN(index) && index >= 1 && index <= suggestions.length) {
+      return {
+        input: suggestions[index - 1].text,
+        corrected: true,
+        skipped: false,
+      };
+    }
+  }
+}
+
+async function resolveLexicalInputCorrection(rawInput, { force = false } = {}) {
+  if (!force && !shouldCheckLexicalCorrection(rawInput)) {
+    return {
+      input: rawInput,
+      checked: false,
+      corrected: false,
+      skipped: false,
+    };
+  }
+
+  try {
+    const suggestions = await suggestLexicalCorrections(rawInput);
+    const choice = await askLexicalCorrection(rawInput, suggestions);
+    return {
+      ...choice,
+      checked: true,
+    };
+  } catch (err) {
+    console.log(chalk.dim(`Correction check skipped: ${err.message}`));
+    return {
+      input: rawInput,
+      checked: true,
+      corrected: false,
+      skipped: false,
+    };
+  }
+}
+
+async function detectLexicalRoute(rawInput, options = {}) {
   const spinner = ora('Detecting lexical type...');
   spinner.start();
   const [wordAnalysis, verbAnalysis] = await Promise.all([
@@ -149,14 +287,34 @@ async function detectLexicalRoute(rawInput) {
 
   if (classification.route) {
     spinner.succeed(`Using ${classification.route === 'word' ? 'word' : 'verb'} workflow`);
-    return classification;
+    return {
+      ...classification,
+      input: rawInput,
+    };
   }
 
   spinner.stop();
+
+  if (classification.reason === 'both-weak' && !options.correctionAttempted) {
+    const correction = await resolveLexicalInputCorrection(rawInput, { force: true });
+    if (correction.skipped) {
+      return {
+        ...classification,
+        input: rawInput,
+        skipped: true,
+      };
+    }
+    if (correction.corrected && correction.input !== rawInput) {
+      console.log(chalk.dim(`Using "${correction.input}".`));
+      return detectLexicalRoute(correction.input, { correctionAttempted: true });
+    }
+  }
+
   const chosenRoute = await askLexicalRoute(rawInput, classification);
   if (!chosenRoute) {
     return {
       ...classification,
+      input: rawInput,
       skipped: true,
     };
   }
@@ -168,6 +326,7 @@ async function detectLexicalRoute(rawInput) {
 
   return {
     ...classification,
+    input: rawInput,
     route: chosenRoute,
     analysisResult,
   };
@@ -175,7 +334,20 @@ async function detectLexicalRoute(rawInput) {
 
 async function processLexicalEntry(rawInput, options = {}) {
   showLexicalHeader(rawInput);
-  const classification = await detectLexicalRoute(rawInput);
+  const correction = await resolveLexicalInputCorrection(rawInput);
+  if (correction.skipped) {
+    console.log(chalk.yellow('Skipped: no correction selected'));
+    return false;
+  }
+
+  const effectiveInput = correction.input;
+  if (correction.corrected && effectiveInput !== rawInput) {
+    console.log(chalk.dim(`Using "${effectiveInput}".`));
+  }
+
+  const classification = await detectLexicalRoute(effectiveInput, {
+    correctionAttempted: correction.checked,
+  });
 
   if (classification.skipped) {
     console.log(chalk.yellow('Skipped: no lexical workflow selected'));
@@ -183,14 +355,14 @@ async function processLexicalEntry(rawInput, options = {}) {
   }
 
   if (classification.route === 'verb') {
-    return runVerbWorkflow(rawInput, {
+    return runVerbWorkflow(classification.input || effectiveInput, {
       ...options,
       analysisResult: classification.analysisResult,
       skipHeader: true,
     });
   }
 
-  return runWordWorkflow(rawInput, {
+  return runWordWorkflow(classification.input || effectiveInput, {
     ...options,
     analysisResult: classification.analysisResult,
     skipHeader: true,
