@@ -65,12 +65,19 @@ The default sentence card is the audio-first comprehension card.
 - Node.js
 - Anki desktop
 - AnkiConnect add-on
+- eSpeak NG for deterministic local IPA generation
 
 Install AnkiConnect:
 1. Open Anki
 2. Go to `Tools -> Add-ons -> Get Add-ons...`
 3. Enter `2055492159`
 4. Restart Anki
+
+Install eSpeak NG:
+
+```bash
+brew install espeak-ng
+```
 
 ### Required for clip mode
 
@@ -244,7 +251,8 @@ Notes:
 - `yt-dlp` for YouTube audio download
 - `ffmpeg` for audio cutting
 - `whisper.cpp` for local speech-to-text
-- OpenAI API for enrichment, routing, translation, IPA, and review
+- eSpeak NG for deterministic German IPA
+- OpenAI API for enrichment, routing, translation, and review
 - Google Cloud TTS for generated audio
 - AnkiConnect for note creation
 

@@ -2,6 +2,20 @@ import { jest } from "@jest/globals"
 
 const mockCreate = jest.fn(async ({ messages }) => {
   const systemPrompt = messages.find((message) => message.role === "system")?.content ?? ""
+  const userPrompt = messages.find((message) => message.role === "user")?.content ?? ""
+
+  if (userPrompt.includes("Return no IPA while changing German")) {
+    return {
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            german: "Das ist neu.",
+            russian: "Это новое.",
+          }),
+        },
+      }],
+    }
+  }
 
   if (systemPrompt.includes("Also return imageBrief")) {
     return {
@@ -53,11 +67,45 @@ jest.unstable_mockModule("../src/cefr.js", () => ({
   estimateCEFR: jest.fn(async () => ({ level: "A1" })),
 }))
 
-const { reviewEnrichedText } = await import("../src/enricher.js")
+function normalizeMockIpa(ipa = "") {
+  const body = String(ipa || "").trim().replace(/^\[/, "").replace(/\]$/, "").trim()
+  return body ? `[${body}]` : ""
+}
+
+const mockGenerateGermanIpa = jest.fn(async (_german, options = {}) => normalizeMockIpa(options.fallbackIpa))
+
+jest.unstable_mockModule("../src/ipa.js", () => ({
+  generateGermanIpa: mockGenerateGermanIpa,
+  normalizeSentenceIpa: normalizeMockIpa,
+}))
+
+const { enrich, reviewEnrichedText } = await import("../src/enricher.js")
 
 describe("AI preview review helper", () => {
   beforeEach(() => {
     mockCreate.mockClear()
+    mockGenerateGermanIpa.mockClear()
+  })
+
+  test("enrich regenerates IPA from the final German text", async () => {
+    const result = await enrich("das ist besser")
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        german: "Das ist besser.",
+        ipa: "[das ɪst ˈbɛsɐ]",
+        russian: "Так лучше.",
+      })
+    )
+    expect(mockGenerateGermanIpa).toHaveBeenCalledWith("Das ist besser.", {
+      fallbackIpa: "das ɪst ˈbɛsɐ",
+    })
+
+    const call = mockCreate.mock.calls[0][0]
+    expect(call.temperature).toBe(0)
+    expect(call.response_format).toEqual(expect.objectContaining({
+      type: "json_schema",
+    }))
   })
 
   test("reviewEnrichedText applies feedback, normalizes IPA, and returns image brief when requested", async () => {
@@ -89,9 +137,34 @@ describe("AI preview review helper", () => {
     )
 
     expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(mockGenerateGermanIpa).toHaveBeenCalledWith("Der Kaffee ist gut.", {
+      fallbackIpa: "[deːr ˈkafeː ɪst ɡuːt]",
+    })
     const [{ messages }] = mockCreate.mock.calls.map(([call]) => call)
     const systemPrompt = messages.find((message) => message.role === "system")?.content ?? ""
     expect(systemPrompt).toContain('Card purpose: Sentence-form adjective card for "gut"')
     expect(systemPrompt).toContain("Keep these German words or forms in the final text if possible: gut")
+  })
+
+  test("reviewEnrichedText does not reuse stale IPA when German changes", async () => {
+    const result = await reviewEnrichedText(
+      {
+        german: "Das ist alt.",
+        ipa: "[das ɪst alt]",
+        russian: "Это старое.",
+      },
+      "Return no IPA while changing German"
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        german: "Das ist neu.",
+        ipa: "",
+        russian: "Это новое.",
+      })
+    )
+    expect(mockGenerateGermanIpa).toHaveBeenCalledWith("Das ist neu.", {
+      fallbackIpa: "",
+    })
   })
 })

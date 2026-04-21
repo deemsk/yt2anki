@@ -378,14 +378,19 @@ async function checkSetup() {
   console.log(chalk.bold('\nChecking DerDieDeck setup...\n'));
 
   // Check tools
-  const tools = ['yt-dlp', 'ffmpeg', 'whisper-cli'];
+  const tools = ['yt-dlp', 'ffmpeg', 'whisper-cli', config.ipaBinary || 'espeak-ng'];
   for (const tool of tools) {
     try {
-      const { execSync } = await import('child_process');
-      execSync(`which ${tool}`, { stdio: 'pipe' });
-      console.log(chalk.green(`✓ ${tool} installed`));
+      const { execFileSync } = await import('child_process');
+      const resolvedPath = execFileSync('which', [tool], { encoding: 'utf8' }).trim();
+      const label = tool === (config.ipaBinary || 'espeak-ng') ? `${tool} installed for IPA` : `${tool} installed`;
+      console.log(chalk.green(`✓ ${label}`));
+      if (tool === (config.ipaBinary || 'espeak-ng')) {
+        console.log(chalk.dim(`  Path: ${resolvedPath}`));
+      }
     } catch {
-      console.log(chalk.red(`✗ ${tool} not found`));
+      const hint = tool === (config.ipaBinary || 'espeak-ng') ? ' (install with: brew install espeak-ng)' : '';
+      console.log(chalk.red(`✗ ${tool} not found${hint}`));
     }
   }
 
@@ -444,7 +449,7 @@ async function checkSetup() {
 async function testIntegrations(options) {
   console.log(chalk.bold('\n🧪 Testing DerDieDeck integrations...\n'));
 
-  const { execSync, spawn } = await import('child_process');
+  const { execSync, execFileSync } = await import('child_process');
   const { resolveSecret } = await import('./secrets.js');
   const results = { passed: 0, warned: 0, failed: 0 };
 
@@ -466,7 +471,7 @@ async function testIntegrations(options) {
   }
 
   // 1. Test yt-dlp
-  console.log(chalk.bold.blue('\n[1/7] yt-dlp'));
+  console.log(chalk.bold.blue('\n[1/8] yt-dlp'));
   try {
     const version = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
     pass(`yt-dlp installed (${version})`);
@@ -486,7 +491,7 @@ async function testIntegrations(options) {
   }
 
   // 2. Test ffmpeg
-  console.log(chalk.bold.blue('\n[2/7] ffmpeg'));
+  console.log(chalk.bold.blue('\n[2/8] ffmpeg'));
   try {
     const version = execSync('ffmpeg -version', { stdio: 'pipe' }).toString().split('\n')[0];
     pass(`ffmpeg installed (${version.replace('ffmpeg version ', '').split(' ')[0]})`);
@@ -503,7 +508,7 @@ async function testIntegrations(options) {
   }
 
   // 3. Test whisper-cli
-  console.log(chalk.bold.blue('\n[3/7] whisper-cli'));
+  console.log(chalk.bold.blue('\n[3/8] whisper-cli'));
   try {
     execSync('which whisper-cli', { stdio: 'pipe' });
     pass('whisper-cli installed');
@@ -521,8 +526,26 @@ async function testIntegrations(options) {
     fail('whisper-cli not found', 'Install with: brew install whisper-cpp');
   }
 
-  // 4. Test OpenAI API
-  console.log(chalk.bold.blue('\n[4/7] OpenAI API'));
+  // 4. Test eSpeak NG IPA
+  console.log(chalk.bold.blue('\n[4/8] eSpeak NG IPA'));
+  try {
+    const ipaBinary = config.ipaBinary || 'espeak-ng';
+    const version = execFileSync(ipaBinary, ['--version'], { stdio: 'pipe' }).toString().split('\n')[0];
+    pass(`${ipaBinary} installed (${version.replace('eSpeak NG text-to-speech: ', '').trim()})`);
+
+    const { generateGermanIpa } = await import('./ipa.js');
+    const ipa = await generateGermanIpa('Ich gehe nach Hause.', { fallbackToModel: false });
+    if (ipa) {
+      pass(`German IPA generated: ${ipa}`);
+    } else {
+      fail('German IPA generation returned empty output');
+    }
+  } catch (err) {
+    fail('eSpeak NG IPA unavailable', `Install with: brew install espeak-ng (${err.message})`);
+  }
+
+  // 5. Test OpenAI API
+  console.log(chalk.bold.blue('\n[5/8] OpenAI API'));
   const rawOpenAiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
   if (!rawOpenAiKey) {
     fail('OpenAI API key not set', `Add to ${CONFIG_PATH_DISPLAY} or set OPENAI_API_KEY env var`);
@@ -549,8 +572,8 @@ async function testIntegrations(options) {
     }
   }
 
-  // 5. Test AnkiConnect
-  console.log(chalk.bold.blue('\n[5/7] AnkiConnect'));
+  // 6. Test AnkiConnect
+  console.log(chalk.bold.blue('\n[6/8] AnkiConnect'));
   if (await checkConnection()) {
     pass('AnkiConnect is running');
 
@@ -615,8 +638,8 @@ async function testIntegrations(options) {
     console.log(chalk.dim('  3. Restart Anki'));
   }
 
-  // 6. Test Brave Search API
-  console.log(chalk.bold.blue('\n[6/7] Brave Search API'));
+  // 7. Test Brave Search API
+  console.log(chalk.bold.blue('\n[7/8] Brave Search API'));
   const rawBraveKey = config.braveApiKey || process.env.BRAVE_SEARCH_API_KEY;
   if (!rawBraveKey) {
     console.log(chalk.dim('  ⚠ Brave API key not set (optional — used for image search in word mode)'));
@@ -642,8 +665,8 @@ async function testIntegrations(options) {
     }
   }
 
-  // 7. Test Google TTS
-  console.log(chalk.bold.blue('\n[7/7] Google TTS'));
+  // 8. Test Google TTS
+  console.log(chalk.bold.blue('\n[8/8] Google TTS'));
   try {
     const { TextToSpeechClient } = await import('@google-cloud/text-to-speech');
     let clientOptions = {};
@@ -724,6 +747,9 @@ async function initConfig() {
     wordNoteType: '2. Picture Words',
     grammarNoteType: 'Cloze',
     openaiModel: 'gpt-4o-mini',
+    ipaBinary: 'espeak-ng',
+    ipaVoice: 'de',
+    ipaFallbackToModel: true,
     braveApiKey: '',
     whisperModel: 'base',
   };
@@ -752,6 +778,9 @@ async function initConfig() {
   console.log(chalk.dim('  wordNoteType  - Word note type to use (default: 2. Picture Words)'));
   console.log(chalk.dim('  grammarNoteType - Grammar cloze note type to use (default: Cloze)'));
   console.log(chalk.dim('  openaiModel   - OpenAI model (default: gpt-4o-mini)'));
+  console.log(chalk.dim('  ipaBinary     - IPA command (default: espeak-ng)'));
+  console.log(chalk.dim('  ipaVoice      - eSpeak voice for IPA (default: de)'));
+  console.log(chalk.dim('  ipaFallbackToModel - Use model IPA if eSpeak is unavailable (default: true)'));
   console.log(chalk.dim('  braveApiKey   - Brave Search API key for image search (optional)'));
   console.log(chalk.dim('  whisperModel  - Whisper model size (default: base)'));
   console.log(chalk.dim('  dataDir       - Cache folder for audio (default: system temp)\n'));

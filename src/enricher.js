@@ -2,6 +2,8 @@ import OpenAI from 'openai';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
 import { estimateCEFR } from './cefr.js';
 import { resolveSecret } from './secrets.js';
+import { generateGermanIpa, normalizeSentenceIpa } from './ipa.js';
+import { normalizeGermanForCompare } from './wordUtils.js';
 
 let openai = null;
 
@@ -17,16 +19,75 @@ async function getClient() {
 }
 
 function normalizeIpa(ipa = '') {
-  const raw = String(ipa || '').trim();
-  if (!raw) {
-    return '';
+  return normalizeSentenceIpa(ipa);
+}
+
+const ENRICH_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'german_enrichment',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        german: { type: 'string' },
+        ipa: { type: 'string' },
+        russian: { type: 'string' },
+      },
+      required: ['german', 'ipa', 'russian'],
+      additionalProperties: false,
+    },
+  },
+};
+
+function buildReviewResponseFormat(includeImageBrief = false) {
+  const properties = {
+    german: { type: 'string' },
+    ipa: { type: 'string' },
+    russian: { type: 'string' },
+  };
+  const required = ['german', 'ipa', 'russian'];
+
+  if (includeImageBrief) {
+    properties.imageBrief = {
+      type: 'object',
+      properties: {
+        searchQuery: { type: 'string' },
+        queryVariants: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        sceneSummary: { type: 'string' },
+        focusRole: { type: 'string' },
+        mustShow: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        avoid: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        imagePrompt: { type: 'string' },
+      },
+      required: ['searchQuery', 'queryVariants', 'sceneSummary', 'focusRole', 'mustShow', 'avoid', 'imagePrompt'],
+      additionalProperties: false,
+    };
+    required.push('imageBrief');
   }
 
-  if (raw.startsWith('[') && raw.endsWith(']')) {
-    return raw;
-  }
-
-  return `[${raw.replace(/^\[/, '').replace(/\]$/, '').trim()}]`;
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: includeImageBrief ? 'german_review_with_image' : 'german_review',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties,
+        required,
+        additionalProperties: false,
+      },
+    },
+  };
 }
 
 function sanitizeImageBrief(imageBrief = null) {
@@ -79,7 +140,7 @@ export async function enrich(germanText, subtitleContext = null, ccHint = null) 
 1. Correct any transcription errors (typos, missing letters, wrong words)
 2. Fix punctuation (questions must end with ?, statements with .)
 3. Ensure proper capitalization (sentence start, nouns)
-4. Provide IPA transcription in square brackets
+4. Provide fallback IPA transcription in square brackets; it must match the final German exactly
 5. Provide Russian translation
 
 Respond in JSON format only:
@@ -110,20 +171,15 @@ Examples of corrections:
         content: germanText,
       },
     ],
-    response_format: { type: 'json_object' },
-    temperature: 0.3,
+    response_format: ENRICH_RESPONSE_FORMAT,
+    temperature: 0,
   });
 
   const content = response.choices[0].message.content;
   const result = JSON.parse(content);
 
-  // Ensure IPA is always in square brackets
-  let ipa = result.ipa || '';
-  if (ipa && !ipa.startsWith('[')) {
-    ipa = `[${ipa}]`;
-  }
-
   const german = result.german || germanText;
+  const ipa = await generateGermanIpa(german, { fallbackIpa: result.ipa || '' });
   const cefr = await estimateCEFR(german);
 
   return {
@@ -146,7 +202,7 @@ export async function reviewEnrichedText(currentData, feedback, options = {}) {
 Your task:
 1. Recheck the German sentence or phrase
 2. Fix any mistakes or awkward wording
-3. Update the IPA so it matches the final German text
+3. Provide fallback IPA so it matches the final German text exactly
 4. Update the Russian translation so it sounds natural in Russian
 5. Apply the user's feedback directly
 
@@ -203,15 +259,17 @@ ${responseShape}`;
         content: userPrompt,
       },
     ],
-    response_format: { type: 'json_object' },
-    temperature: 0.2,
+    response_format: buildReviewResponseFormat(includeImageBrief),
+    temperature: 0,
   });
 
   const content = response.choices[0].message.content;
   const result = JSON.parse(content);
 
   const german = String(result.german || currentData.german || '').trim() || String(currentData.german || '').trim();
-  const ipa = normalizeIpa(result.ipa || currentData.ipa || '');
+  const germanChanged = normalizeGermanForCompare(german) !== normalizeGermanForCompare(currentData.german || '');
+  const fallbackIpa = result.ipa || (germanChanged ? '' : currentData.ipa || '');
+  const ipa = await generateGermanIpa(german, { fallbackIpa: normalizeIpa(fallbackIpa) });
   const russian = String(result.russian || currentData.russian || '').trim();
   const cefr = await estimateCEFR(german);
 

@@ -34,6 +34,11 @@ const defaults = {
   openaiApiKey: '',
   openaiModel: 'gpt-4o-mini',
 
+  // IPA generation
+  ipaBinary: 'espeak-ng',
+  ipaVoice: 'de',
+  ipaFallbackToModel: true,
+
   // Google TTS
   googleTtsKeyFile: '',                                      // path to service account JSON; falls back to GOOGLE_APPLICATION_CREDENTIALS
   googleApiKey: '',                                        // 1Password reference, e.g. op://Personal/Google TTS Key/credential
