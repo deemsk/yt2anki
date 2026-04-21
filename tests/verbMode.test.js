@@ -15,15 +15,35 @@ const mockConfirmSentenceVerbSelection = jest.fn(async () => ({
   confirmed: true,
   addDictionaryForm: true,
 }))
+const mockConfirmPictureVerbSelection = jest.fn(async () => ({
+  confirmed: true,
+  personalConnection: null,
+  addDictionaryForm: false,
+}))
+const mockChooseImage = jest.fn(async () => ({
+  source: "Brave Images",
+  downloadUrl: "https://example.com/laufen.jpg",
+  previewUrl: "https://example.com/laufen-preview.jpg",
+}))
 
 const mockCheckConnection = jest.fn(async () => true)
 const mockGetNoteTypes = jest.fn(async () => ["2. Picture Words", "Basic (optional reversed card)"])
 const mockEnsureDeck = jest.fn(async () => {})
 const mockFindSimilarCards = jest.fn(async () => [])
+const mockFindWordDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
 const mockStoreAudio = jest.fn(async () => "verb-sentence.mp3")
+const mockStoreMedia = jest.fn(async () => "verb-image.jpg")
 const mockCreateNote = jest.fn(async () => 123)
+const mockCreatePictureWordNote = jest.fn(async () => 789)
 const mockCreateBasicNote = jest.fn(async () => 456)
+const mockGenerateSimpleSpeech = jest.fn(async () => {})
 const mockGenerateSpeech = jest.fn(async () => {})
+const mockResolveImageAsset = jest.fn(async () => "/tmp/laufen.jpg")
+const mockSearchVerbImages = jest.fn(async () => ([{
+  source: "Brave Images",
+  downloadUrl: "https://example.com/laufen.jpg",
+  previewUrl: "https://example.com/laufen-preview.jpg",
+}]))
 const mockSpinnerFactory = jest.fn(() => ({
   start: jest.fn(),
   succeed: jest.fn(),
@@ -38,12 +58,12 @@ jest.unstable_mockModule("ora", () => ({
 
 jest.unstable_mockModule("../src/wordConfirm.js", () => ({
   chooseMeaning: mockChooseMeaning,
-  chooseImage: jest.fn(),
+  chooseImage: mockChooseImage,
 }))
 
 jest.unstable_mockModule("../src/verbConfirm.js", () => ({
   chooseVerbSentence: mockChooseVerbSentence,
-  confirmPictureVerbSelection: jest.fn(),
+  confirmPictureVerbSelection: mockConfirmPictureVerbSelection,
   confirmSentenceVerbSelection: mockConfirmSentenceVerbSelection,
   formatVerbPreviewSummary: jest.fn((_chalk, verbData, translation, cefrLevel = null) =>
     `${verbData.infinitive}${cefrLevel ? ` (${cefrLevel})` : ""} — ${translation}`
@@ -58,17 +78,17 @@ jest.unstable_mockModule("../src/anki.js", () => ({
   checkConnection: mockCheckConnection,
   createBasicNote: mockCreateBasicNote,
   createNote: mockCreateNote,
-  createPictureWordNote: jest.fn(),
+  createPictureWordNote: mockCreatePictureWordNote,
   ensureDeck: mockEnsureDeck,
   findSimilarCards: mockFindSimilarCards,
-  findWordDuplicates: jest.fn(),
+  findWordDuplicates: mockFindWordDuplicates,
   getNoteTypes: mockGetNoteTypes,
   storeAudio: mockStoreAudio,
-  storeMedia: jest.fn(),
+  storeMedia: mockStoreMedia,
 }))
 
 jest.unstable_mockModule("../src/tts.js", () => ({
-  generateSimpleSpeech: jest.fn(),
+  generateSimpleSpeech: mockGenerateSimpleSpeech,
   generateSpeech: mockGenerateSpeech,
 }))
 
@@ -82,6 +102,10 @@ jest.unstable_mockModule("../src/enricher.js", () => ({
   reviewEnrichedText: jest.fn(),
 }))
 
+jest.unstable_mockModule("../src/cefr.js", () => ({
+  estimateLexicalCEFR: jest.fn(async () => null),
+}))
+
 jest.unstable_mockModule("../src/verbEnricher.js", () => ({
   enrichVerb: jest.fn(),
   hasStructuredVerbAnalysis: jest.fn(() => true),
@@ -89,9 +113,9 @@ jest.unstable_mockModule("../src/verbEnricher.js", () => ({
 }))
 
 jest.unstable_mockModule("../src/wordSources.js", () => ({
-  resolveImageAsset: jest.fn(),
+  resolveImageAsset: mockResolveImageAsset,
   resolveWordPronunciation: jest.fn(),
-  searchVerbImages: jest.fn(),
+  searchVerbImages: mockSearchVerbImages,
 }))
 
 const { runVerbWorkflow } = await import("../src/verbMode.js")
@@ -167,5 +191,41 @@ describe("verb mode sentence flow", () => {
       deck: "German::Test",
     }))
     expect(mockCreateBasicNote).not.toHaveBeenCalled()
+  })
+
+  test("runVerbWorkflow searches picture images after verb preview approval", async () => {
+    mockChooseMeaning.mockResolvedValueOnce({
+      russian: "бежать",
+      english: "run",
+    })
+
+    const added = await runVerbWorkflow("laufen", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "laufen",
+        displayForm: "läuft",
+        ipa: "[ˈlaʊ̯fn̩]",
+        recommendedMode: "picture-word",
+        meanings: [{ russian: "бежать", english: "run" }],
+      },
+      meaning: "бежать",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockConfirmPictureVerbSelection).toHaveBeenCalledWith(expect.objectContaining({
+      imageChoice: null,
+      showImage: false,
+    }))
+    expect(mockConfirmPictureVerbSelection.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSearchVerbImages.mock.invocationCallOrder[0]
+    )
+    expect(mockCreatePictureWordNote).toHaveBeenCalledWith(expect.objectContaining({
+      canonical: "laufen",
+      imageFilename: "verb-image.jpg",
+      imageSource: "Brave Images",
+      deck: "German::Test",
+    }))
   })
 })

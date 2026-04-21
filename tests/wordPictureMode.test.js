@@ -6,6 +6,7 @@ const mockChooseMeaning = jest.fn(async () => ({
 }))
 
 const mockChooseImage = jest.fn(async () => null)
+const mockSearchWordImages = jest.fn(async () => [])
 
 const mockConfirmWordSelection = jest.fn(async () => ({
   confirmed: true,
@@ -66,7 +67,7 @@ jest.unstable_mockModule("../src/tts.js", () => ({
 jest.unstable_mockModule("../src/wordSources.js", () => ({
   resolveImageAsset: jest.fn(),
   resolveWordPronunciation: mockResolveWordPronunciation,
-  searchWordImages: jest.fn(async () => []),
+  searchWordImages: mockSearchWordImages,
 }))
 
 jest.unstable_mockModule("../src/wordEnricher.js", () => ({
@@ -109,6 +110,13 @@ describe("word mode picture flow", () => {
     })
 
     expect(added).toBe(true)
+    expect(mockConfirmWordSelection).toHaveBeenCalledWith(expect.objectContaining({
+      imageChoice: null,
+      showImage: false,
+    }))
+    expect(mockConfirmWordSelection.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSearchWordImages.mock.invocationCallOrder[0]
+    )
     expect(mockChooseImage).toHaveBeenCalled()
     expect(mockStoreMedia).not.toHaveBeenCalled()
     expect(mockStoreAudio).toHaveBeenCalled()

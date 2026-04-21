@@ -158,6 +158,13 @@ describe("word mode sentence flow", () => {
     })
 
     expect(added).toBe(true)
+    expect(mockConfirmSentenceWordSelection).toHaveBeenCalledWith(expect.objectContaining({
+      imageChoice: null,
+      showImage: false,
+    }))
+    expect(mockConfirmSentenceWordSelection.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSearchWordImages.mock.invocationCallOrder[0]
+    )
     expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
       german: "Das Haus ist groß.",
       imageFilename: "word-sentence-image.jpg",
@@ -213,7 +220,7 @@ describe("word mode sentence flow", () => {
     expect(payload.frontFooterHtml).toBe(null)
   })
 
-  test("sentence review fetches replacement images when German changes", async () => {
+  test("sentence review waits to search images until final approval", async () => {
     mockConfirmSentenceWordSelection
       .mockResolvedValueOnce({ reviewFeedback: "Use coffee instead." })
       .mockResolvedValueOnce({ confirmed: true })
@@ -248,15 +255,18 @@ describe("word mode sentence flow", () => {
       "Use coffee instead.",
       expect.not.objectContaining({ includeImageBrief: true })
     )
-    expect(mockSearchWordImages).toHaveBeenCalledTimes(2)
-    expect(mockChooseImage).toHaveBeenCalledTimes(2)
+    expect(mockSearchWordImages).toHaveBeenCalledTimes(1)
+    expect(mockChooseImage).toHaveBeenCalledTimes(1)
+    expect(mockConfirmSentenceWordSelection.mock.invocationCallOrder[1]).toBeLessThan(
+      mockSearchWordImages.mock.invocationCallOrder[0]
+    )
 
     const payload = mockCreateNote.mock.calls.at(-1)[0]
     expect(payload.german).toBe("Der Kaffee ist groß.")
     expect(payload.imageFilename).toBe("word-sentence-image.jpg")
   })
 
-  test("sentence review does not fetch replacement images for translation-only changes", async () => {
+  test("translation-only sentence review still searches images after final approval", async () => {
     mockConfirmSentenceWordSelection
       .mockResolvedValueOnce({ reviewFeedback: "Improve the Russian only." })
       .mockResolvedValueOnce({ confirmed: true })
@@ -288,6 +298,9 @@ describe("word mode sentence flow", () => {
     expect(added).toBe(true)
     expect(mockSearchWordImages).toHaveBeenCalledTimes(1)
     expect(mockChooseImage).toHaveBeenCalledTimes(1)
+    expect(mockConfirmSentenceWordSelection.mock.invocationCallOrder[1]).toBeLessThan(
+      mockSearchWordImages.mock.invocationCallOrder[0]
+    )
 
     const payload = mockCreateNote.mock.calls.at(-1)[0]
     expect(payload.german).toBe("Das Haus ist groß.")

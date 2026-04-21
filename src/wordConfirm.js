@@ -497,6 +497,7 @@ export async function confirmWordSelection({
   frequencyInfo,
   duplicateInfo,
   imageChoice,
+  showImage = true,
   audioSource,
   audioPath,
   theme,
@@ -529,7 +530,9 @@ export async function confirmWordSelection({
     }
     console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`${label('Audio:')} ${audioSource}`);
-    console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    if (showImage) {
+      console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    }
     if (theme) {
       console.log(`${label('Theme:')} ${theme}`);
     }
@@ -589,6 +592,7 @@ export async function confirmSentenceWordSelection({
   chosenSentence,
   duplicateInfo = { exactMatches: [], headwordMatches: [] },
   imageChoice = null,
+  showImage = true,
   audioPath,
   similarCards = [],
   autoPlay = true,
@@ -617,7 +621,9 @@ export async function confirmSentenceWordSelection({
     if (chosenSentence?.focusForm) {
       console.log(`${label('Focus form:')} ${chosenSentence.focusForm}`);
     }
-    console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    if (showImage) {
+      console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    }
 
     if (similarCards.length > 0) {
       console.log();

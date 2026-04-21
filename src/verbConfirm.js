@@ -114,6 +114,7 @@ export async function confirmPictureVerbSelection({
   frequencyInfo,
   duplicateInfo,
   imageChoice,
+  showImage = true,
   audioSource,
   audioPath,
   addDictionaryForm = false,
@@ -139,7 +140,9 @@ export async function confirmPictureVerbSelection({
     }
     console.log(`${label('Frequency:')} ${frequencyInfo.bandLabel}${frequencyInfo.rank ? ` (#${frequencyInfo.rank})` : ''}`);
     console.log(`${label('Audio:')} ${audioSource}`);
-    console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    if (showImage) {
+      console.log(`${label('Image:')} ${formatImageSelectionLabel(imageChoice)}`);
+    }
     console.log(`${label('Dictionary form card:')} ${dictionaryFormEnabled ? 'yes' : 'no'}`);
     if (theme) {
       console.log(`${label('Theme:')} ${theme}`);

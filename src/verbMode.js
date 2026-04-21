@@ -112,6 +112,28 @@ async function buildVerbSentenceAudio(sentence, spinner) {
   };
 }
 
+async function choosePictureVerbImage(prepared, spinner) {
+  const { verbData, selectedMeaning } = prepared;
+
+  spinner.start('Searching images...');
+  const imageCandidates = await searchVerbImages(verbData, selectedMeaning, {
+    pageSize: config.wordImagePreviewCount || 12,
+    total: config.wordImageSearchResults || 12,
+  });
+  spinner.stop();
+
+  const imageChoice = await chooseImage(
+    { canonical: verbData.infinitive },
+    selectedMeaning,
+    imageCandidates
+  );
+  if (!imageChoice) {
+    console.log(chalk.dim('Continuing without image.'));
+  }
+
+  return imageChoice;
+}
+
 async function rebuildSentenceVerbPreview(prepared, feedback, options, spinner) {
   const {
     verbData,
@@ -272,22 +294,6 @@ async function prepareVerb(rawInput, options, spinner) {
       console.log(chalk.dim(`Lexical CEFR skipped: ${err.message}`));
     }
 
-    spinner.start('Searching images...');
-    const imageCandidates = await searchVerbImages(verbData, selectedMeaning, {
-      pageSize: config.wordImagePreviewCount || 12,
-      total: config.wordImageSearchResults || 12,
-    });
-    spinner.stop();
-
-    const imageChoice = await chooseImage(
-      { canonical: verbData.infinitive },
-      selectedMeaning,
-      imageCandidates
-    );
-    if (!imageChoice) {
-      console.log(chalk.dim('Continuing without image.'));
-    }
-
     const audio = await buildVerbAudio(verbData, spinner);
 
     return {
@@ -297,7 +303,7 @@ async function prepareVerb(rawInput, options, spinner) {
       lexicalCefr,
       frequencyInfo,
       duplicateInfo,
-      imageChoice,
+      imageChoice: null,
       audio,
       addDictionaryForm,
     };
@@ -351,7 +357,6 @@ async function finalizePictureVerb(prepared, options, spinner) {
     selectedMeaning,
     frequencyInfo,
     duplicateInfo,
-    imageChoice,
     audio,
     addDictionaryForm,
   } = prepared;
@@ -361,7 +366,8 @@ async function finalizePictureVerb(prepared, options, spinner) {
     selectedMeaning,
     frequencyInfo,
     duplicateInfo,
-    imageChoice,
+    imageChoice: null,
+    showImage: false,
     audioSource: audio.source,
     audioPath: audio.audioPath,
     addDictionaryForm,
@@ -372,6 +378,8 @@ async function finalizePictureVerb(prepared, options, spinner) {
     console.log(chalk.yellow('Verb dismissed'));
     return false;
   }
+
+  const imageChoice = await choosePictureVerbImage(prepared, spinner);
 
   const metadata = {
     canonical: verbData.infinitive,

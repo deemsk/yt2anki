@@ -280,13 +280,45 @@ async function buildWordSentenceAudio(sentence, spinner) {
   };
 }
 
+async function choosePictureWordImage(prepared, spinner) {
+  const { wordData, selectedMeaning } = prepared;
+
+  spinner.start('Searching images...');
+  const imageCandidates = await searchWordImages(wordData, selectedMeaning, {
+    pageSize: config.wordImagePreviewCount || 6,
+    total: config.wordImageSearchResults || 12,
+  });
+  spinner.stop();
+
+  const imageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
+  if (!imageChoice) {
+    console.log(chalk.dim('Continuing without image.'));
+  }
+
+  return imageChoice;
+}
+
+async function chooseSentenceWordImage(prepared, spinner) {
+  const { wordData, selectedMeaning, chosenSentence } = prepared;
+
+  spinner.start('Searching optional image...');
+  const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, chosenSentence, wordData);
+  const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
+    pageSize: config.wordImagePreviewCount || 6,
+    total: config.wordImageSearchResults || 12,
+  });
+  spinner.stop();
+
+  return imageCandidates.length > 0
+    ? await chooseImage(wordData, selectedMeaning, imageCandidates)
+    : null;
+}
+
 async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) {
   const {
     wordData,
-    selectedMeaning,
     chosenSentence,
     sentenceData,
-    imageChoice: currentImageChoice,
     similarCards: currentSimilarCards,
     audio: currentAudio,
   } = prepared;
@@ -312,22 +344,6 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
   };
   const reviewedSentenceData = applyChosenSentenceGloss(reviewed, reviewedChosenSentence);
   spinner.succeed(`Sentence reviewed: ${reviewedSentenceData.german}`);
-
-  let imageChoice = germanChanged ? null : currentImageChoice;
-  if (germanChanged) {
-    spinner.start('Searching optional image...');
-    const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, reviewedChosenSentence, wordData);
-    const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
-      pageSize: config.wordImagePreviewCount || 6,
-      total: config.wordImageSearchResults || 12,
-    });
-    spinner.stop();
-
-    if (imageCandidates.length > 0) {
-      const revisedImageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
-      imageChoice = revisedImageChoice;
-    }
-  }
 
   let similarCards = currentSimilarCards;
   if (germanChanged) {
@@ -355,7 +371,7 @@ async function rebuildSentenceWordPreview(prepared, feedback, options, spinner) 
     ...prepared,
     chosenSentence: reviewedChosenSentence,
     sentenceData: reviewedSentenceData,
-    imageChoice,
+    imageChoice: null,
     similarCards,
     audio,
   };
@@ -445,18 +461,6 @@ async function prepareWord(rawInput, options, spinner) {
       console.log(chalk.dim(`Lexical CEFR skipped: ${err.message}`));
     }
 
-    spinner.start('Searching images...');
-    const imageCandidates = await searchWordImages(wordData, selectedMeaning, {
-      pageSize: config.wordImagePreviewCount || 6,
-      total: config.wordImageSearchResults || 12,
-    });
-    spinner.stop();
-
-    const imageChoice = await chooseImage(wordData, selectedMeaning, imageCandidates);
-    if (!imageChoice) {
-      console.log(chalk.dim('Continuing without image.'));
-    }
-
     const audio = await buildWordAudio(wordData, spinner);
 
     return {
@@ -466,7 +470,7 @@ async function prepareWord(rawInput, options, spinner) {
       selectedMeaning,
       lexicalCefr,
       duplicateInfo,
-      imageChoice,
+      imageChoice: null,
       audio,
     };
   }
@@ -512,18 +516,6 @@ async function prepareWord(rawInput, options, spinner) {
   );
   spinner.succeed(`Sentence ready: ${sentenceData.german}`);
 
-  spinner.start('Searching optional image...');
-  const imageSearchMeaning = buildSentenceImageMeaning(selectedMeaning, chosenSentence, wordData);
-  const imageCandidates = await searchWordImages(wordData, imageSearchMeaning, {
-    pageSize: config.wordImagePreviewCount || 6,
-    total: config.wordImageSearchResults || 12,
-  });
-  spinner.stop();
-
-  const imageChoice = imageCandidates.length > 0
-    ? await chooseImage(wordData, selectedMeaning, imageCandidates)
-    : null;
-
   let similarCards = [];
   try {
     if (!options.dryRun) {
@@ -548,14 +540,14 @@ async function prepareWord(rawInput, options, spinner) {
     duplicateInfo,
     chosenSentence,
     sentenceData,
-    imageChoice,
+    imageChoice: null,
     similarCards,
     audio,
   };
 }
 
 async function finalizePictureWord(prepared, options, spinner) {
-  const { wordData, frequencyInfo, selectedMeaning, duplicateInfo, imageChoice, audio } = prepared;
+  const { wordData, frequencyInfo, selectedMeaning, duplicateInfo, audio } = prepared;
 
   const confirmation = await confirmWordSelection({
     wordData,
@@ -563,7 +555,8 @@ async function finalizePictureWord(prepared, options, spinner) {
     cefrLevel: prepared.lexicalCefr?.level || null,
     frequencyInfo,
     duplicateInfo,
-    imageChoice,
+    imageChoice: null,
+    showImage: false,
     audioSource: audio.source,
     audioPath: audio.audioPath,
     theme: options.theme || null,
@@ -573,6 +566,8 @@ async function finalizePictureWord(prepared, options, spinner) {
     console.log(chalk.yellow('Word dismissed'));
     return false;
   }
+
+  const imageChoice = await choosePictureWordImage(prepared, spinner);
 
   const metadata = {
     ...buildWordMetadata(wordData, selectedMeaning, frequencyInfo),
@@ -662,7 +657,8 @@ async function finalizeSentenceWord(prepared, options, spinner) {
       sentenceData: current.sentenceData,
       chosenSentence: current.chosenSentence,
       duplicateInfo: current.duplicateInfo,
-      imageChoice: current.imageChoice,
+      imageChoice: null,
+      showImage: false,
       audioPath: current.audio.audioPath,
       similarCards: current.similarCards,
       autoPlay,
@@ -682,7 +678,8 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     break;
   }
 
-  const { wordData, selectedMeaning, chosenSentence, sentenceData, imageChoice, audio } = current;
+  const imageChoice = await chooseSentenceWordImage(current, spinner);
+  const { wordData, selectedMeaning, chosenSentence, sentenceData, audio } = current;
 
   if (options.dryRun) {
     console.log();
