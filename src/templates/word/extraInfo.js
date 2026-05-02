@@ -1,4 +1,5 @@
-import { buildWordMetadataComment, escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
+import { buildWordMetadataComment } from '../../cardContent/wordMetadata.js';
 
 export function buildWordExtraInfo({
   meaning,

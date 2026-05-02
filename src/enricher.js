@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
-import { estimateCEFR } from './cefr.js';
+import { estimateCEFR } from './cardContent/cefr.js';
 import { resolveSecret } from './secrets.js';
-import { generateGermanIpa, normalizeSentenceIpa } from './ipa.js';
-import { normalizeGermanForCompare } from './wordUtils.js';
+import { generateGermanIpa, normalizeSentenceIpa } from './cardContent/ipa.js';
+import { normalizeGermanForCompare } from './cardContent/german.js';
 
 let openai = null;
 

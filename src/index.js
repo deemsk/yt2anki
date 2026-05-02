@@ -536,7 +536,7 @@ async function testIntegrations(options) {
     const version = execFileSync(ipaBinary, ['--version'], { stdio: 'pipe' }).toString().split('\n')[0];
     pass(`${ipaBinary} installed (${version.replace('eSpeak NG text-to-speech: ', '').trim()})`);
 
-    const { generateGermanIpa } = await import('./ipa.js');
+    const { generateGermanIpa } = await import('./cardContent/ipa.js');
     const ipa = await generateGermanIpa('Ich gehe nach Hause.', { fallbackToModel: false });
     if (ipa) {
       pass(`German IPA generated: ${ipa}`);

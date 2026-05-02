@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
 import { formatIpaHtml, soundTag } from '../shared/components.js';
 import { html, joinHtml } from '../shared/html.js';
 

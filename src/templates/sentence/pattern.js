@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
 import { smallText } from '../shared/components.js';
 
 export function formatPatternCard(card) {

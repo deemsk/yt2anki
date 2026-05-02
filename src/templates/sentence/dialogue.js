@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
 import { replySlot, smallText, soundTag, taskPanel } from '../shared/components.js';
 
 function buildDialogueFront(audioFilename) {

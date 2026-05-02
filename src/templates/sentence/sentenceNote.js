@@ -1,5 +1,5 @@
-import { escapeHtml } from '../../wordUtils.js';
-import { buildWordMetadataComment } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
+import { buildWordMetadataComment } from '../../cardContent/wordMetadata.js';
 import { formatIpaHtml, imageTag, soundTag } from '../shared/components.js';
 import { joinHtml } from '../shared/html.js';
 

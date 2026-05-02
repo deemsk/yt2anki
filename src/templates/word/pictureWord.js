@@ -1,4 +1,4 @@
-import { toTagSlug } from '../../wordUtils.js';
+import { toTagSlug } from '../../cardContent/german.js';
 import { formatGenderColoredWord, formatPlainWord, imageTag } from '../shared/components.js';
 
 export const PICTURE_WORD_MODEL = '2. Picture Words';

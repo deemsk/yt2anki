@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { normalizeGermanForCompare } from './wordUtils.js';
+import { normalizeGermanForCompare } from './cardContent/german.js';
 
 const DATA_PATH = join(dirname(fileURLToPath(import.meta.url)), 'data', 'german-frequency.json');
 const FREQUENCY_MAP = JSON.parse(readFileSync(DATA_PATH, 'utf-8'));

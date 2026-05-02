@@ -13,7 +13,7 @@ import {
 import { confirmGrammarSelection } from './grammarConfirm.js';
 import { getGrammarFamily, listGrammarFamilies } from './grammar/registry.js';
 import { buildGrammarExtra } from './templates/grammar/extraInfo.js';
-import { toTagSlug } from './wordUtils.js';
+import { toTagSlug } from './cardContent/german.js';
 
 const DEFAULT_GRAMMAR_NOTE_TYPE = config.grammarNoteType || 'Cloze';
 

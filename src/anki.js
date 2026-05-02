@@ -9,16 +9,9 @@ import {
   PICTURE_WORD_MODEL,
 } from './templates/word/pictureWord.js';
 import { buildClozeNoteFields } from './templates/grammar/clozeNote.js';
-import {
-  escapeHtml,
-  extractCanonicalWord,
-  extractWordLexicalType,
-  extractWordMeaning,
-  normalizeGermanForCompare,
-  parseWordMetadataComment,
-  stripHtml,
-  toTagSlug,
-} from './wordUtils.js';
+import { escapeHtml, stripHtml } from './cardContent/html.js';
+import { normalizeGermanForCompare, toTagSlug } from './cardContent/german.js';
+import { extractCanonicalWord, extractWordLexicalType, extractWordMeaning, parseWordMetadataComment } from './cardContent/wordMetadata.js';
 import { buildWordSentenceContrastFooter, formatIpaHtml } from './templates/shared/components.js';
 import { hasCurrentDerDieDeckStyles, mergeDerDieDeckStyles } from './templates/shared/styles.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';

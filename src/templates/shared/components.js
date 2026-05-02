@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
 import { html, joinHtml } from './html.js';
 
 const GENDER_COLORS = {

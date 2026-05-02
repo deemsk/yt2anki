@@ -4,7 +4,10 @@ import { extname, join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
-import { getWordLemma, normalizeGermanForCompare, normalizeWordIpa, stripHtml } from './wordUtils.js';
+import { stripHtml } from './cardContent/html.js';
+import { normalizeGermanForCompare } from './cardContent/german.js';
+import { normalizeWordIpa } from './cardContent/ipa.js';
+import { getWordLemma } from './cardContent/wordLexical.js';
 
 const execFileAsync = promisify(execFile);
 

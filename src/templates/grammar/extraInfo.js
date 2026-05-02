@@ -1,5 +1,5 @@
 import { buildGrammarMetadataComment } from '../../grammar/utils.js';
-import { escapeHtml } from '../../wordUtils.js';
+import { escapeHtml } from '../../cardContent/html.js';
 
 export function buildGrammarExtra({
   translation = null,

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { config, CONFIG_PATH_DISPLAY } from './config.js';
-import { normalizeGermanForCompare, normalizeWordIpa } from './wordUtils.js';
+import { normalizeGermanForCompare } from './cardContent/german.js';
+import { normalizeWordIpa } from './cardContent/ipa.js';
 import { resolveSecret } from './secrets.js';
 
 let openai = null;

@@ -63,7 +63,7 @@ jest.unstable_mockModule("../src/secrets.js", () => ({
   resolveSecret: jest.fn(async (value) => value || "test-key"),
 }))
 
-jest.unstable_mockModule("../src/cefr.js", () => ({
+jest.unstable_mockModule("../src/cardContent/cefr.js", () => ({
   estimateCEFR: jest.fn(async () => ({ level: "A1" })),
 }))
 
@@ -74,7 +74,7 @@ function normalizeMockIpa(ipa = "") {
 
 const mockGenerateGermanIpa = jest.fn(async (_german, options = {}) => normalizeMockIpa(options.fallbackIpa))
 
-jest.unstable_mockModule("../src/ipa.js", () => ({
+jest.unstable_mockModule("../src/cardContent/ipa.js", () => ({
   generateGermanIpa: mockGenerateGermanIpa,
   normalizeSentenceIpa: normalizeMockIpa,
 }))

@@ -3,17 +3,10 @@ import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
 import { config } from './config.js';
-import { estimateLexicalCEFR } from './cefr.js';
+import { estimateLexicalCEFR } from './cardContent/cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import {
-  applyChosenSentenceGloss,
-  formatPluralLabel,
-  getArticleNormalizationWarning,
-  getPrimaryExampleSentence,
-  getWordLemma,
-  normalizeGermanForCompare,
-  toTagSlug,
-} from './wordUtils.js';
+import { getArticleNormalizationWarning, normalizeGermanForCompare, toTagSlug } from './cardContent/german.js';
+import { applyChosenSentenceGloss, formatPluralLabel, getPrimaryExampleSentence, getWordLemma } from './cardContent/wordLexical.js';
 import { formatPronunciationField } from './templates/shared/components.js';
 import { buildWordExtraInfo } from './templates/word/extraInfo.js';
 import { formatWordDisplay, isNounWord } from './templates/word/pictureWord.js';
