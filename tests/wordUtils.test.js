@@ -17,7 +17,7 @@ import {
   formatGenderColoredWord,
   formatIpaHtml,
   formatPronunciationField,
-} from "../src/cardView.js"
+} from "../src/templates/shared/components.js"
 import { getWordFrequencyInfo } from "../src/wordFrequency.js"
 
 describe("word helpers", () => {

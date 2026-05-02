@@ -6,7 +6,7 @@ import { config } from './config.js';
 import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import { applyChosenSentenceGloss, buildWordExtraInfo, toTagSlug } from './wordUtils.js';
-import { formatIpaHtml, formatPlainWord, formatPronunciationField } from './cardView.js';
+import { formatIpaHtml, formatPlainWord, formatPronunciationField } from './templates/shared/components.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { shouldSuggestVerbInfinitive, suggestVerbInfinitives } from './verbCorrection.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';

@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
-import { buildProductionFront, buildSentenceNoteFront, formatCardForAnki } from './cardTemplates.js';
+import { buildProductionFront, buildSentenceNoteFront, formatCardForAnki } from './templates/index.js';
 import {
   buildWordMetadataComment,
   escapeHtml,
@@ -13,7 +13,7 @@ import {
   stripHtml,
   toTagSlug,
 } from './wordUtils.js';
-import { buildWordSentenceContrastFooter, formatIpaHtml } from './cardView.js';
+import { buildWordSentenceContrastFooter, formatIpaHtml } from './templates/shared/components.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
 
 const PICTURE_WORD_MODEL = '2. Picture Words';

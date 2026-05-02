@@ -20,7 +20,7 @@ import {
   formatGenderColoredWord,
   formatPlainWord,
   formatPronunciationField,
-} from './cardView.js';
+} from './templates/shared/components.js';
 import { canProceedWithWeakWordCard, enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSelection, confirmWordSelection } from './wordConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
