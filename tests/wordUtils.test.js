@@ -1,14 +1,10 @@
 import {
   applyChosenSentenceGloss,
-  buildWordSentenceContrastFooter,
   buildWordExtraInfo,
   extractLeadingArticle,
   extractCanonicalWord,
   extractWordLexicalType,
   extractWordMeaning,
-  formatGenderColoredWord,
-  formatIpaHtml,
-  formatPronunciationField,
   getArticleNormalizationWarning,
   getPrimaryExampleSentence,
   getWordLemma,
@@ -16,6 +12,12 @@ import {
   normalizeGermanForCompare,
   toTagSlug,
 } from "../src/wordUtils.js"
+import {
+  buildWordSentenceContrastFooter,
+  formatGenderColoredWord,
+  formatIpaHtml,
+  formatPronunciationField,
+} from "../src/cardView.js"
 import { getWordFrequencyInfo } from "../src/wordFrequency.js"
 
 describe("word helpers", () => {

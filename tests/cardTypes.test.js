@@ -1,4 +1,5 @@
-import { formatCardForAnki, generateDialogueCard, generateProductionCard, normalizeRussianHint } from "../src/cardTypes.js"
+import { generateDialogueCard, generateProductionCard, normalizeRussianHint } from "../src/cardTypes.js"
+import { formatCardForAnki } from "../src/cardTemplates.js"
 
 describe("card type helpers", () => {
   test("normalizeRussianHint keeps Russian learner hints", () => {

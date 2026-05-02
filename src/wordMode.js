@@ -7,11 +7,7 @@ import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import {
   applyChosenSentenceGloss,
-  buildWordSentenceContrastFooter,
   buildWordExtraInfo,
-  formatGenderColoredWord,
-  formatPronunciationField,
-  formatPlainWord,
   formatPluralLabel,
   getArticleNormalizationWarning,
   getPrimaryExampleSentence,
@@ -19,6 +15,12 @@ import {
   normalizeGermanForCompare,
   toTagSlug,
 } from './wordUtils.js';
+import {
+  buildWordSentenceContrastFooter,
+  formatGenderColoredWord,
+  formatPlainWord,
+  formatPronunciationField,
+} from './cardView.js';
 import { canProceedWithWeakWordCard, enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSelection, confirmWordSelection } from './wordConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';

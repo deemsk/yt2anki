@@ -1,21 +1,20 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
-import { buildProductionFront, formatCardForAnki, CARD_LABELS } from './cardTypes.js';
-import { parseGrammarMetadataComment } from './grammar/utils.js';
+import { buildProductionFront, buildSentenceNoteFront, formatCardForAnki } from './cardTemplates.js';
 import {
-  buildWordSentenceContrastFooter,
   buildWordMetadataComment,
   escapeHtml,
   extractCanonicalWord,
   extractWordLexicalType,
   extractWordMeaning,
-  formatIpaHtml,
   normalizeGermanForCompare,
   parseWordMetadataComment,
   stripHtml,
   toTagSlug,
 } from './wordUtils.js';
+import { buildWordSentenceContrastFooter, formatIpaHtml } from './cardView.js';
+import { parseGrammarMetadataComment } from './grammar/utils.js';
 
 const PICTURE_WORD_MODEL = '2. Picture Words';
 const PICTURE_WORD_FIELDS = {
@@ -87,34 +86,6 @@ export async function storeMedia(mediaPath) {
 
 export async function storeAudio(audioPath) {
   return storeMedia(audioPath);
-}
-
-export function buildSentenceNoteFront({
-  audioFilename,
-  context = null,
-  contextStyle = 'boxed',
-  imageFilename = null,
-  frontFooterHtml = null,
-}) {
-  let front = `[sound:${String(audioFilename || '').trim()}]`;
-
-  if (context) {
-    if (contextStyle === 'plain') {
-      front += `<br>Context: ${escapeHtml(context)}`;
-    } else {
-      front += `<div class="yt2anki-front-context" style="margin:12px auto 10px;max-width:420px;padding:10px 14px;border-radius:16px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:14px;line-height:1.35;text-align:center;">Context: ${escapeHtml(context)}</div>`;
-    }
-  }
-
-  if (imageFilename) {
-    front += `<br><img src="${escapeHtml(imageFilename)}" />`;
-  }
-
-  if (frontFooterHtml) {
-    front += frontFooterHtml;
-  }
-
-  return front;
 }
 
 /**

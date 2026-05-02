@@ -9,8 +9,6 @@
  * - Cloze: Grammar feature with blank
  */
 
-import { escapeHtml, formatIpaHtml } from './wordUtils.js';
-
 // Task labels for each card type
 export const CARD_LABELS = {
   comprehension: '🎧 Listen',
@@ -20,16 +18,6 @@ export const CARD_LABELS = {
   cloze: '✳ Grammar',
 };
 
-const TASK_PANEL_STYLES = {
-  dialogue: {
-    border: 'rgba(245, 158, 11, 0.55)',
-    background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(249, 115, 22, 0.10))',
-    kicker: 'rgba(146, 64, 14, 0.95)',
-    slotBorder: 'rgba(217, 119, 6, 0.45)',
-    slotBackground: 'rgba(255, 255, 255, 0.55)',
-  },
-};
-
 export function normalizeRussianHint(text = '') {
   const trimmed = String(text || '').trim();
   if (!trimmed) {
@@ -37,38 +25,6 @@ export function normalizeRussianHint(text = '') {
   }
 
   return /[А-Яа-яЁё]/.test(trimmed) ? trimmed : null;
-}
-
-function buildTaskPanel(type, { emoji, kicker, main, sub = null }) {
-  const style = TASK_PANEL_STYLES[type];
-  return `<div class="yt2anki-task yt2anki-task-${type}" style="margin:12px 0 10px;padding:12px 14px;border-radius:16px;border:2px solid ${style.border};background:${style.background};text-align:left;">
-  <div class="yt2anki-task-kicker" style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:${style.kicker};">${emoji} ${escapeHtml(kicker)}</div>
-  <div class="yt2anki-task-main" style="margin-top:6px;font-size:18px;font-weight:700;line-height:1.2;">${escapeHtml(main)}</div>
-  ${sub ? `<div class="yt2anki-task-sub" style="margin-top:6px;font-size:13px;line-height:1.35;opacity:0.86;">${escapeHtml(sub)}</div>` : ''}
-</div>`;
-}
-
-function buildDialogueFront(audioFilename) {
-  const style = TASK_PANEL_STYLES.dialogue;
-  return `[sound:${audioFilename}]` +
-    buildTaskPanel('dialogue', {
-      emoji: '💬',
-      kicker: 'ТВОЙ ОТВЕТ',
-      main: 'Ответь по-немецки вслух',
-      sub: 'Это ответ собеседнику, не перевод',
-    }) +
-    `<div class="yt2anki-reply-slot" style="padding:10px 12px;border-radius:14px;border:1.5px dashed ${style.slotBorder};background:${style.slotBackground};font-size:15px;font-weight:600;text-align:left;">💬 Твой ответ: ______</div>`;
-}
-
-export function buildProductionFront(russian, situation = null) {
-  let front = '<div class="yt2anki-production-prompt" style="margin-bottom:8px;font-size:15px;font-weight:700;line-height:1.25;text-align:left;">🗣 Скажи по-немецки</div>';
-  front += `<div class="yt2anki-production-source" style="font-size:20px;font-weight:700;line-height:1.28;text-align:left;">${escapeHtml(russian)}</div>`;
-
-  if (situation) {
-    front += `<div class="yt2anki-production-hint" style="margin-top:8px;font-size:13px;line-height:1.35;text-align:left;opacity:0.86;">${escapeHtml(situation)}</div>`;
-  }
-
-  return front;
 }
 
 /**
@@ -276,67 +232,6 @@ export function generateCards(data, selectedCards, sourceId) {
   }
 
   return cards;
-}
-
-/**
- * Format card for Anki note creation.
- *
- * @param {Object} card - Generated card object
- * @param {string} audioFilename - Audio filename in Anki media
- * @returns {Object} Anki note fields {Front, Back}
- */
-export function formatCardForAnki(card, audioFilename) {
-  let front = '';
-  let back = '';
-
-  switch (card.type) {
-    case 'comprehension':
-      // Front: audio + optional context
-      front = `[sound:${audioFilename}]`;
-      if (card.front.context) {
-        front += `<br><small>Context: ${card.front.context}</small>`;
-      }
-      // Back: german + ipa + russian
-      back = [card.back.german, formatIpaHtml(card.back.ipa), card.back.russian].filter(Boolean).join('<br>');
-      break;
-
-    case 'dialogue':
-      // Front: audio + explicit reply task block
-      front = buildDialogueFront(audioFilename);
-      // Back: response
-      back = card.back.german;
-      if (card.back.russian) {
-        back += `<br><small>${card.back.russian}</small>`;
-      }
-      break;
-
-    case 'production':
-      // Front: explicit production task + russian prompt
-      front = buildProductionFront(card.front.russian, card.front.situation);
-      // Back: german + ipa + audio
-      back = [card.back.german, formatIpaHtml(card.back.ipa), `[sound:${audioFilename}]`].filter(Boolean).join('<br>');
-      break;
-
-    case 'pattern':
-      // Front: pattern name + base example
-      front = `<b>${card.front.pattern}</b><br>${card.front.baseExample}`;
-      // Back: examples
-      back = card.back.examples.map(ex => `• ${ex}`).join('<br>');
-      back += `<br><br><small>${card.back.russian}</small>`;
-      break;
-
-    case 'cloze':
-      // Front: blanked sentence + russian + hint
-      front = `${card.front.sentence}<br><small>${card.front.russian}</small>`;
-      if (card.front.hint) {
-        front += `<br><small><i>(${card.front.hint})</i></small>`;
-      }
-      // Back: answer + full sentence
-      back = `<b>${card.back.answer}</b><br><br>${card.back.german}`;
-      break;
-  }
-
-  return { Front: front, Back: back };
 }
 
 // Helper to escape regex special characters
