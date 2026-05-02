@@ -7,6 +7,7 @@ import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import { applyChosenSentenceGloss, buildWordExtraInfo, formatIpaHtml, formatPlainWord, formatPronunciationField, toTagSlug } from './wordUtils.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
+import { shouldSuggestVerbInfinitive, suggestVerbInfinitives } from './verbCorrection.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
 import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection, formatVerbPreviewSummary, resolveVerbFocusForm } from './verbConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchVerbImages } from './wordSources.js';
@@ -35,10 +36,97 @@ function showVerbHeader(rawInput) {
   console.log(chalk.bold(label));
 }
 
+function ask(question) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
 function normalizeVerbMode(mode) {
   if (mode === 'picture' || mode === 'picture-word') return 'picture-word';
   if (mode === 'sentence' || mode === 'sentence-form') return 'sentence-form';
   return null;
+}
+
+async function askVerbInfinitiveSuggestion(rawInput, suggestions = []) {
+  if (suggestions.length === 0) {
+    return null;
+  }
+
+  console.log();
+
+  if (suggestions.length === 1) {
+    const [suggestion] = suggestions;
+    const reason = suggestion.reason ? chalk.dim(` (${suggestion.reason})`) : '';
+    console.log(chalk.yellow(`Maybe you meant "${suggestion.text}"?${reason}`));
+
+    while (true) {
+      const answer = await ask('Use this infinitive? [Y]es, [N]o, [E]dit, [S]kip: ');
+      const normalized = answer.toLowerCase();
+
+      if (normalized === '' || normalized === 'y' || normalized === 'yes') {
+        return suggestion.text;
+      }
+
+      if (normalized === 'n' || normalized === 'no' || normalized === 's' || normalized === 'skip') {
+        return null;
+      }
+
+      if (normalized === 'e' || normalized === 'edit') {
+        return await ask('Enter verb infinitive: ');
+      }
+    }
+  }
+
+  console.log(chalk.yellow(`Maybe you meant one of these infinitives for "${rawInput}"?`));
+  suggestions.forEach((suggestion, index) => {
+    const reason = suggestion.reason ? chalk.dim(` (${suggestion.reason})`) : '';
+    console.log(`  ${index + 1}. ${suggestion.text}${reason}`);
+  });
+
+  while (true) {
+    const answer = await ask(`[1-${suggestions.length}] choose, [Enter=1], [N]o, [E]dit, [S]kip: `);
+    const normalized = answer.toLowerCase();
+
+    if (normalized === '') {
+      return suggestions[0].text;
+    }
+
+    if (normalized === 'n' || normalized === 'no' || normalized === 's' || normalized === 'skip') {
+      return null;
+    }
+
+    if (normalized === 'e' || normalized === 'edit') {
+      return await ask('Enter verb infinitive: ');
+    }
+
+    const index = parseInt(normalized, 10);
+    if (!Number.isNaN(index) && index >= 1 && index <= suggestions.length) {
+      return suggestions[index - 1].text;
+    }
+  }
+}
+
+async function resolveRejectedVerbInfinitive(rawInput, verbData) {
+  if (!shouldSuggestVerbInfinitive(rawInput, verbData)) {
+    return null;
+  }
+
+  try {
+    const suggestions = await suggestVerbInfinitives(rawInput, verbData.rejectionReason);
+    return askVerbInfinitiveSuggestion(rawInput, suggestions);
+  } catch (err) {
+    console.log(chalk.dim(`Infinitive suggestion skipped: ${err.message}`));
+    return null;
+  }
 }
 
 async function ensureVerbSetup(deck, dryRun) {
@@ -233,6 +321,18 @@ async function prepareVerb(rawInput, options, spinner) {
   const recoverable = hasStructuredVerbAnalysis(verbData);
 
   if (!verbData.shouldCreateVerbCard && !recoverable) {
+    spinner.stop();
+    if (!options.skipInfinitiveSuggestion) {
+      const suggestedInfinitive = await resolveRejectedVerbInfinitive(rawInput, verbData);
+      if (suggestedInfinitive) {
+        console.log(chalk.dim(`Using "${suggestedInfinitive}".`));
+        return prepareVerb(suggestedInfinitive, {
+          ...options,
+          analysisResult: null,
+          skipInfinitiveSuggestion: true,
+        }, spinner);
+      }
+    }
     spinner.warn(`Rejected: ${verbData.rejectionReason}`);
     return { rejected: true };
   }

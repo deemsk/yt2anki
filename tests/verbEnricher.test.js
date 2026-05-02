@@ -46,4 +46,14 @@ describe("verb enricher helpers", () => {
       })
     ).toBe(true)
   })
+
+  test("dictionary form card is suggested for participle display forms", () => {
+    expect(
+      shouldOfferDictionaryFormCard({
+        infinitive: "verbinden",
+        displayForm: "verbunden",
+        dictionaryFormNeeded: false,
+      })
+    ).toBe(true)
+  })
 })

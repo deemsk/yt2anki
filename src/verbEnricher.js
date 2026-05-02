@@ -25,6 +25,8 @@ Rules:
 - Accept verbs and verb forms. Reject nouns, adjectives, adverbs, and full unrelated phrases that cannot be normalized to a verb.
 - Always normalize the main lemma to the infinitive.
 - Preserve the user's encountered form in displayForm when the input is a conjugated or inflected form.
+- Accept past participles and participial forms when they clearly map to a German verb. Normalize them to the infinitive and preserve the participle in displayForm.
+- Example: for "verbunden", return infinitive="verbinden", displayForm="verbunden", and dictionaryFormNeeded=true.
 - Use recommendedMode="picture-word" only for highly imageable, concrete action verbs with a stable one-frame depiction.
 - Use recommendedMode="sentence-form" for modal verbs, auxiliary verbs, abstract verbs, reflexive verbs, separable-prefix verbs that depend on context, and other verbs that are better learned through example sentences.
 - For picture-word verbs, imageSearchTerms must be in German and should describe visible action scenes, not dictionary labels.
