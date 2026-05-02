@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -152,6 +152,12 @@ program
   .command('config')
   .description('Show current configuration')
   .action(showConfig);
+
+program
+  .command('styles')
+  .description('Install or update synced DerDieDeck CSS on configured Anki note types')
+  .option('-n, --dry-run', 'Preview note type styling changes without updating Anki')
+  .action(runStyleInstall);
 
 program
   .command('clip')
@@ -808,6 +814,49 @@ async function showConfig() {
     console.log(`  ${chalk.cyan(key)}: ${value || chalk.dim('(not set)')}`);
   }
   console.log();
+}
+
+async function runStyleInstall(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Checking configured note type styling...'
+      : 'Updating configured note type styling...');
+    const results = await ensureDerDieDeckStyling({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('DerDieDeck note type styling'));
+    for (const result of results) {
+      const status = {
+        current: chalk.green('current'),
+        updated: chalk.green('updated'),
+        'would-update': chalk.yellow('would update'),
+        missing: chalk.red('missing'),
+      }[result.status] || result.status;
+      console.log(`  ${result.modelName}: ${status}`);
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No note type styling was changed'));
+    } else {
+      console.log(chalk.green('✓ DerDieDeck CSS installed. Sync Anki to use it on other devices.'));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
 }
 
 async function runAdjectiveFrontMigration(options) {

@@ -14,6 +14,7 @@ import {
   toTagSlug,
 } from './wordUtils.js';
 import { buildWordSentenceContrastFooter, formatIpaHtml } from './templates/shared/components.js';
+import { hasCurrentDerDieDeckStyles, mergeDerDieDeckStyles } from './templates/shared/styles.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
 
 const PICTURE_WORD_MODEL = '2. Picture Words';
@@ -364,6 +365,62 @@ export async function getNoteTypes() {
  */
 export async function getNoteFields(modelName) {
   return ankiConnect('modelFieldNames', { modelName });
+}
+
+export async function getNoteStyling(modelName) {
+  return ankiConnect('modelStyling', { modelName });
+}
+
+export async function updateNoteStyling(modelName, css) {
+  return ankiConnect('updateModelStyling', {
+    model: {
+      name: modelName,
+      css,
+    },
+  });
+}
+
+export function getConfiguredDerDieDeckNoteTypes() {
+  return Array.from(new Set([
+    config.ankiNoteType,
+    config.wordNoteType || PICTURE_WORD_MODEL,
+    config.grammarNoteType || 'Cloze',
+  ].filter(Boolean)));
+}
+
+export async function ensureDerDieDeckStyling({
+  modelNames = getConfiguredDerDieDeckNoteTypes(),
+  dryRun = false,
+} = {}) {
+  const availableModels = await getNoteTypes();
+  const results = [];
+
+  for (const modelName of modelNames) {
+    if (!availableModels.includes(modelName)) {
+      results.push({ modelName, status: 'missing' });
+      continue;
+    }
+
+    const styling = await getNoteStyling(modelName);
+    const currentCss = styling?.css || '';
+    const nextCss = mergeDerDieDeckStyles(currentCss);
+
+    if (hasCurrentDerDieDeckStyles(currentCss)) {
+      results.push({ modelName, status: 'current' });
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteStyling(modelName, nextCss);
+    }
+
+    results.push({
+      modelName,
+      status: dryRun ? 'would-update' : 'updated',
+    });
+  }
+
+  return results;
 }
 
 export async function updateNoteFields(noteId, fields) {

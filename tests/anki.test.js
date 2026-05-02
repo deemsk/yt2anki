@@ -1,4 +1,4 @@
-import { createNote, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts } from "../src/anki.js"
+import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -89,6 +89,92 @@ describe("anki helpers", () => {
     expect(note.fields.Front).toContain("gross.jpg")
     expect(note.fields.Front).toContain("yt2anki-word-contrast")
     expect(note.fields.Front).not.toContain("Context:")
+  })
+
+  test("ensureDerDieDeckStyling installs shared CSS on configured note types", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "modelNames") {
+        return {
+          async json() {
+            return { result: ["Basic (optional reversed card)"], error: null }
+          },
+        }
+      }
+
+      if (body.action === "modelStyling") {
+        return {
+          async json() {
+            return { result: { css: ".card { font-size: 20px; }" }, error: null }
+          },
+        }
+      }
+
+      if (body.action === "updateModelStyling") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await ensureDerDieDeckStyling({
+      modelNames: ["Basic (optional reversed card)", "Missing Model"],
+    })
+
+    expect(result).toEqual([
+      { modelName: "Basic (optional reversed card)", status: "updated" },
+      { modelName: "Missing Model", status: "missing" },
+    ])
+
+    const update = requests.find((entry) => entry.action === "updateModelStyling")
+    expect(update.params.model.name).toBe("Basic (optional reversed card)")
+    expect(update.params.model.css).toContain("DerDieDeck shared styles start")
+    expect(update.params.model.css).toContain(".card { font-size: 20px; }")
+  })
+
+  test("ensureDerDieDeckStyling dry run previews updates without writing", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "modelNames") {
+        return {
+          async json() {
+            return { result: ["Basic"], error: null }
+          },
+        }
+      }
+
+      if (body.action === "modelStyling") {
+        return {
+          async json() {
+            return { result: { css: "" }, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await ensureDerDieDeckStyling({
+      modelNames: ["Basic"],
+      dryRun: true,
+    })
+
+    expect(result).toEqual([
+      { modelName: "Basic", status: "would-update" },
+    ])
+    expect(requests.some((entry) => entry.action === "updateModelStyling")).toBe(false)
   })
 
   test("migrateAdjectiveSentenceFronts rewrites legacy adjective fronts and preserves media", async () => {
