@@ -5,8 +5,10 @@ import chalk from 'chalk';
 import { config } from './config.js';
 import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
-import { applyChosenSentenceGloss, buildWordExtraInfo, toTagSlug } from './wordUtils.js';
-import { formatIpaHtml, formatPlainWord, formatPronunciationField } from './templates/shared/components.js';
+import { applyChosenSentenceGloss, toTagSlug } from './wordUtils.js';
+import { formatPlainWord, formatPronunciationField } from './templates/shared/components.js';
+import { buildWordExtraInfo } from './templates/word/extraInfo.js';
+import { buildVerbDictionaryNote } from './templates/verb/dictionary.js';
 import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { shouldSuggestVerbInfinitive, suggestVerbInfinitives } from './verbCorrection.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
@@ -294,24 +296,17 @@ function buildDictionaryFormContext(verbData, focusForm = null) {
 }
 
 async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, deck) {
-  const displayForm = focusForm || verbData.displayForm || verbData.infinitive;
-  const backParts = [verbData.infinitive];
-  if (verbData.ipa) {
-    backParts.push(formatIpaHtml(verbData.ipa));
-  }
-  if (selectedMeaning?.russian) {
-    backParts.push(selectedMeaning.russian);
-  }
+  const note = buildVerbDictionaryNote({ verbData, selectedMeaning, focusForm });
 
   return createBasicNote({
-    front: displayForm,
-    back: backParts.join('<br>'),
+    front: note.front,
+    back: note.back,
     deck,
     tags: [
       'yt2anki',
       'mode-verb-dictionary',
       `lemma-${toTagSlug(verbData.infinitive)}`,
-      `form-${toTagSlug(displayForm)}`,
+      `form-${toTagSlug(note.front)}`,
     ],
   });
 }

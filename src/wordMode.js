@@ -7,7 +7,6 @@ import { estimateLexicalCEFR } from './cefr.js';
 import { getWordFrequencyInfo } from './wordFrequency.js';
 import {
   applyChosenSentenceGloss,
-  buildWordExtraInfo,
   formatPluralLabel,
   getArticleNormalizationWarning,
   getPrimaryExampleSentence,
@@ -15,12 +14,10 @@ import {
   normalizeGermanForCompare,
   toTagSlug,
 } from './wordUtils.js';
-import {
-  buildWordSentenceContrastFooter,
-  formatGenderColoredWord,
-  formatPlainWord,
-  formatPronunciationField,
-} from './templates/shared/components.js';
+import { formatPronunciationField } from './templates/shared/components.js';
+import { buildWordExtraInfo } from './templates/word/extraInfo.js';
+import { formatWordDisplay, isNounWord } from './templates/word/pictureWord.js';
+import { buildWordSentenceFrontFooter } from './templates/word/sentenceWord.js';
 import { canProceedWithWeakWordCard, enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSelection, confirmWordSelection } from './wordConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
@@ -42,21 +39,11 @@ import { enrich, reviewEnrichedText } from './enricher.js';
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';
 const SENTENCE_NOUN_PHRASE_PATTERN = /\b(der|die|das|den|dem|des|ein|eine|einen|einem|einer|eines|kein|keine|keinen|keinem|keiner|keines|mein(?:e|en|em|er|es)?|dein(?:e|en|em|er|es)?|sein(?:e|en|em|er|es)?|ihr(?:e|en|em|er|es)?|unser(?:e|en|em|er|es)?|euer(?:e|en|em|er|es)?)\s+([A-ZÄÖÜ][\p{L}-]+)/gu;
 
-function isNounWord(wordData = {}) {
-  return (wordData.lexicalType || 'noun') === 'noun';
-}
-
 function formatLexicalPreviewType(wordData = {}) {
   const lexicalType = wordData.lexicalType || 'noun';
   if (lexicalType === 'adjective') return 'adj';
   if (lexicalType === 'adverb') return 'adv';
   return 'noun';
-}
-
-function formatWordDisplay(wordData) {
-  return isNounWord(wordData)
-    ? formatGenderColoredWord(wordData.canonical, wordData.gender)
-    : formatPlainWord(wordData.canonical);
 }
 
 function formatWordPreviewSummary(chalk, wordData, translation, cefrLevel = null) {
@@ -99,14 +86,6 @@ function resolveWordRoute(wordData = {}) {
   }
 
   return wordData.recommendedMode === 'sentence-form' ? 'sentence-form' : 'picture-word';
-}
-
-function buildWordSentenceFrontFooter(wordData) {
-  if ((wordData?.lexicalType || 'adjective') !== 'adjective') {
-    return null;
-  }
-
-  return buildWordSentenceContrastFooter(wordData?.opposite || null);
 }
 
 function buildSentenceImageTerms(wordData, chosenSentence) {

@@ -3,9 +3,9 @@ import { formatComprehensionCard } from './sentence/comprehension.js';
 import { formatDialogueCard } from './sentence/dialogue.js';
 import { formatPatternCard } from './sentence/pattern.js';
 import { buildProductionFront, formatProductionCard } from './sentence/production.js';
-import { buildSentenceNoteFront } from './sentence/sentenceNote.js';
+import { buildSentenceNoteFields, buildSentenceNoteFront } from './sentence/sentenceNote.js';
 
-export { buildProductionFront, buildSentenceNoteFront };
+export { buildProductionFront, buildSentenceNoteFields, buildSentenceNoteFront };
 
 export function formatCardForAnki(card, audioFilename) {
   switch (card.type) {

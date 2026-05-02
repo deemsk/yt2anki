@@ -1,6 +1,5 @@
 import {
   applyChosenSentenceGloss,
-  buildWordExtraInfo,
   extractLeadingArticle,
   extractCanonicalWord,
   extractWordLexicalType,
@@ -18,6 +17,7 @@ import {
   formatIpaHtml,
   formatPronunciationField,
 } from "../src/templates/shared/components.js"
+import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
 import { getWordFrequencyInfo } from "../src/wordFrequency.js"
 
 describe("word helpers", () => {

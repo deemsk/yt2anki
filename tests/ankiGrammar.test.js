@@ -1,5 +1,5 @@
 import { createClozeNote, findGrammarDuplicates, resolveClozeFieldMap } from "../src/anki.js"
-import { buildGrammarExtra } from "../src/grammar/utils.js"
+import { buildGrammarExtra } from "../src/templates/grammar/extraInfo.js"
 
 describe("grammar Anki helpers", () => {
   const originalFetch = global.fetch

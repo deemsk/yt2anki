@@ -1,5 +1,5 @@
 import { createBasicNote, createPictureWordNote, migrateVerbDictionaryIpaBacks } from "../src/anki.js"
-import { buildWordExtraInfo } from "../src/wordUtils.js"
+import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
 
 describe("verb note helpers", () => {
   const originalFetch = global.fetch

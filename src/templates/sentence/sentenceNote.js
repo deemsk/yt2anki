@@ -1,5 +1,7 @@
 import { escapeHtml } from '../../wordUtils.js';
-import { imageTag, soundTag } from '../shared/components.js';
+import { buildWordMetadataComment } from '../../wordUtils.js';
+import { formatIpaHtml, imageTag, soundTag } from '../shared/components.js';
+import { joinHtml } from '../shared/html.js';
 
 export function buildSentenceNoteFront({
   audioFilename,
@@ -28,4 +30,45 @@ export function buildSentenceNoteFront({
   }
 
   return front;
+}
+
+export function buildSentenceNoteBack({
+  german,
+  ipa,
+  russian,
+  metadata = null,
+}) {
+  let back = joinHtml([german, formatIpaHtml(ipa), russian]);
+  if (metadata) {
+    back += buildWordMetadataComment(metadata);
+  }
+  return back;
+}
+
+export function buildSentenceNoteFields({
+  german,
+  ipa,
+  russian,
+  audioFilename,
+  context = null,
+  contextStyle = 'boxed',
+  imageFilename = null,
+  frontFooterHtml = null,
+  metadata = null,
+}) {
+  return {
+    Front: buildSentenceNoteFront({
+      audioFilename,
+      context,
+      contextStyle,
+      imageFilename,
+      frontFooterHtml,
+    }),
+    Back: buildSentenceNoteBack({
+      german,
+      ipa,
+      russian,
+      metadata,
+    }),
+  };
 }

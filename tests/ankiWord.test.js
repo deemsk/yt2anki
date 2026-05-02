@@ -1,5 +1,5 @@
 import { createPictureWordNote, findSentenceWordDuplicates, findWordDuplicates } from "../src/anki.js"
-import { buildWordExtraInfo } from "../src/wordUtils.js"
+import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
 
 describe("word note helpers", () => {
   const originalFetch = global.fetch

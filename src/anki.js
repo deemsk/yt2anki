@@ -1,9 +1,15 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
 import { config } from './config.js';
-import { buildProductionFront, buildSentenceNoteFront, formatCardForAnki } from './templates/index.js';
+import { buildProductionFront, buildSentenceNoteFields, buildSentenceNoteFront, formatCardForAnki } from './templates/index.js';
 import {
-  buildWordMetadataComment,
+  buildPictureWordFields,
+  buildPictureWordTags,
+  PICTURE_WORD_FIELDS,
+  PICTURE_WORD_MODEL,
+} from './templates/word/pictureWord.js';
+import { buildClozeNoteFields } from './templates/grammar/clozeNote.js';
+import {
   escapeHtml,
   extractCanonicalWord,
   extractWordLexicalType,
@@ -16,15 +22,6 @@ import {
 import { buildWordSentenceContrastFooter, formatIpaHtml } from './templates/shared/components.js';
 import { hasCurrentDerDieDeckStyles, mergeDerDieDeckStyles } from './templates/shared/styles.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
-
-const PICTURE_WORD_MODEL = '2. Picture Words';
-const PICTURE_WORD_FIELDS = {
-  word: 'Word',
-  picture: 'Picture',
-  extra: 'Gender, Personal Connection, Extra Info (Back side)',
-  pronunciation: 'Pronunciation (Recording and/or IPA)',
-  spelling: 'Test Spelling? (y = yes, blank = no)',
-};
 
 /**
  * Call AnkiConnect API
@@ -123,26 +120,17 @@ export async function createNote({
   const deckName = deck || config.ankiDeck;
 
   // Format front: Audio + optional context (audio-first for comprehension)
-  const front = buildSentenceNoteFront({
+  const fields = buildSentenceNoteFields({
+    german,
+    ipa,
+    russian,
     audioFilename,
     context,
     contextStyle,
     imageFilename,
     frontFooterHtml,
+    metadata,
   });
-
-  // Format back: German + IPA + Russian
-  const backParts = [german, formatIpaHtml(ipa), russian].filter(Boolean);
-  let back = backParts.join('<br>');
-  if (metadata) {
-    back += buildWordMetadataComment(metadata);
-  }
-
-  // Build fields based on note type
-  const fields = {
-    Front: front,
-    Back: back,
-  };
 
   // Support "Basic (optional reversed card)" - needs "Add Reverse" field to be non-empty
   if (config.ankiNoteType.includes('optional reversed') && addReversed) {
@@ -241,34 +229,22 @@ export async function createPictureWordNote({
   modelName = config.wordNoteType || PICTURE_WORD_MODEL,
 }) {
   const deckName = deck || config.ankiDeck;
-  const resolvedImageSource = imageSource || 'none';
-
-  const fields = {
-    [PICTURE_WORD_FIELDS.word]: coloredWord,
-    [PICTURE_WORD_FIELDS.picture]: imageFilename ? `<img src="${imageFilename}" />` : '',
-    [PICTURE_WORD_FIELDS.extra]: extraInfoField,
-    [PICTURE_WORD_FIELDS.pronunciation]: pronunciationField,
-    [PICTURE_WORD_FIELDS.spelling]: '',
-  };
-
-  const tags = [
-    'yt2anki',
-    'mode-word',
-    `word-${lexicalType}`,
-    `freq-${frequencyBand}`,
-    `lemma-${toTagSlug(lemma)}`,
-    `canonical-${toTagSlug(canonical)}`,
-    `img-${toTagSlug(resolvedImageSource)}`,
-    `audio-${toTagSlug(audioSource)}`,
-  ];
-
-  if (gender) {
-    tags.push(`gender-${gender}`);
-  }
-
-  if (theme) {
-    tags.push(`theme-${toTagSlug(theme)}`);
-  }
+  const fields = buildPictureWordFields({
+    coloredWord,
+    imageFilename,
+    pronunciationField,
+    extraInfoField,
+  });
+  const tags = buildPictureWordTags({
+    canonical,
+    gender,
+    frequencyBand,
+    lemma,
+    imageSource,
+    audioSource,
+    lexicalType,
+    theme,
+  });
 
   return ankiConnect('addNote', {
     note: {
@@ -335,10 +311,7 @@ export async function createClozeNote({
   fieldMap = { textField: 'Text', extraField: 'Back Extra' },
 }) {
   const deckName = deck || config.ankiDeck;
-  const fields = {
-    [fieldMap.textField]: text,
-    [fieldMap.extraField]: extra,
-  };
+  const fields = buildClozeNoteFields({ text, extra, fieldMap });
 
   return ankiConnect('addNote', {
     note: {
