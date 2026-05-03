@@ -1,5 +1,5 @@
 import { buildWordMetadataComment } from '../../cardContent/wordMetadata.js';
-import { answerStack, focusPill, imageBlock, soundTag } from '../shared/components.js';
+import { answerStack, focusPill, imageBlock, soundTag, taskHeader } from '../shared/components.js';
 
 export function buildSentenceNoteFront({
   audioFilename,
@@ -7,8 +7,10 @@ export function buildSentenceNoteFront({
   contextStyle = 'boxed',
   imageFilename = null,
   frontFooterHtml = null,
+  task = null,
 }) {
-  let front = soundTag(audioFilename);
+  let front = task ? taskHeader(task.label, task.instruction) : '';
+  front += soundTag(audioFilename);
 
   if (context) {
     if (contextStyle === 'plain') {
@@ -53,6 +55,7 @@ export function buildSentenceNoteFields({
   imageFilename = null,
   frontFooterHtml = null,
   metadata = null,
+  task = null,
 }) {
   return {
     Front: buildSentenceNoteFront({
@@ -61,6 +64,7 @@ export function buildSentenceNoteFields({
       contextStyle,
       imageFilename,
       frontFooterHtml,
+      task,
     }),
     Back: buildSentenceNoteBack({
       german,

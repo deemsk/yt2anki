@@ -105,6 +105,7 @@ export async function createNote({
   imageFilename = null,
   frontFooterHtml = null,
   addReversed = true,
+  task = null,
   cefr = null,
   metadata = null,
   tags: extraTags = [],
@@ -122,6 +123,7 @@ export async function createNote({
     contextStyle,
     imageFilename,
     frontFooterHtml,
+    task,
     metadata,
   });
 
@@ -398,6 +400,14 @@ export async function updateNoteFields(noteId, fields) {
   });
 }
 
+export async function suspendCards(cardIds) {
+  if (!cardIds.length) {
+    return null;
+  }
+
+  return ankiConnect('suspend', { cards: cardIds });
+}
+
 /**
  * Normalize German text for comparison
  */
@@ -538,8 +548,14 @@ function extractLegacyAdjectiveContrast(front = '') {
 }
 
 function extractContextFromFront(front = '') {
-  const match = String(front).match(/Context:\s*([^<]+)/i);
-  return match ? stripHtml(match[1]) : null;
+  const html = String(front);
+  const focusMatch = html.match(/class="[^"]*\bddd-focus\b[^"]*"[\s\S]*?<span[^>]*>\s*Focus\s*<\/span>\s*<span[^>]*>([\s\S]*?)<\/span>/i);
+  if (focusMatch) {
+    return stripHtml(focusMatch[1]).trim() || null;
+  }
+
+  const match = html.match(/Context:\s*([^<]+)/i);
+  return match ? stripHtml(match[1]).trim() || null : null;
 }
 
 function isSyntheticVerbContext(context = '') {
@@ -554,20 +570,35 @@ function isProductionInstructionLine(line = '') {
 
   return normalized.includes('скажи по-немецки')
     || normalized.startsWith('передай это по-немецки')
-    || normalized.startsWith('это перевод в немецкую фразу');
+    || normalized.startsWith('это перевод в немецкую фразу')
+    || normalized === 'say in german'
+    || normalized.startsWith('produce the sentence before');
+}
+
+function normalizeProductionSituation(line = '') {
+  return String(line || '').replace(/^(🧭\s*)?подсказка:\s*/i, '').trim() || null;
 }
 
 function extractProductionFrontData(front = '') {
+  const html = String(front);
+  const sourceMatch = html.match(/class="[^"]*\byt2anki-production-source\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  const hintMatch = html.match(/class="[^"]*\byt2anki-production-hint\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+
+  if (sourceMatch) {
+    return {
+      russian: stripHtml(sourceMatch[1]).trim() || null,
+      situation: hintMatch ? normalizeProductionSituation(stripHtml(hintMatch[1])) : null,
+    };
+  }
+
   const lines = extractFieldLines(
-    String(front)
+    html
       .replace(/<\/div>/gi, '<br>')
       .replace(/<\/p>/gi, '<br>')
   );
   const situationLine = lines.find((line) => /^(🧭\s*)?подсказка:/i.test(line)) || null;
   const russian = lines.find((line) => !isProductionInstructionLine(line) && line !== situationLine) || null;
-  const situation = situationLine
-    ? situationLine.replace(/^(🧭\s*)?подсказка:\s*/i, '').trim() || null
-    : null;
+  const situation = situationLine ? normalizeProductionSituation(situationLine) : null;
 
   return { russian, situation };
 }
@@ -775,7 +806,7 @@ export async function findGrammarDuplicates({
 
 export async function migrateAdjectiveSentenceFronts({ dryRun = false } = {}) {
   const noteIds = await ankiConnect('findNotes', {
-    query: 'tag:mode-word-sentence tag:word-adjective',
+    query: 'tag:mode-word-sentence',
   });
 
   if (noteIds.length === 0) {
@@ -807,6 +838,10 @@ export async function migrateAdjectiveSentenceFronts({ dryRun = false } = {}) {
       audioFilename,
       imageFilename,
       frontFooterHtml: buildWordSentenceContrastFooter(contrast),
+      task: {
+        label: 'Listen and picture',
+        instruction: 'Use the audio and image, then recall the sentence',
+      },
     });
 
     if (front === nextFront) {
@@ -823,6 +858,69 @@ export async function migrateAdjectiveSentenceFronts({ dryRun = false } = {}) {
       audioFilename,
       imageFilename,
       contrast,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}
+
+export async function migrateComprehensionCardFronts({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:card-comprehension',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const front = note.fields?.Front?.value || '';
+    const audioFilename = extractAudioFilenameFromFront(front);
+    const context = extractContextFromFront(front);
+
+    if (!audioFilename) {
+      skipped++;
+      continue;
+    }
+
+    const nextFront = buildSentenceNoteFront({
+      audioFilename,
+      context,
+      contextStyle: 'plain',
+      task: {
+        label: 'Listen and understand',
+        instruction: 'Play the audio before revealing the answer',
+      },
+    });
+
+    if (front === nextFront) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { Front: nextFront });
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      context,
     });
     updated++;
   }
@@ -890,6 +988,60 @@ export async function migrateProductionCardFronts({ dryRun = false } = {}) {
   };
 }
 
+export async function migrateSentenceWordReverseCards({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:mode-word-sentence',
+  });
+  const staleReverseCardIds = await ankiConnect('findCards', {
+    query: 'tag:mode-word-sentence card:2',
+  });
+
+  if (noteIds.length === 0 && staleReverseCardIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      suspendedCards: 0,
+      notes: [],
+      cardIds: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const addReverse = String(note.fields?.['Add Reverse']?.value || '').trim();
+
+    if (!addReverse) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { 'Add Reverse': '' });
+    }
+
+    migrated.push({ noteId: note.noteId });
+    updated++;
+  }
+
+  if (!dryRun && staleReverseCardIds.length > 0) {
+    await suspendCards(staleReverseCardIds);
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    suspendedCards: staleReverseCardIds.length,
+    notes: migrated,
+    cardIds: staleReverseCardIds,
+  };
+}
+
 export async function migrateVerbSentenceFronts({ dryRun = false } = {}) {
   const noteIds = await ankiConnect('findNotes', {
     query: 'tag:mode-verb-sentence',
@@ -927,6 +1079,10 @@ export async function migrateVerbSentenceFronts({ dryRun = false } = {}) {
       context: nextContext,
       contextStyle: 'plain',
       imageFilename,
+      task: {
+        label: 'Hear the form',
+        instruction: 'Listen for the target verb form',
+      },
     });
 
     if (front === nextFront) {

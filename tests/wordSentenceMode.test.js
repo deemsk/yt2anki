@@ -168,6 +168,7 @@ describe("word mode sentence flow", () => {
     expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
       german: "Das Haus ist groß.",
       imageFilename: "word-sentence-image.jpg",
+      addReversed: false,
       deck: "German::Test",
     }))
 

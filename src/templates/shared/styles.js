@@ -47,6 +47,10 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   color: var(--ddd-muted);
 }
 
+.ddd-task-header {
+  color: var(--ddd-muted);
+}
+
 .ddd-focus {
   background: var(--ddd-panel);
   color: var(--ddd-muted);

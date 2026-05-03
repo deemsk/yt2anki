@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './downloader.js';
 import { cutClip, parseTimestamp } from './clipper.js';
 import { transcribe } from './transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -194,15 +194,27 @@ program
 
 program
   .command('migrate-adjective-fronts')
-  .description('Rewrite existing adjective sentence-card fronts to the newer image/contrast layout')
+  .description('Rewrite existing word sentence-card fronts to the newer task/image layout')
   .option('-n, --dry-run', 'Preview matching notes without changing them')
   .action(runAdjectiveFrontMigration);
+
+program
+  .command('migrate-comprehension-fronts')
+  .description('Rewrite existing comprehension card fronts to include the listening task header')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runComprehensionFrontMigration);
 
 program
   .command('migrate-production-fronts')
   .description('Rewrite existing production card fronts back to the plain layout')
   .option('-n, --dry-run', 'Preview matching notes without changing them')
   .action(runProductionFrontMigration);
+
+program
+  .command('migrate-word-sentence-reverses')
+  .description('Disable reverse cards on existing word sentence notes')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runWordSentenceReverseMigration);
 
 program
   .command('migrate-verb-fronts')
@@ -871,15 +883,15 @@ async function runAdjectiveFrontMigration(options) {
     spinner.succeed('AnkiConnect ready');
 
     spinner.start(options.dryRun
-      ? 'Scanning adjective sentence cards...'
-      : 'Migrating adjective sentence cards...');
+      ? 'Scanning word sentence cards...'
+      : 'Migrating word sentence cards...');
     const result = await migrateAdjectiveSentenceFronts({
       dryRun: Boolean(options.dryRun),
     });
     spinner.stop();
 
     console.log();
-    console.log(chalk.bold('Adjective front migration'));
+    console.log(chalk.bold('Word sentence front migration'));
     console.log(`  Matched: ${result.matched}`);
     console.log(`  Updated: ${result.updated}`);
     console.log(`  Skipped: ${result.skipped}`);
@@ -899,7 +911,55 @@ async function runAdjectiveFrontMigration(options) {
     if (options.dryRun) {
       console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
     } else {
-      console.log(chalk.green(`✓ Migrated ${result.updated} adjective sentence cards`));
+      console.log(chalk.green(`✓ Migrated ${result.updated} word sentence cards`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
+}
+
+async function runComprehensionFrontMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning comprehension cards...'
+      : 'Migrating comprehension cards...');
+    const result = await migrateComprehensionCardFronts({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Comprehension front migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId}${entry.context ? ` (${entry.context})` : ''}`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Migrated ${result.updated} comprehension cards`));
     }
   } catch (err) {
     spinner.fail(err.message);
@@ -948,6 +1008,55 @@ async function runProductionFrontMigration(options) {
       console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
     } else {
       console.log(chalk.green(`✓ Migrated ${result.updated} production cards`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
+}
+
+async function runWordSentenceReverseMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning word sentence reverse cards...'
+      : 'Disabling word sentence reverse cards...');
+    const result = await migrateSentenceWordReverseCards({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Word sentence reverse-card migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+    console.log(`  Suspended stale reverse cards: ${result.suspendedCards}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId}`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Disabled reverse cards on ${result.updated} word sentence notes and suspended ${result.suspendedCards} stale reverse cards`));
     }
   } catch (err) {
     spinner.fail(err.message);

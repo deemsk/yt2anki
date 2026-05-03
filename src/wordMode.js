@@ -693,6 +693,11 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     audioFilename,
     imageFilename,
     frontFooterHtml: buildWordSentenceFrontFooter(wordData),
+    addReversed: false,
+    task: {
+      label: 'Listen and picture',
+      instruction: 'Use the audio and image, then recall the sentence',
+    },
     cefr: sentenceData.cefr,
     metadata: {
       canonical: wordData.canonical,

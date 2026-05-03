@@ -32,7 +32,7 @@ describe("card type helpers", () => {
     )
 
     expect(withEnglish.front.situation).toBeNull()
-    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Скажи по-немецки")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Say in German")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Я хочу кофе.")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).not.toContain("ordering coffee")
     expect(withRussian.front.situation).toBe("в кафе")
@@ -77,8 +77,8 @@ describe("card type helpers", () => {
 
     expect(fields.Front).toContain("[sound:reply.mp3]")
     expect(fields.Front).toContain("💬")
-    expect(fields.Front).toContain("Ответь по-немецки вслух")
-    expect(fields.Front).toContain("Твой ответ: ______")
+    expect(fields.Front).toContain("Answer aloud in German")
+    expect(fields.Front).toContain("Your reply: ______")
     expect(fields.Back).toContain("Ganz gut.")
   })
 })

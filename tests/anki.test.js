@@ -1,4 +1,4 @@
-import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateVerbSentenceFronts } from "../src/anki.js"
+import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -300,10 +300,95 @@ describe("anki helpers", () => {
 
     const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
     expect(updateRequest.params.note.id).toBe(44)
-    expect(updateRequest.params.note.fields.Front).toContain("Скажи по-немецки")
+    expect(updateRequest.params.note.fields.Front).toContain("Say in German")
     expect(updateRequest.params.note.fields.Front).toContain("Я хочу кофе.")
     expect(updateRequest.params.note.fields.Front).toContain(">в кафе<")
     expect(updateRequest.params.note.fields.Front).not.toContain("yt2anki-task-production")
+  })
+
+  test("migrateSentenceWordReverseCards clears Add Reverse on word sentence notes", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [31, 32], error: null }
+          },
+        }
+      }
+
+      if (body.action === "findCards") {
+        return {
+          async json() {
+            return { result: [3102], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 31,
+                  fields: {
+                    "Add Reverse": { value: "1" },
+                  },
+                  tags: ["yt2anki", "mode-word-sentence"],
+                },
+                {
+                  noteId: 32,
+                  fields: {
+                    "Add Reverse": { value: "" },
+                  },
+                  tags: ["yt2anki", "mode-word-sentence"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      if (body.action === "suspend") {
+        return {
+          async json() {
+            return { result: true, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateSentenceWordReverseCards()
+
+    expect(result).toEqual(expect.objectContaining({
+      matched: 2,
+      updated: 1,
+      skipped: 1,
+      suspendedCards: 1,
+    }))
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(31)
+    expect(updateRequest.params.note.fields["Add Reverse"]).toBe("")
+
+    const suspendRequest = requests.find((entry) => entry.action === "suspend")
+    expect(suspendRequest.params.cards).toEqual([3102])
   })
 
   test("migrateVerbSentenceFronts rewrites boxed verb contexts to the plain layout", async () => {
@@ -428,7 +513,9 @@ describe("anki helpers", () => {
 
     const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
     expect(updateRequest.params.note.id).toBe(56)
-    expect(updateRequest.params.note.fields.Front).toBe("[sound:erreichen.mp3]")
+    expect(updateRequest.params.note.fields.Front).toContain("Hear the form")
+    expect(updateRequest.params.note.fields.Front).toContain("[sound:erreichen.mp3]")
+    expect(updateRequest.params.note.fields.Front).not.toContain("Context:")
   })
 
   test("findSimilarCards matches current audio-first cards using back-side German text", async () => {

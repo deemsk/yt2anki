@@ -618,6 +618,10 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
     audioFilename,
     context: buildDictionaryFormContext(verbData, chosenSentence.focusForm),
     contextStyle: 'plain',
+    task: {
+      label: 'Hear the form',
+      instruction: 'Listen for the target verb form',
+    },
     cefr: sentenceData.cefr,
     deck: options.deck,
     tags: [

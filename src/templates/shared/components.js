@@ -66,6 +66,21 @@ export function formatPronunciationField(audioFilename, ipa = '') {
   return joinHtml([soundTag(audioFilename), formatIpaHtml(ipa)]);
 }
 
+export function taskHeader(label, instruction = null) {
+  const title = String(label || '').trim();
+  const detail = String(instruction || '').trim();
+  if (!title) {
+    return '';
+  }
+
+  return html`
+    <div class="ddd-task-header" style="margin:0 auto 12px;max-width:520px;text-align:center;">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;color:#64748b;">${escapeHtml(title)}</div>
+      ${detail ? `<div style="margin-top:4px;font-size:14px;line-height:1.25;color:#475569;">${escapeHtml(detail)}</div>` : ''}
+    </div>
+  `;
+}
+
 export function focusPill(context = null) {
   const value = String(context || '').trim();
   if (!value) {
@@ -118,5 +133,5 @@ export function taskPanel(type, { emoji, kicker, main, sub = null }) {
 
 export function replySlot() {
   const style = TASK_PANEL_STYLES.dialogue;
-  return `<div class="yt2anki-reply-slot" style="padding:10px 12px;border-radius:14px;border:1.5px dashed ${style.slotBorder};background:${style.slotBackground};font-size:15px;font-weight:600;text-align:left;">💬 Твой ответ: ______</div>`;
+  return `<div class="yt2anki-reply-slot" style="padding:10px 12px;border-radius:14px;border:1.5px dashed ${style.slotBorder};background:${style.slotBackground};font-size:15px;font-weight:600;text-align:left;">💬 Your reply: ______</div>`;
 }
