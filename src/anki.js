@@ -547,15 +547,22 @@ function extractLegacyAdjectiveContrast(front = '') {
   return match ? match[1].trim() : null;
 }
 
+/**
+ * Keeps legacy ASCII arrows visually consistent when old card fronts are migrated.
+ */
+function normalizeContextArrow(context = '') {
+  return String(context).replace(/\s*(?:-&gt;|->)\s*/g, ' → ').trim();
+}
+
 function extractContextFromFront(front = '') {
   const html = String(front);
   const focusMatch = html.match(/class="[^"]*\bddd-focus\b[^"]*"[\s\S]*?<span[^>]*>\s*Focus\s*<\/span>\s*<span[^>]*>([\s\S]*?)<\/span>/i);
   if (focusMatch) {
-    return stripHtml(focusMatch[1]).trim() || null;
+    return normalizeContextArrow(stripHtml(focusMatch[1])) || null;
   }
 
   const match = html.match(/Context:\s*([^<]+)/i);
-  return match ? stripHtml(match[1]).trim() || null : null;
+  return match ? normalizeContextArrow(stripHtml(match[1])) || null : null;
 }
 
 function isSyntheticVerbContext(context = '') {
@@ -988,12 +995,15 @@ export async function migrateProductionCardFronts({ dryRun = false } = {}) {
   };
 }
 
-export async function migrateSentenceWordReverseCards({ dryRun = false } = {}) {
+/**
+ * Clears optional reverse generation and suspends already-created reverse cards for sentence notes.
+ */
+async function migrateSentenceReverseCardsByTag(tag, { dryRun = false } = {}) {
   const noteIds = await ankiConnect('findNotes', {
-    query: 'tag:mode-word-sentence',
+    query: `tag:${tag}`,
   });
   const staleReverseCardIds = await ankiConnect('findCards', {
-    query: 'tag:mode-word-sentence card:2',
+    query: `tag:${tag} card:2`,
   });
 
   if (noteIds.length === 0 && staleReverseCardIds.length === 0) {
@@ -1040,6 +1050,20 @@ export async function migrateSentenceWordReverseCards({ dryRun = false } = {}) {
     notes: migrated,
     cardIds: staleReverseCardIds,
   };
+}
+
+/**
+ * Disables optional reverse cards for existing word sentence notes.
+ */
+export async function migrateSentenceWordReverseCards({ dryRun = false } = {}) {
+  return migrateSentenceReverseCardsByTag('mode-word-sentence', { dryRun });
+}
+
+/**
+ * Disables optional reverse cards for existing verb sentence notes.
+ */
+export async function migrateSentenceVerbReverseCards({ dryRun = false } = {}) {
+  return migrateSentenceReverseCardsByTag('mode-verb-sentence', { dryRun });
 }
 
 export async function migrateVerbSentenceFronts({ dryRun = false } = {}) {

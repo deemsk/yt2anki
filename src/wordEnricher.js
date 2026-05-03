@@ -235,6 +235,7 @@ Rules:
 - For these social adjectives, prefer interaction queries like "freundliche Verkäuferin hilft Kundin", "Mann hält Tür höflich auf", or "gemeines Kind lacht anderes Kind aus" over weak queries like "nette Frau" or "freundlicher Mann".
 - For these social adjectives, mustShow should include the visible interaction or gesture, and avoid should explicitly include portraits, selfies, headshots, glamour photos, and isolated person shots when they hide the adjective.
 - IPA must be in square brackets.
+- IPA must use Standard German conventions: use ʁ/ɐ̯ for German r where appropriate, never ɾ; place stress before the stressed syllable.
 - For nouns, return the plain plural noun without article. If the noun usually has no plural, set noPlural=true.
 - For adjectives and adverbs, set article, gender, plural to null and noPlural to false.
 - For adverbs, set anchorPhrase and opposite to null.

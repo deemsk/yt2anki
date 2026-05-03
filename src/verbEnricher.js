@@ -34,6 +34,7 @@ Rules:
 - For sentence-form verbs, provide exactly 3 short natural example sentences in German with Russian translations.
 - dictionaryFormNeeded should be true when displayForm differs from infinitive or when the encountered form is likely non-obvious.
 - IPA must be in square brackets.
+- IPA must use Standard German conventions: use ʁ/ɐ̯ for German r where appropriate, never ɾ; place stress before the stressed syllable.
 - If the input is a verb but weak for picture cards, still return the normalized analysis and recommend sentence-form mode instead of rejecting it.
 
 Respond in JSON only:

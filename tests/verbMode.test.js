@@ -145,8 +145,9 @@ describe("verb mode sentence flow", () => {
     expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
       german: "Der Hund gehört meiner Schwester.",
       russian: "Собака принадлежит моей сестре.",
-      context: "gehört -> gehören",
+      context: "gehört → gehören",
       contextStyle: "plain",
+      addReversed: false,
       deck: "German::Test",
       tags: expect.arrayContaining(["mode-verb-sentence"]),
     }))

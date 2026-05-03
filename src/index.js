@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './lib/downloader.js';
 import { cutClip, parseTimestamp } from './lib/clipper.js';
 import { transcribe } from './lib/transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateSentenceVerbReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './lib/config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -217,6 +217,12 @@ program
   .action(runWordSentenceReverseMigration);
 
 program
+  .command('migrate-verb-sentence-reverses')
+  .description('Disable reverse cards on existing verb sentence notes')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runVerbSentenceReverseMigration);
+
+program
   .command('migrate-verb-fronts')
   .description('Rewrite existing verb sentence fronts back to the plain context layout')
   .option('-n, --dry-run', 'Preview matching notes without changing them')
@@ -401,7 +407,7 @@ async function checkSetup() {
     try {
       const { execFileSync } = await import('child_process');
       execFileSync('which', [tool], { stdio: 'ignore' });
-      const label = tool === (config.ipaBinary || 'espeak-ng') ? `${tool} installed for IPA` : `${tool} installed`;
+      const label = tool === (config.ipaBinary || 'espeak-ng') ? `${tool} installed for IPA fallback` : `${tool} installed`;
       console.log(chalk.green(`✓ ${label}`));
     } catch {
       const hint = tool === (config.ipaBinary || 'espeak-ng') ? ' (install with: brew install espeak-ng)' : '';
@@ -541,8 +547,8 @@ async function testIntegrations(options) {
     fail('whisper-cli not found', 'Install with: brew install whisper-cpp');
   }
 
-  // 4. Test eSpeak NG IPA
-  console.log(chalk.bold.blue('\n[4/8] eSpeak NG IPA'));
+  // 4. Test eSpeak NG fallback IPA
+  console.log(chalk.bold.blue('\n[4/8] eSpeak NG fallback IPA'));
   try {
     const ipaBinary = config.ipaBinary || 'espeak-ng';
     const version = execFileSync(ipaBinary, ['--version'], { stdio: 'pipe' }).toString().split('\n')[0];
@@ -551,7 +557,7 @@ async function testIntegrations(options) {
     const { generateGermanIpa } = await import('./cardContent/ipa.js');
     const ipa = await generateGermanIpa('Ich gehe nach Hause.', { fallbackToModel: false });
     if (ipa) {
-      pass(`German IPA generated: ${ipa}`);
+      pass(`Fallback German IPA generated: ${ipa}`);
     } else {
       fail('German IPA generation returned empty output');
     }
@@ -1057,6 +1063,58 @@ async function runWordSentenceReverseMigration(options) {
       console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
     } else {
       console.log(chalk.green(`✓ Disabled reverse cards on ${result.updated} word sentence notes and suspended ${result.suspendedCards} stale reverse cards`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
+}
+
+/**
+ * Runs the Anki migration that disables generated reverse cards for verb sentence notes.
+ */
+async function runVerbSentenceReverseMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning verb sentence reverse cards...'
+      : 'Disabling verb sentence reverse cards...');
+    const result = await migrateSentenceVerbReverseCards({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Verb sentence reverse-card migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+    console.log(`  Suspended stale reverse cards: ${result.suspendedCards}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId}`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Disabled reverse cards on ${result.updated} verb sentence notes and suspended ${result.suspendedCards} stale reverse cards`));
     }
   } catch (err) {
     spinner.fail(err.message);

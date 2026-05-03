@@ -143,6 +143,11 @@ export async function enrich(germanText, subtitleContext = null, ccHint = null) 
 4. Provide fallback IPA transcription in square brackets; it must match the final German exactly
 5. Provide Russian translation
 
+IPA rules for Standard German:
+- Use standard German IPA, not Spanish/flapped-r variants.
+- Use ʁ or ɐ̯ for German r where appropriate; do not use ɾ.
+- Put the stress mark before the stressed syllable: "morgen" → [ˈmɔʁɡn̩], not [mˈɔɾɡən].
+
 Respond in JSON format only:
 {"german": "...", "ipa": "[...]", "russian": "..."}
 
@@ -212,6 +217,7 @@ Rules:
 - If the current card is already good, make only the smallest needed adjustment.
 - Russian must stay in Russian, never English.
 - IPA must be in square brackets.
+- IPA must use Standard German conventions: use ʁ/ɐ̯ for German r where appropriate, never ɾ; place stress before the stressed syllable.
 - Return JSON only. Do not explain your changes.`;
 
   if (options.cardPurpose) {

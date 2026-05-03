@@ -40,7 +40,7 @@ export async function confirmGrammarSelection({
     console.log();
     units.forEach((unit, index) => {
       const status = enabled[index] ? chalk.green('✓') : chalk.dim('○');
-      console.log(`${status} [${index + 1}] ${unit.slotHint} -> ${unit.surfaceForm}`);
+      console.log(`${status} [${index + 1}] ${unit.slotHint} → ${unit.surfaceForm}`);
       console.log(chalk.dim(`    Sentence: ${unit.previewGerman}`));
       console.log(chalk.dim(`    Back:     ${unit.russian}`));
       console.log(chalk.dim(`    Rule:     ${unit.explanation}`));

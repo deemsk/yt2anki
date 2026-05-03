@@ -293,7 +293,7 @@ function buildDictionaryFormContext(verbData, focusForm = null) {
     return null;
   }
 
-  return `${form} -> ${verbData.infinitive}`;
+  return `${form} → ${verbData.infinitive}`;
 }
 
 async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, deck) {
@@ -618,6 +618,7 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
     audioFilename,
     context: buildDictionaryFormContext(verbData, chosenSentence.focusForm),
     contextStyle: 'plain',
+    addReversed: false,
     task: {
       label: 'Hear the form',
       instruction: 'Listen for the target verb form',

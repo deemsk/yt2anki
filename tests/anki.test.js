@@ -1,4 +1,4 @@
-import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
+import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceVerbReverseCards, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -391,6 +391,93 @@ describe("anki helpers", () => {
     expect(suspendRequest.params.cards).toEqual([3102])
   })
 
+  test("migrateSentenceVerbReverseCards clears Add Reverse on verb sentence notes", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        expect(body.params.query).toBe("tag:mode-verb-sentence")
+        return {
+          async json() {
+            return { result: [41, 42], error: null }
+          },
+        }
+      }
+
+      if (body.action === "findCards") {
+        expect(body.params.query).toBe("tag:mode-verb-sentence card:2")
+        return {
+          async json() {
+            return { result: [4102], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 41,
+                  fields: {
+                    "Add Reverse": { value: "1" },
+                  },
+                  tags: ["yt2anki", "mode-verb-sentence"],
+                },
+                {
+                  noteId: 42,
+                  fields: {
+                    "Add Reverse": { value: "" },
+                  },
+                  tags: ["yt2anki", "mode-verb-sentence"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      if (body.action === "suspend") {
+        return {
+          async json() {
+            return { result: true, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateSentenceVerbReverseCards()
+
+    expect(result).toEqual(expect.objectContaining({
+      matched: 2,
+      updated: 1,
+      skipped: 1,
+      suspendedCards: 1,
+    }))
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(41)
+    expect(updateRequest.params.note.fields["Add Reverse"]).toBe("")
+
+    const suspendRequest = requests.find((entry) => entry.action === "suspend")
+    expect(suspendRequest.params.cards).toEqual([4102])
+  })
+
   test("migrateVerbSentenceFronts rewrites boxed verb contexts to the plain layout", async () => {
     const requests = []
 
@@ -451,8 +538,71 @@ describe("anki helpers", () => {
     expect(updateRequest.params.note.id).toBe(55)
     expect(updateRequest.params.note.fields.Front).toContain("[sound:gehoert.mp3]")
     expect(updateRequest.params.note.fields.Front).toContain('class="yt2anki-front-context ddd-focus"')
-    expect(updateRequest.params.note.fields.Front).toContain("gehört -&gt; gehören")
+    expect(updateRequest.params.note.fields.Front).toContain("gehört → gehören")
     expect(updateRequest.params.note.fields.Front).not.toContain("Context:")
+  })
+
+  test("migrateVerbSentenceFronts normalizes legacy arrows in focus pills", async () => {
+    const requests = []
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [56], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 56,
+                  fields: {
+                    Front: { value: '[sound:verb_sentence_1777816847491.mp3]<div class="yt2anki-front-context ddd-focus"><span>Focus</span><span>sagt -> sagen</span></div>' },
+                    Back: { value: "Er sagt, dass er morgen kommt.<br>[ɛɐ̯ zaːkt das ɛɐ̯ ˈmɔʁɡn̩ kɔmt]<br>Он говорит, что придет завтра." },
+                  },
+                  tags: ["yt2anki", "mode-verb-sentence"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateVerbSentenceFronts()
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        matched: 1,
+        updated: 1,
+        skipped: 0,
+      })
+    )
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(56)
+    expect(updateRequest.params.note.fields.Front).toContain("[sound:verb_sentence_1777816847491.mp3]")
+    expect(updateRequest.params.note.fields.Front).toContain("sagt → sagen")
+    expect(updateRequest.params.note.fields.Front).not.toContain("sagt -> sagen")
   })
 
   test("migrateVerbSentenceFronts drops synthetic fallback verb contexts", async () => {

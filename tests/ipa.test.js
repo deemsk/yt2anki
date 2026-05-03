@@ -19,14 +19,21 @@ describe("German IPA generation", () => {
     expect(normalizeSentenceIpa("")).toBe("")
   })
 
-  test("uses espeak-ng IPA before model fallback IPA", async () => {
+  test("uses clean model fallback IPA before espeak-ng", async () => {
+    const ipa = await generateGermanIpa("Ich gehe nach Hause.", {
+      fallbackIpa: "[ɪç ˈɡeːə nax ˈhaʊzə]",
+    })
+
+    expect(ipa).toBe("[ɪç ˈɡeːə nax ˈhaʊzə]")
+    expect(mockExecFile).not.toHaveBeenCalled()
+  })
+
+  test("uses espeak-ng IPA when no model fallback IPA is available", async () => {
     mockExecFile.mockImplementation((_cmd, _args, _options, callback) => {
       callback(null, "ɪç ˈɡeːə nax ˈhaʊzə\n", "")
     })
 
-    const ipa = await generateGermanIpa("Ich gehe nach Hause.", {
-      fallbackIpa: "[wrong]",
-    })
+    const ipa = await generateGermanIpa("Ich gehe nach Hause.")
 
     expect(ipa).toBe("[ɪç ˈɡeːə nax ˈhaʊzə]")
     expect(mockExecFile).toHaveBeenCalledWith(
@@ -35,6 +42,37 @@ describe("German IPA generation", () => {
       expect.objectContaining({ timeout: 5000 }),
       expect.any(Function)
     )
+  })
+
+  test("prefers clean fallback IPA when espeak-ng emits non-standard German tap r", async () => {
+    const ipa = await generateGermanIpa("Er sagt, dass er morgen kommt.", {
+      fallbackIpa: "[ɛɐ̯ zaːkt das ɛɐ̯ ˈmɔʁɡn̩ kɔmt]",
+    })
+
+    expect(ipa).toBe("[ɛɐ̯ zaːkt das ɛɐ̯ ˈmɔʁɡn̩ kɔmt]")
+    expect(mockExecFile).not.toHaveBeenCalled()
+  })
+
+  test("uses espeak-ng when model fallback IPA contains suspicious German symbols", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _options, callback) => {
+      callback(null, "ˈmɔʁɡn̩\n", "")
+    })
+
+    const ipa = await generateGermanIpa("morgen", {
+      fallbackIpa: "[mˈɔɾɡən]",
+    })
+
+    expect(ipa).toBe("[ˈmɔʁɡn̩]")
+  })
+
+  test("normalizes non-standard espeak-ng German IPA symbols when no clean fallback exists", async () => {
+    mockExecFile.mockImplementation((_cmd, _args, _options, callback) => {
+      callback(null, "mˈɔɾɡən\n", "")
+    })
+
+    const ipa = await generateGermanIpa("morgen")
+
+    expect(ipa).toBe("[mˈɔʁɡən]")
   })
 
   test("falls back to model IPA when espeak-ng is missing", async () => {
@@ -55,8 +93,7 @@ describe("German IPA generation", () => {
     })
 
     await expect(
-      generateGermanIpa("Ich gehe nach Hause.", { fallbackIpa: "[fallback]" })
+      generateGermanIpa("Ich gehe nach Hause.")
     ).rejects.toThrow("espeak failed")
   })
 })
-

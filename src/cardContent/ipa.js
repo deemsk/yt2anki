@@ -6,6 +6,7 @@ import { normalizeGermanForCompare } from './german.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT_MS = 5000;
+const SUSPICIOUS_GERMAN_IPA_PATTERN = /[ɾ]/;
 const ARTICLE_IPA = {
   der: 'deːɐ̯',
   die: 'diː',
@@ -45,6 +46,22 @@ export function normalizeSentenceIpa(ipa = '') {
     .trim();
 
   return body ? `[${body}]` : '';
+}
+
+/**
+ * Normalizes non-standard symbols that eSpeak may emit for Standard German cards.
+ */
+function normalizeGermanIpaSymbols(ipa = '') {
+  return normalizeSentenceIpa(ipa)
+    .replace(/ɾ/g, 'ʁ')
+    .replace(/ɑ/g, 'a');
+}
+
+/**
+ * Detects IPA output that should not be trusted for Standard German learner cards.
+ */
+function hasSuspiciousGermanIpa(ipa = '') {
+  return SUSPICIOUS_GERMAN_IPA_PATTERN.test(String(ipa || ''));
 }
 
 export function normalizeWordIpa(canonical = '', ipa = '') {
@@ -107,8 +124,9 @@ async function generateEspeakIpa(text, options = {}) {
 
 export async function generateGermanIpa(germanText, options = {}) {
   const text = String(germanText || '').trim();
+  const fallback = normalizeSentenceIpa(options.fallbackIpa || '');
   if (!text) {
-    return normalizeSentenceIpa(options.fallbackIpa || '');
+    return fallback;
   }
 
   const overrideIpa = getOverrideIpa(text);
@@ -116,10 +134,19 @@ export async function generateGermanIpa(germanText, options = {}) {
     return overrideIpa;
   }
 
+  const preferFallbackIpa = options.preferFallbackIpa ?? true;
+  if (preferFallbackIpa && fallback && !hasSuspiciousGermanIpa(fallback)) {
+    return normalizeGermanIpaSymbols(fallback);
+  }
+
   try {
     const generated = await generateEspeakIpa(text, options);
     if (generated) {
-      return generated;
+      if (hasSuspiciousGermanIpa(generated) && fallback && !hasSuspiciousGermanIpa(fallback)) {
+        return fallback;
+      }
+
+      return normalizeGermanIpaSymbols(generated);
     }
   } catch (err) {
     const fallbackToModel = options.fallbackToModel ?? config.ipaFallbackToModel;
