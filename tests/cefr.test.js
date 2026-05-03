@@ -47,7 +47,7 @@ jest.unstable_mockModule("openai", () => ({
   })),
 }))
 
-jest.unstable_mockModule("../src/secrets.js", () => ({
+jest.unstable_mockModule("../src/lib/secrets.js", () => ({
   resolveSecret: jest.fn(async (v) => v || "test-key"),
 }))
 

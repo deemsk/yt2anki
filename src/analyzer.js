@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { config } from './config.js';
-import { resolveSecret } from './secrets.js';
+import { config } from './lib/config.js';
+import { resolveSecret } from './lib/secrets.js';
 
 let openai = null;
 

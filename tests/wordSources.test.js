@@ -1,5 +1,5 @@
-import { config } from "../src/config.js"
-import { buildVerbImageSearchTerms, buildWordImageSearchTerms, resolveWordPronunciation, searchVerbImages, searchWordImages } from "../src/wordSources.js"
+import { config } from "../src/lib/config.js"
+import { buildVerbImageSearchTerms, buildWordImageSearchTerms, resolveWordPronunciation, searchVerbImages, searchWordImages } from "../src/lib/wordSources.js"
 
 describe("word image sources", () => {
   const originalFetch = global.fetch

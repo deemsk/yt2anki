@@ -161,8 +161,7 @@ export async function generateSpeech(text, outputPath) {
 }
 
 /**
- * Generate simple speech (single clip, no repeat)
- * Use this for isolated word audio
+ * Generate a single TTS clip for isolated word audio or other non-repeated prompts.
  */
 export async function generateSimpleSpeech(text, outputPath, options = {}) {
   await mkdir(config.dataDir, { recursive: true });

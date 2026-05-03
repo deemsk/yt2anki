@@ -6,12 +6,12 @@ import { join } from 'path';
 import { platform, tmpdir } from 'os';
 import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
-import { config } from './config.js';
+import { config } from './lib/config.js';
 import { escapeHtml } from './cardContent/html.js';
 import { normalizeGermanForCompare } from './cardContent/german.js';
 import { formatPluralLabel, getPrimaryExampleSentence, getWordLemma } from './cardContent/wordLexical.js';
 import { askReviewFeedback, playAudio } from './confirm.js';
-import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './wordSources.js';
+import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './lib/wordSources.js';
 
 function ask(question) {
   const rl = createInterface({

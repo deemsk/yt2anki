@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { basename } from 'path';
-import { config } from './config.js';
+import { config } from './lib/config.js';
 import { buildProductionFront, buildSentenceNoteFields, buildSentenceNoteFront, formatCardForAnki } from './templates/index.js';
 import {
   buildPictureWordFields,

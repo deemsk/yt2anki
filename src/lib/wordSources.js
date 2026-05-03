@@ -4,10 +4,10 @@ import { extname, join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { config } from './config.js';
-import { stripHtml } from './cardContent/html.js';
-import { normalizeGermanForCompare } from './cardContent/german.js';
-import { normalizeWordIpa } from './cardContent/ipa.js';
-import { getWordLemma } from './cardContent/wordLexical.js';
+import { stripHtml } from '../cardContent/html.js';
+import { normalizeGermanForCompare } from '../cardContent/german.js';
+import { normalizeWordIpa } from '../cardContent/ipa.js';
+import { getWordLemma } from '../cardContent/wordLexical.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -830,6 +830,9 @@ function buildWordImageQueryEntries(wordData, selectedMeaning) {
   );
 }
 
+/**
+ * Build ordered image-search terms for noun/adjective/adverb picture candidates.
+ */
 export function buildWordImageSearchTerms(wordData, selectedMeaning) {
   return buildWordImageQueryEntries(wordData, selectedMeaning).map((entry) => entry.term);
 }
@@ -874,6 +877,9 @@ function buildVerbImageQueryEntries(verbData, selectedMeaning) {
   );
 }
 
+/**
+ * Build ordered image-search terms for concrete action-verb picture candidates.
+ */
 export function buildVerbImageSearchTerms(verbData, selectedMeaning) {
   return buildVerbImageQueryEntries(verbData, selectedMeaning).map((entry) => entry.term);
 }
@@ -1337,6 +1343,9 @@ function buildDiverseResultSet(results, {
   return selected.slice(0, total);
 }
 
+/**
+ * Search multiple image providers and rank results for a word card.
+ */
 export async function searchWordImages(wordData, selectedMeaning, options = {}) {
   const pageSize = options.pageSize || 6;
   const searchTerms = buildWordImageQueryEntries(wordData, selectedMeaning);
@@ -1360,6 +1369,9 @@ export async function searchWordImages(wordData, selectedMeaning, options = {}) 
   });
 }
 
+/**
+ * Search multiple image providers and rank results for a verb card.
+ */
 export async function searchVerbImages(verbData, selectedMeaning, options = {}) {
   const pageSize = options.pageSize || 6;
   const searchTerms = buildVerbImageQueryEntries(verbData, selectedMeaning);
@@ -1416,6 +1428,9 @@ async function downloadRemoteAsset(url, prefix, fallbackExt, outputDir = config.
   return outputPath;
 }
 
+/**
+ * Download preview images locally so the terminal/UI can display stable thumbnails.
+ */
 export async function cachePreviewImages(candidates, outputDir) {
   await mkdir(outputDir, { recursive: true });
 
@@ -1464,6 +1479,9 @@ export async function cachePreviewImages(candidates, outputDir) {
   }));
 }
 
+/**
+ * Resolve a selected local or remote image into a file path ready for Anki media import.
+ */
 export async function resolveImageAsset(selection, prefix = 'word_image') {
   if (selection.type === 'local-path') {
     const extension = extname(selection.path) || '.jpg';
@@ -1520,6 +1538,9 @@ async function getWiktionaryPronunciationData(word) {
   }
 }
 
+/**
+ * Fetch human pronunciation audio and IPA from Wiktionary/Wikimedia when available.
+ */
 export async function resolveWordPronunciation(wordData) {
   const pronunciationData = await getWiktionaryPronunciationData(getWordLemma(wordData));
   const normalizedIpa = pronunciationData.ipa
@@ -1560,6 +1581,9 @@ export async function resolveWordPronunciation(wordData) {
   };
 }
 
+/**
+ * Return only the resolved human pronunciation audio metadata for a word, if available.
+ */
 export async function resolveWordAudio(wordData) {
   const pronunciation = await resolveWordPronunciation(wordData);
   if (!pronunciation?.audioPath) {
@@ -1572,10 +1596,16 @@ export async function resolveWordAudio(wordData) {
   };
 }
 
+/**
+ * Wrap a user-provided remote image URL as an image selection.
+ */
 export function manualRemoteSelection(url) {
   return { type: 'remote-url', url };
 }
 
+/**
+ * Wrap a user-provided local image path as an image selection.
+ */
 export function manualLocalSelection(path) {
   return { type: 'local-path', path };
 }

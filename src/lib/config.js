@@ -75,7 +75,22 @@ function loadConfig() {
   return { ...defaults, ...userConfig };
 }
 
+/**
+ * Runtime configuration merged from defaults and the user config file.
+ */
 export const config = loadConfig();
+
+/**
+ * Preferred config path shown in setup and error messages.
+ */
 export const CONFIG_PATH_DISPLAY = PRIMARY_CONFIG_PATH;
+
+/**
+ * Config path actually loaded for this run.
+ */
 export const ACTIVE_CONFIG_PATH_DISPLAY = ACTIVE_CONFIG_PATH;
+
+/**
+ * Legacy config path kept for backwards-compatible installs.
+ */
 export const LEGACY_CONFIG_PATH_DISPLAY = LEGACY_CONFIG_PATH;

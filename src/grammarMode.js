@@ -1,6 +1,6 @@
 import ora from 'ora';
 import chalk from 'chalk';
-import { config } from './config.js';
+import { config } from './lib/config.js';
 import {
   checkConnection,
   createClozeNote,

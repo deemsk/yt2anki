@@ -21,11 +21,11 @@ jest.unstable_mockModule("child_process", () => ({
   execFile: jest.fn((cmd, args, cb) => cb(null, "", "")),
 }))
 
-jest.unstable_mockModule("../src/secrets.js", () => ({
+jest.unstable_mockModule("../src/lib/secrets.js", () => ({
   resolveSecret: jest.fn(async (v) => v),
 }))
 
-const { config } = await import("../src/config.js")
+const { config } = await import("../src/lib/config.js")
 
 // Clear googleApiKey so getClient() falls through to the keyFile/default path,
 // avoiding a JSON.parse on the op:// reference in real config.
@@ -36,7 +36,7 @@ describe("TTS SSML generation", () => {
 
   beforeAll(async () => {
     mockSynthesizeSpeech.mockResolvedValue([{ audioContent: Buffer.from("audio") }])
-    ;({ generateSpeech, generateSimpleSpeech } = await import("../src/tts.js"))
+    ;({ generateSpeech, generateSimpleSpeech } = await import("../src/lib/tts.js"))
   })
 
   beforeEach(() => {

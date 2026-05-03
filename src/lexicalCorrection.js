@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
-import { config, CONFIG_PATH_DISPLAY } from './config.js';
-import { resolveSecret } from './secrets.js';
-import { getWordFrequencyInfo } from './wordFrequency.js';
+import { config, CONFIG_PATH_DISPLAY } from './lib/config.js';
+import { resolveSecret } from './lib/secrets.js';
+import { getWordFrequencyInfo } from './lib/wordFrequency.js';
 
 let openai = null;
 

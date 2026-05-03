@@ -1,7 +1,7 @@
 import { execFile } from 'child_process';
 import { readFileSync } from 'fs';
 import { promisify } from 'util';
-import { config } from '../config.js';
+import { config } from '../lib/config.js';
 import { normalizeGermanForCompare } from './german.js';
 
 const execFileAsync = promisify(execFile);

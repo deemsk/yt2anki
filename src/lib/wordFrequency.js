@@ -1,9 +1,9 @@
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { normalizeGermanForCompare } from './cardContent/german.js';
+import { normalizeGermanForCompare } from '../cardContent/german.js';
 
-const DATA_PATH = join(dirname(fileURLToPath(import.meta.url)), 'data', 'german-frequency.json');
+const DATA_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'german-frequency.json');
 const FREQUENCY_MAP = JSON.parse(readFileSync(DATA_PATH, 'utf-8'));
 
 function bandForRank(rank) {
@@ -26,6 +26,9 @@ function bandForRank(rank) {
   return { key: 'rare', label: 'Rare' };
 }
 
+/**
+ * Look up a German word's frequency rank and convert it into a learner-friendly band.
+ */
 export function getWordFrequencyInfo(word) {
   const raw = String(word || '').trim().toLowerCase();
   const normalized = normalizeGermanForCompare(word);
@@ -40,6 +43,9 @@ export function getWordFrequencyInfo(word) {
   };
 }
 
+/**
+ * Decide whether a frequency band is strong enough to proceed with weaker card candidates.
+ */
 export function isStrongWordCandidate(frequencyInfo) {
   return frequencyInfo.bandKey === 'essential' ||
     frequencyInfo.bandKey === 'core' ||

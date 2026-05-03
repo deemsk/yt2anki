@@ -6,18 +6,18 @@ import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
 
-import { downloadAudio, extractVideoId } from './downloader.js';
-import { cutClip, parseTimestamp } from './clipper.js';
-import { transcribe } from './transcriber.js';
+import { downloadAudio, extractVideoId } from './lib/downloader.js';
+import { cutClip, parseTimestamp } from './lib/clipper.js';
+import { transcribe } from './lib/transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
 import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
-import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './config.js';
+import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './lib/config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
 import { generateCards } from './cardTypes.js';
 import { processSingleGrammar } from './grammarMode.js';
 import { processLexicalCommand } from './lexicalMode.js';
-import { generateSpeech } from './tts.js';
+import { generateSpeech } from './lib/tts.js';
 
 /**
  * Session state for tracking accepted units and pattern usage.

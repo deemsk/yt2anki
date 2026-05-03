@@ -2,9 +2,9 @@ import { createInterface } from 'readline';
 import { join } from 'path';
 import ora from 'ora';
 import chalk from 'chalk';
-import { config } from './config.js';
+import { config } from './lib/config.js';
 import { estimateLexicalCEFR } from './cardContent/cefr.js';
-import { getWordFrequencyInfo } from './wordFrequency.js';
+import { getWordFrequencyInfo } from './lib/wordFrequency.js';
 import { getArticleNormalizationWarning, normalizeGermanForCompare, toTagSlug } from './cardContent/german.js';
 import { applyChosenSentenceGloss, formatPluralLabel, getPrimaryExampleSentence, getWordLemma } from './cardContent/wordLexical.js';
 import { formatPronunciationField } from './templates/shared/components.js';
@@ -13,7 +13,7 @@ import { formatWordDisplay, isNounWord } from './templates/word/pictureWord.js';
 import { buildWordSentenceFrontFooter } from './templates/word/sentenceWord.js';
 import { canProceedWithWeakWordCard, enrichWord, hasStructuredWordAnalysis } from './wordEnricher.js';
 import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSelection, confirmWordSelection } from './wordConfirm.js';
-import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './wordSources.js';
+import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './lib/wordSources.js';
 import {
   checkConnection,
   createNote,
@@ -26,7 +26,7 @@ import {
   storeAudio,
   storeMedia,
 } from './anki.js';
-import { generateSimpleSpeech, generateSpeech } from './tts.js';
+import { generateSimpleSpeech, generateSpeech } from './lib/tts.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
 
 const DEFAULT_WORD_NOTE_TYPE = config.wordNoteType || '2. Picture Words';

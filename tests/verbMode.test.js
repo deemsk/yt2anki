@@ -87,7 +87,7 @@ jest.unstable_mockModule("../src/anki.js", () => ({
   storeMedia: mockStoreMedia,
 }))
 
-jest.unstable_mockModule("../src/tts.js", () => ({
+jest.unstable_mockModule("../src/lib/tts.js", () => ({
   generateSimpleSpeech: mockGenerateSimpleSpeech,
   generateSpeech: mockGenerateSpeech,
 }))
@@ -112,7 +112,7 @@ jest.unstable_mockModule("../src/verbEnricher.js", () => ({
   shouldOfferDictionaryFormCard: jest.fn(() => true),
 }))
 
-jest.unstable_mockModule("../src/wordSources.js", () => ({
+jest.unstable_mockModule("../src/lib/wordSources.js", () => ({
   resolveImageAsset: mockResolveImageAsset,
   resolveWordPronunciation: jest.fn(),
   searchVerbImages: mockSearchVerbImages,

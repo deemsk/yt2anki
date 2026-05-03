@@ -59,12 +59,12 @@ jest.unstable_mockModule("../src/anki.js", () => ({
   storeMedia: mockStoreMedia,
 }))
 
-jest.unstable_mockModule("../src/tts.js", () => ({
+jest.unstable_mockModule("../src/lib/tts.js", () => ({
   generateSimpleSpeech: mockGenerateSimpleSpeech,
   generateSpeech: jest.fn(),
 }))
 
-jest.unstable_mockModule("../src/wordSources.js", () => ({
+jest.unstable_mockModule("../src/lib/wordSources.js", () => ({
   resolveImageAsset: jest.fn(),
   resolveWordPronunciation: mockResolveWordPronunciation,
   searchWordImages: mockSearchWordImages,

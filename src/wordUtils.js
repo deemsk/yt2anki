@@ -1,3 +1,6 @@
+/**
+ * Backwards-compatible card-content helper facade for older imports.
+ */
 export * from './cardContent/html.js';
 export * from './cardContent/german.js';
 export { normalizeWordIpa } from './cardContent/ipa.js';
