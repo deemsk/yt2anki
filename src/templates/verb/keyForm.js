@@ -1,5 +1,5 @@
 import { escapeHtml } from '../../cardContent/html.js';
-import { formatIpaHtml } from '../shared/components.js';
+import { formatIpaHtml, formatPrimaryTranslation } from '../shared/components.js';
 import { html, joinHtml } from '../shared/html.js';
 
 /**
@@ -20,7 +20,7 @@ export function buildVerbKeyFormProductionFront(infinitive, formSpec) {
 export function buildVerbKeyFormProductionBack(formSpec, selectedMeaning = null) {
   return joinHtml([
     `<strong>${escapeHtml(formSpec.label)} ${escapeHtml(formSpec.displayForm || formSpec.form)}</strong>`,
-    selectedMeaning?.russian ? escapeHtml(selectedMeaning.russian) : '',
+    formatPrimaryTranslation(selectedMeaning?.russian),
   ]);
 }
 
@@ -43,6 +43,6 @@ export function buildVerbKeyFormRecognitionBack(verbData, selectedMeaning = null
   return joinHtml([
     `<strong>${escapeHtml(verbData.infinitive)}</strong>`,
     formatIpaHtml(verbData.ipa),
-    selectedMeaning?.russian ? escapeHtml(selectedMeaning.russian) : '',
+    formatPrimaryTranslation(selectedMeaning?.russian),
   ]);
 }

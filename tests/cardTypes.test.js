@@ -34,6 +34,7 @@ describe("card type helpers", () => {
     expect(withEnglish.front.situation).toBeNull()
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Say in German")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("Я хочу кофе.")
+    expect(formatCardForAnki(withEnglish, "clip.mp3").Front).toContain("text-align:center")
     expect(formatCardForAnki(withEnglish, "clip.mp3").Front).not.toContain("ordering coffee")
     expect(withRussian.front.situation).toBe("в кафе")
     expect(formatCardForAnki(withRussian, "clip.mp3").Front).toContain('class="yt2anki-production-hint"')

@@ -1,4 +1,5 @@
 import { buildStrongVerbPackagePlan, validateVerbFormSentence } from "../src/cardContent/verbPackage.js"
+import { buildVerbKeyFormProductionBack } from "../src/templates/verb/keyForm.js"
 
 const morphology = {
   infinitive: "einsteigen",
@@ -48,5 +49,16 @@ describe("strong verb package planning", () => {
     })
 
     expect(plan).toBeNull()
+  })
+
+  test("key-form cards emphasize the primary translation consistently", () => {
+    const back = buildVerbKeyFormProductionBack(
+      { label: "du", form: "steigst" },
+      { russian: "садиться" }
+    )
+
+    expect(back).toContain('class="ddd-answer-translation"')
+    expect(back).toContain("font-weight:700")
+    expect(back).toContain("садиться")
   })
 })

@@ -60,6 +60,8 @@ describe("anki helpers", () => {
     const note = requests[0].params.note
     expect(note.fields.Front).toContain("gut.jpg")
     expect(note.fields.Back).toContain('class="yt2anki-ipa"')
+    expect(note.fields.Back).toContain('class="ddd-answer-translation"')
+    expect(note.fields.Back).toContain("font-weight:700")
     expect(note.fields.Back).toContain("yt2anki-word:")
   })
 

@@ -55,15 +55,27 @@ export function formatIpaHtml(ipa = '') {
 export function formatGenderColoredWord(canonical, gender) {
   const color = GENDER_COLORS[gender] || GENDER_COLORS.neuter;
   const genderClass = `yt2anki-gender-${escapeHtml(gender || 'neuter')}`;
-  return `<span class="yt2anki-gender ${genderClass}" style="color:var(--${genderClass}, ${color});font-weight:600;">${escapeHtml(canonical)}</span>`;
+  return `<span class="yt2anki-word-display yt2anki-gender ${genderClass}" style="color:var(--${genderClass}, ${color});font-size:1.55em;line-height:1.12;font-weight:700;">${escapeHtml(canonical)}</span>`;
 }
 
 export function formatPlainWord(canonical) {
-  return `<span style="font-weight:600;">${escapeHtml(canonical)}</span>`;
+  return `<span class="yt2anki-word-display" style="font-size:1.55em;line-height:1.12;font-weight:700;">${escapeHtml(canonical)}</span>`;
 }
 
 export function formatPronunciationField(audioFilename, ipa = '') {
   return joinHtml([soundTag(audioFilename), formatIpaHtml(ipa)]);
+}
+
+/**
+ * Formats a primary translation so meanings stay visually consistent across card backs.
+ */
+export function formatPrimaryTranslation(text = '') {
+  const value = String(text || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  return `<div class="ddd-answer-translation" style="margin-top:9px;font-size:1.14em;line-height:1.24;font-weight:700;">${escapeHtml(value)}</div>`;
 }
 
 export function taskHeader(label, instruction = null) {
@@ -89,7 +101,7 @@ export function focusPill(context = null) {
 
   return html`
     <div class="yt2anki-front-context ddd-focus" style="margin:12px auto 10px;max-width:420px;padding:7px 11px;border-radius:999px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:13px;line-height:1.25;text-align:center;">
-      <span style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;opacity:0.78;">Focus</span>
+      <span style="font-size:12px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;opacity:0.78;">Focus</span>
       <span style="margin-left:6px;font-weight:600;">${escapeHtml(value)}</span>
     </div>
   `;
@@ -100,7 +112,7 @@ export function answerStack({ german, ipa, russian, extraHtml = null }) {
     <div class="ddd-answer-stack" style="margin:0 auto;max-width:720px;text-align:center;">
       ${german ? `<div class="ddd-answer-german" style="font-size:1.28em;line-height:1.22;font-weight:500;">${escapeHtml(german)}</div>` : ''}
       ${ipa ? `<div class="ddd-answer-ipa" style="margin-top:7px;">${formatIpaHtml(ipa)}</div>` : ''}
-      ${russian ? `<div class="ddd-answer-translation" style="margin-top:9px;font-size:1.14em;line-height:1.24;">${escapeHtml(russian)}</div>` : ''}
+      ${formatPrimaryTranslation(russian)}
       ${extraHtml ? `<div class="ddd-answer-extra" style="margin-top:9px;">${extraHtml}</div>` : ''}
     </div>
   `;

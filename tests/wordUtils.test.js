@@ -15,6 +15,7 @@ import {
   buildWordSentenceContrastFooter,
   formatGenderColoredWord,
   formatIpaHtml,
+  formatPlainWord,
   formatPronunciationField,
 } from "../src/templates/shared/components.js"
 import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
@@ -25,8 +26,19 @@ describe("word helpers", () => {
     const html = formatGenderColoredWord("das Wasser", "neuter")
 
     expect(html).toContain("das Wasser")
-    expect(html).toContain('class="yt2anki-gender yt2anki-gender-neuter"')
+    expect(html).toContain("yt2anki-word-display")
+    expect(html).toContain("yt2anki-gender-neuter")
+    expect(html).toContain("font-size:1.55em")
     expect(html).toContain("color:var(--yt2anki-gender-neuter, #0f766e)")
+  })
+
+  test("formatPlainWord gives verbs the same main word display weight", () => {
+    const html = formatPlainWord("warte")
+
+    expect(html).toContain("warte")
+    expect(html).toContain("yt2anki-word-display")
+    expect(html).toContain("font-size:1.55em")
+    expect(html).toContain("font-weight:700")
   })
 
   test("formatIpaHtml renders IPA as neutral secondary text", () => {
@@ -83,10 +95,10 @@ describe("word helpers", () => {
       },
     })
 
-    expect(extra).toContain("<div>вода</div>")
+    expect(extra).toContain("yt2anki-extra-meaning")
     expect(extra).not.toContain("Meaning:")
-    expect(extra).toContain("Example: Das Wasser ist kalt.")
-    expect(extra).toContain("<small>Вода холодная.</small>")
+    expect(extra).toContain("Das Wasser ist kalt.")
+    expect(extra).toContain("Вода холодная.")
     expect(extractWordMeaning(extra)).toBe("вода")
   })
 

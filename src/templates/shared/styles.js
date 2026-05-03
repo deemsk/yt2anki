@@ -30,6 +30,12 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   line-height: 1.28;
 }
 
+.yt2anki-word-display {
+  font-size: 1.55em;
+  line-height: 1.12;
+  font-weight: 700;
+}
+
 .yt2anki-gender-masculine {
   color: var(--yt2anki-gender-masculine, var(--ddd-masculine));
 }
@@ -69,6 +75,10 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   color: var(--ddd-text);
 }
 
+.ddd-answer-translation {
+  font-weight: 700;
+}
+
 .ddd-image img {
   max-width: 100%;
   height: auto;
@@ -76,6 +86,28 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
 
 .yt2anki-word-contrast {
   color: var(--ddd-neuter);
+}
+
+.yt2anki-extra-row {
+  color: var(--ddd-muted);
+}
+
+.yt2anki-extra-label {
+  color: var(--ddd-focus-label);
+}
+
+.yt2anki-extra-meaning {
+  color: var(--ddd-text);
+}
+
+.yt2anki-extra-example {
+  background: var(--ddd-panel);
+  color: var(--ddd-text);
+}
+
+.yt2anki-extra-example-translation,
+.yt2anki-extra-personal {
+  color: var(--ddd-muted);
 }
 
 .nightMode,
