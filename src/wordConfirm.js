@@ -435,7 +435,7 @@ export async function chooseWordSentence(wordData, preferredSentence = null) {
     };
   }
 
-  const sentences = Array.isArray(wordData.exampleSentences) ? wordData.exampleSentences : [];
+  const sentences = Array.isArray(wordData.exampleSentences) ? wordData.exampleSentences.slice(0, 3) : [];
   if (sentences.length === 0) {
     if (wordData.lexicalType === 'adjective' && wordData.canonical) {
       return {
@@ -468,7 +468,7 @@ export async function chooseWordSentence(wordData, preferredSentence = null) {
   });
 
   while (true) {
-    const answer = await ask('Choose sentence [1-3, Enter=1, E=edit]: ');
+    const answer = await ask(`Choose sentence [1-${sentences.length}, Enter=1, E=edit]: `);
     const normalized = answer.toLowerCase();
 
     if (normalized === '') {

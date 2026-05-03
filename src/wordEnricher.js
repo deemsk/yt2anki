@@ -225,8 +225,8 @@ Rules:
 - Use recommendedMode="sentence-form" for accepted adverbs.
 - Common adverbs like "sofort", "oft", "später", "früher", "dort", "hier", "oben", "unten", "zusammen", and "allein" should usually be accepted when they can be taught through short concrete example sentences.
 - Modal particles and discourse fillers such as "doch", "ja", "mal", and "halt" should usually be rejected unless the input has a clear stable lexical adverb reading.
-- For sentence-form adjectives, provide 2-3 short natural example sentences in German with Russian translations.
-- For sentence-form adverbs, provide 2-3 short natural example sentences in German with Russian translations.
+- For sentence-form adjectives, provide exactly 3 short natural example sentences in German with Russian translations.
+- For sentence-form adverbs, provide exactly 3 short natural example sentences in German with Russian translations.
 - For each sentence-form adjective example sentence, include imageBrief with a strong German searchQuery, 3-6 German queryVariants, a short sceneSummary, a focusRole that says what visually conveys the adjective, 2-5 mustShow constraints, 2-5 avoid constraints, and a concise imagePrompt.
 - For each sentence-form adverb example sentence, include imageBrief with a strong German searchQuery, 3-6 German queryVariants, a short sceneSummary, a focusRole that says what visually conveys the adverb in the scene or timing, 2-5 mustShow constraints, 2-5 avoid constraints, and a concise imagePrompt.
 - searchQuery and queryVariants should emphasize the noun or scene carrying the adjective, not the adjective in isolation.
@@ -318,6 +318,22 @@ function sanitizeSentence(sentence = {}) {
     focusForm: String(sentence.focusForm || '').trim(),
     imageBrief,
   };
+}
+
+function mergeExampleSentences(existing = [], additions = []) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const sentence of [...existing, ...additions].map(sanitizeSentence)) {
+    if (!sentence.german) continue;
+    const key = normalizeGermanForCompare(sentence.german);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(sentence);
+    if (merged.length === 3) break;
+  }
+
+  return merged;
 }
 
 export function shouldSuppressAdjectiveContrast(result = {}) {
@@ -615,15 +631,48 @@ async function requestWordAnalysis(client, input, options = {}) {
   );
 }
 
+async function completeSentenceExamplesIfNeeded(client, result) {
+  if (
+    result.shouldCreateWordCard === false ||
+    result.recommendedMode !== 'sentence-form' ||
+    result.exampleSentences.length >= 3
+  ) {
+    return result;
+  }
+
+  const completion = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: 'Return JSON only. Generate short natural German example sentences with Russian translations for a German lexical flashcard.',
+      },
+      {
+        role: 'user',
+        content: `Word: ${result.canonical}\nLexical type: ${result.lexicalType}\nExisting examples to avoid:\n${result.exampleSentences.map((sentence) => `- ${sentence.german}`).join('\n') || '- none'}\nReturn exactly ${3 - result.exampleSentences.length} additional examples as {"exampleSentences":[{"german":"","russian":"","focusForm":"","imageBrief":{"searchQuery":"","queryVariants":[],"sceneSummary":"","focusRole":"","mustShow":[],"avoid":[],"imagePrompt":""}}]}.`,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+  const extra = JSON.parse(completion.choices[0].message.content);
+
+  return {
+    ...result,
+    exampleSentences: mergeExampleSentences(result.exampleSentences, extra.exampleSentences),
+  };
+}
+
 export async function enrichWord(input) {
   const client = await getClient();
   const result = await requestWordAnalysis(client, input);
+  const completed = await completeSentenceExamplesIfNeeded(client, result);
 
-  if (shouldRetryImageableNounRejection(input, result)) {
+  if (shouldRetryImageableNounRejection(input, completed)) {
     return requestWordAnalysis(client, input, { forceVisibleNoun: true });
   }
 
-  if (shouldRetryBareLexicalRejection(input, result)) {
+  if (shouldRetryBareLexicalRejection(input, completed)) {
     const retried = await requestWordAnalysis(client, input, { forceBareLexicalCandidate: true });
     if (shouldFallbackBareAdverbRejection(input, retried)) {
       return buildBareLexicalAdverbFallback(input, retried);
@@ -640,15 +689,15 @@ export async function enrichWord(input) {
     return retried;
   }
 
-  if (result.shouldCreateWordCard === false) {
-    if (shouldFallbackBareAdverbRejection(input, result)) {
-      return buildBareLexicalAdverbFallback(input, result);
+  if (completed.shouldCreateWordCard === false) {
+    if (shouldFallbackBareAdverbRejection(input, completed)) {
+      return buildBareLexicalAdverbFallback(input, completed);
     }
-    const familyFallback = buildEverydayFamilyNounFallback(input, result);
-    if (familyFallback !== result) {
+    const familyFallback = buildEverydayFamilyNounFallback(input, completed);
+    if (familyFallback !== completed) {
       return familyFallback;
     }
   }
 
-  return result;
+  return completed;
 }

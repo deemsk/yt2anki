@@ -31,7 +31,7 @@ Rules:
 - Use recommendedMode="picture-word" only for highly imageable, concrete action verbs with a stable one-frame depiction.
 - Use recommendedMode="sentence-form" for modal verbs, auxiliary verbs, abstract verbs, reflexive verbs, separable-prefix verbs that depend on context, and other verbs that are better learned through example sentences.
 - For picture-word verbs, imageSearchTerms must be in German and should describe visible action scenes, not dictionary labels.
-- For sentence-form verbs, provide 2-3 short natural example sentences in German with Russian translations.
+- For sentence-form verbs, provide exactly 3 short natural example sentences in German with Russian translations.
 - dictionaryFormNeeded should be true when displayForm differs from infinitive or when the encountered form is likely non-obvious.
 - IPA must be in square brackets.
 - If the input is a verb but weak for picture cards, still return the normalized analysis and recommend sentence-form mode instead of rejecting it.
@@ -61,6 +61,16 @@ Respond in JSON only:
       "german": "Er läuft jeden Morgen im Park.",
       "russian": "Он бегает каждое утро в парке.",
       "focusForm": "läuft"
+    },
+    {
+      "german": "Wir laufen zur Haltestelle.",
+      "russian": "Мы бежим к остановке.",
+      "focusForm": "laufen"
+    },
+    {
+      "german": "Sie läuft schneller als ich.",
+      "russian": "Она бежит быстрее меня.",
+      "focusForm": "läuft"
     }
   ]
 }
@@ -76,6 +86,22 @@ function sanitizeSentence(sentence = {}) {
     russian: String(sentence.russian || '').trim(),
     focusForm: String(sentence.focusForm || '').trim(),
   };
+}
+
+function mergeExampleSentences(existing = [], additions = []) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const sentence of [...existing, ...additions].map(sanitizeSentence)) {
+    if (!sentence.german) continue;
+    const key = normalizeGermanForCompare(sentence.german);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(sentence);
+    if (merged.length === 3) break;
+  }
+
+  return merged;
 }
 
 export function shouldOfferDictionaryFormCard(verbData = {}, focusForm = null) {
@@ -134,5 +160,31 @@ export async function enrichVerb(input) {
     temperature: 0.2,
   });
 
-  return sanitizeVerbAnalysis(JSON.parse(response.choices[0].message.content));
+  const result = sanitizeVerbAnalysis(JSON.parse(response.choices[0].message.content));
+
+  if (
+    result.shouldCreateVerbCard !== false &&
+    result.recommendedMode === 'sentence-form' &&
+    result.exampleSentences.length < 3
+  ) {
+    const completion = await client.chat.completions.create({
+      model: config.openaiModel,
+      messages: [
+        {
+          role: 'system',
+          content: 'Return JSON only. Generate short natural German example sentences with Russian translations for a German verb flashcard.',
+        },
+        {
+          role: 'user',
+          content: `Verb: ${result.infinitive}\nEncountered/display form: ${result.displayForm}\nExisting examples to avoid:\n${result.exampleSentences.map((sentence) => `- ${sentence.german}`).join('\n') || '- none'}\nReturn exactly ${3 - result.exampleSentences.length} additional examples as {"exampleSentences":[{"german":"","russian":"","focusForm":""}]}.`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+    });
+    const extra = JSON.parse(completion.choices[0].message.content);
+    result.exampleSentences = mergeExampleSentences(result.exampleSentences, extra.exampleSentences);
+  }
+
+  return result;
 }
