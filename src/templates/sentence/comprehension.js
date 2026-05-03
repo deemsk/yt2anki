@@ -1,14 +1,17 @@
-import { formatIpaHtml, smallText, soundTag } from '../shared/components.js';
-import { joinHtml } from '../shared/html.js';
+import { answerStack, focusPill, soundTag } from '../shared/components.js';
 
 export function formatComprehensionCard(card, audioFilename) {
   let front = soundTag(audioFilename);
   if (card.front.context) {
-    front += `<br>${smallText(`Context: ${card.front.context}`)}`;
+    front += focusPill(card.front.context);
   }
 
   return {
     Front: front,
-    Back: joinHtml([card.back.german, formatIpaHtml(card.back.ipa), card.back.russian]),
+    Back: answerStack({
+      german: card.back.german,
+      ipa: card.back.ipa,
+      russian: card.back.russian,
+    }),
   };
 }

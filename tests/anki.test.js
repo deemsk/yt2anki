@@ -364,7 +364,10 @@ describe("anki helpers", () => {
 
     const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
     expect(updateRequest.params.note.id).toBe(55)
-    expect(updateRequest.params.note.fields.Front).toBe("[sound:gehoert.mp3]<br>Context: gehört -&gt; gehören")
+    expect(updateRequest.params.note.fields.Front).toContain("[sound:gehoert.mp3]")
+    expect(updateRequest.params.note.fields.Front).toContain('class="yt2anki-front-context ddd-focus"')
+    expect(updateRequest.params.note.fields.Front).toContain("gehört -&gt; gehören")
+    expect(updateRequest.params.note.fields.Front).not.toContain("Context:")
   })
 
   test("migrateVerbSentenceFronts drops synthetic fallback verb contexts", async () => {

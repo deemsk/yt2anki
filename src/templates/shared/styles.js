@@ -13,6 +13,7 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   --ddd-divider: rgba(15, 23, 42, 0.42);
   --ddd-panel: rgba(148, 163, 184, 0.12);
   --ddd-ipa: #475569;
+  --ddd-focus-label: #64748b;
   --ddd-masculine: #2563eb;
   --ddd-feminine: #dc2626;
   --ddd-neuter: #0f766e;
@@ -44,6 +45,29 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
 .yt2anki-front-context {
   background: var(--ddd-panel);
   color: var(--ddd-muted);
+}
+
+.ddd-focus {
+  background: var(--ddd-panel);
+  color: var(--ddd-muted);
+}
+
+.ddd-answer-stack {
+  color: var(--ddd-text);
+}
+
+.ddd-answer-ipa .yt2anki-ipa {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.ddd-answer-extra {
+  color: var(--ddd-text);
+}
+
+.ddd-image img {
+  max-width: 100%;
+  height: auto;
 }
 
 .yt2anki-word-contrast {

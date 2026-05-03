@@ -1,6 +1,6 @@
 import { escapeHtml } from '../../cardContent/html.js';
-import { formatIpaHtml, soundTag } from '../shared/components.js';
-import { html, joinHtml } from '../shared/html.js';
+import { answerStack, soundTag } from '../shared/components.js';
+import { html } from '../shared/html.js';
 
 export function buildProductionFront(russian, situation = null) {
   return html`
@@ -13,6 +13,10 @@ export function buildProductionFront(russian, situation = null) {
 export function formatProductionCard(card, audioFilename) {
   return {
     Front: buildProductionFront(card.front.russian, card.front.situation),
-    Back: joinHtml([card.back.german, formatIpaHtml(card.back.ipa), soundTag(audioFilename)]),
+    Back: answerStack({
+      german: card.back.german,
+      ipa: card.back.ipa,
+      extraHtml: soundTag(audioFilename),
+    }),
   };
 }

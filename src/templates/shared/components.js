@@ -29,6 +29,15 @@ export function imageTag(imageFilename) {
   return filename ? `<img src="${escapeHtml(filename)}" />` : '';
 }
 
+export function imageBlock(imageFilename) {
+  const image = imageTag(imageFilename);
+  if (!image) {
+    return '';
+  }
+
+  return `<div class="ddd-image" style="margin:14px auto 0;max-width:92%;text-align:center;">${image}</div>`;
+}
+
 export function smallText(text = '') {
   const value = String(text || '').trim();
   return value ? `<small>${escapeHtml(value)}</small>` : '';
@@ -55,6 +64,31 @@ export function formatPlainWord(canonical) {
 
 export function formatPronunciationField(audioFilename, ipa = '') {
   return joinHtml([soundTag(audioFilename), formatIpaHtml(ipa)]);
+}
+
+export function focusPill(context = null) {
+  const value = String(context || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  return html`
+    <div class="yt2anki-front-context ddd-focus" style="margin:12px auto 10px;max-width:420px;padding:7px 11px;border-radius:999px;background:rgba(148, 163, 184, 0.12);color:#475569;font-size:13px;line-height:1.25;text-align:center;">
+      <span style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;opacity:0.78;">Focus</span>
+      <span style="margin-left:6px;font-weight:600;">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+export function answerStack({ german, ipa, russian, extraHtml = null }) {
+  return html`
+    <div class="ddd-answer-stack" style="margin:0 auto;max-width:720px;text-align:center;">
+      ${german ? `<div class="ddd-answer-german" style="font-size:1.28em;line-height:1.22;font-weight:500;">${escapeHtml(german)}</div>` : ''}
+      ${ipa ? `<div class="ddd-answer-ipa" style="margin-top:7px;">${formatIpaHtml(ipa)}</div>` : ''}
+      ${russian ? `<div class="ddd-answer-translation" style="margin-top:9px;font-size:1.14em;line-height:1.24;">${escapeHtml(russian)}</div>` : ''}
+      ${extraHtml ? `<div class="ddd-answer-extra" style="margin-top:9px;">${extraHtml}</div>` : ''}
+    </div>
+  `;
 }
 
 export function buildWordSentenceContrastFooter(contrast = null) {
