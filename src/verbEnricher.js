@@ -189,3 +189,50 @@ export async function enrichVerb(input) {
 
   return result;
 }
+
+/**
+ * Generates one short sentence that uses an exact finite verb form.
+ */
+export async function generateVerbFormSentence({
+  infinitive,
+  pronounLabel,
+  pronoun,
+  form,
+  particle = null,
+  meaning = '',
+}) {
+  const client = await getClient();
+  const particleRule = particle
+    ? `\n- This is a separable verb. The sentence must include the separated particle "${particle}" in natural clause-final position.`
+    : '';
+
+  const response = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: `Return JSON only. Generate one A1/A2 German example sentence for a verb-form flashcard.
+
+Rules:
+- Use one short main clause only.
+- Use common concrete vocabulary.
+- Use the exact target pronoun and exact finite verb form.
+- Avoid subordinate clauses and extra grammar complexity.
+- Russian translation must be natural Russian.${particleRule}`,
+      },
+      {
+        role: 'user',
+        content: `Infinitive: ${infinitive}
+Meaning: ${meaning}
+Pronoun label: ${pronounLabel}
+Target pronoun to use: ${pronoun}
+Target finite form: ${form}
+Return {"german":"","russian":"","focusForm":"${form}"}.`,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+
+  return sanitizeSentence(JSON.parse(response.choices[0].message.content));
+}

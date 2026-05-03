@@ -30,6 +30,7 @@ const mockCheckConnection = jest.fn(async () => true)
 const mockGetNoteTypes = jest.fn(async () => ["2. Picture Words", "Basic (optional reversed card)"])
 const mockEnsureDeck = jest.fn(async () => {})
 const mockFindSimilarCards = jest.fn(async () => [])
+const mockFindVerbLemmaDuplicates = jest.fn(async () => ({ exactMatches: [] }))
 const mockFindWordDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
 const mockStoreAudio = jest.fn(async () => "verb-sentence.mp3")
 const mockStoreMedia = jest.fn(async () => "verb-image.jpg")
@@ -38,6 +39,18 @@ const mockCreatePictureWordNote = jest.fn(async () => 789)
 const mockCreateBasicNote = jest.fn(async () => 456)
 const mockGenerateSimpleSpeech = jest.fn(async () => {})
 const mockGenerateSpeech = jest.fn(async () => {})
+const mockGenerateVerbFormSentence = jest.fn()
+const mockEnrich = jest.fn(async () => ({
+  german: "Der Hund gehört meiner Schwester.",
+  ipa: "[deːɐ̯ hʊnt ɡəˈhøːrt ˈmaɪ̯nɐ ˈʃvɛstɐ]",
+  russian: "Собака принадлежит моей сестре.",
+  cefr: { level: "A2" },
+}))
+const mockResolveVerbMorphology = jest.fn(async () => ({
+  confidence: "low",
+  reason: "test-default",
+  selectedForms: [],
+}))
 const mockResolveImageAsset = jest.fn(async () => "/tmp/laufen.jpg")
 const mockSearchVerbImages = jest.fn(async () => ([{
   source: "Brave Images",
@@ -65,6 +78,7 @@ jest.unstable_mockModule("../src/verbConfirm.js", () => ({
   chooseVerbSentence: mockChooseVerbSentence,
   confirmPictureVerbSelection: mockConfirmPictureVerbSelection,
   confirmSentenceVerbSelection: mockConfirmSentenceVerbSelection,
+  confirmStrongVerbPackage: jest.fn(async () => ({ confirmed: true })),
   formatVerbPreviewSummary: jest.fn((_chalk, verbData, translation, cefrLevel = null) =>
     `${verbData.infinitive}${cefrLevel ? ` (${cefrLevel})` : ""} — ${translation}`
   ),
@@ -81,6 +95,7 @@ jest.unstable_mockModule("../src/anki.js", () => ({
   createPictureWordNote: mockCreatePictureWordNote,
   ensureDeck: mockEnsureDeck,
   findSimilarCards: mockFindSimilarCards,
+  findVerbLemmaDuplicates: mockFindVerbLemmaDuplicates,
   findWordDuplicates: mockFindWordDuplicates,
   getNoteTypes: mockGetNoteTypes,
   storeAudio: mockStoreAudio,
@@ -93,12 +108,7 @@ jest.unstable_mockModule("../src/lib/tts.js", () => ({
 }))
 
 jest.unstable_mockModule("../src/enricher.js", () => ({
-  enrich: jest.fn(async () => ({
-    german: "Der Hund gehört meiner Schwester.",
-    ipa: "[deːɐ̯ hʊnt ɡəˈhøːrt ˈmaɪ̯nɐ ˈʃvɛstɐ]",
-    russian: "Собака принадлежит моей сестре.",
-    cefr: { level: "A2" },
-  })),
+  enrich: mockEnrich,
   reviewEnrichedText: jest.fn(),
 }))
 
@@ -108,8 +118,17 @@ jest.unstable_mockModule("../src/cefr.js", () => ({
 
 jest.unstable_mockModule("../src/verbEnricher.js", () => ({
   enrichVerb: jest.fn(),
+  generateVerbFormSentence: mockGenerateVerbFormSentence,
   hasStructuredVerbAnalysis: jest.fn(() => true),
   shouldOfferDictionaryFormCard: jest.fn(() => true),
+}))
+
+jest.unstable_mockModule("../src/cardContent/verbMorphology.js", () => ({
+  buildVerbMorphologyTags: jest.fn((morphology, formSpec = null) => [
+    `verb-morphology-${morphology.classification || "unknown"}`,
+    ...(formSpec ? [`verb-pronoun-${formSpec.key}`, `verb-form-${formSpec.form}`] : []),
+  ]),
+  resolveVerbMorphology: mockResolveVerbMorphology,
 }))
 
 jest.unstable_mockModule("../src/lib/wordSources.js", () => ({
@@ -123,6 +142,33 @@ const { runVerbWorkflow } = await import("../src/verbMode.js")
 describe("verb mode sentence flow", () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockChooseMeaning.mockResolvedValue({
+      russian: "принадлежать",
+      english: "belong",
+    })
+    mockResolveVerbMorphology.mockReset()
+    mockFindVerbLemmaDuplicates.mockReset()
+    mockFindWordDuplicates.mockReset()
+    mockGenerateVerbFormSentence.mockReset()
+    mockEnrich.mockReset()
+    mockEnrich.mockImplementation(async (german) => ({
+      german,
+      ipa: "[deːɐ̯ hʊnt ɡəˈhøːrt ˈmaɪ̯nɐ ˈʃvɛstɐ]",
+      russian: "Собака принадлежит моей сестре.",
+      cefr: { level: "A2" },
+    }))
+    mockResolveVerbMorphology.mockResolvedValue({
+      confidence: "low",
+      reason: "test-default",
+      selectedForms: [],
+    })
+    mockFindVerbLemmaDuplicates.mockResolvedValue({ exactMatches: [] })
+    mockFindWordDuplicates.mockResolvedValue({ exactMatches: [], headwordMatches: [] })
+    mockGenerateVerbFormSentence.mockImplementation(async ({ pronoun, form }) => ({
+      german: `${pronoun.charAt(0).toUpperCase()}${pronoun.slice(1)} ${form}.`,
+      russian: "Тест.",
+      focusForm: form,
+    }))
   })
 
   test("runVerbWorkflow uses the confirmed form-card flag when creating sentence-form verb cards", async () => {
@@ -157,6 +203,141 @@ describe("verb mode sentence flow", () => {
       deck: "German::Test",
       tags: expect.arrayContaining(["mode-verb-dictionary"]),
     }))
+  })
+
+  test("runVerbWorkflow creates a strong verb package when trusted morphology is available", async () => {
+    mockChooseMeaning.mockResolvedValueOnce({
+      russian: "говорить",
+      english: "speak",
+    })
+    mockResolveVerbMorphology.mockResolvedValueOnce({
+      infinitive: "sprechen",
+      classification: "strong",
+      forms: { du: "sprichst", er: "spricht" },
+      isSeparable: false,
+      particle: null,
+      source: "WiktApi",
+      confidence: "high",
+      selectedForms: [
+        { key: "du", pronoun: "du", label: "du", form: "sprichst", displayForm: "sprichst" },
+        { key: "er", pronoun: "er", label: "er/sie/es", form: "spricht", displayForm: "spricht" },
+      ],
+    })
+
+    const added = await runVerbWorkflow("sprechen", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "sprechen",
+        displayForm: "sprechen",
+        ipa: "[ˈʃpʁɛçn̩]",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "говорить", english: "speak" }],
+      },
+      packageSentences: {
+        du: { german: "Du sprichst mit Maria.", russian: "Ты говоришь с Марией.", focusForm: "sprichst" },
+        er: { german: "Er spricht Deutsch.", russian: "Он говорит по-немецки.", focusForm: "spricht" },
+      },
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockChooseVerbSentence).not.toHaveBeenCalled()
+    expect(mockCreateBasicNote).toHaveBeenCalledTimes(5)
+    expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
+      front: "sprechen",
+      tags: expect.arrayContaining(["mode-verb-lemma", "verb-morphology-strong"]),
+    }))
+    expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
+      front: expect.stringContaining("sprechen → du"),
+      tags: expect.arrayContaining(["mode-verb-keyform-production", "verb-pronoun-du"]),
+    }))
+    expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
+      front: expect.stringContaining("du"),
+      tags: expect.arrayContaining(["mode-verb-keyform-recognition", "verb-form-sprichst"]),
+    }))
+    expect(mockCreateNote).toHaveBeenCalledTimes(2)
+    expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
+      german: "Du sprichst mit Maria.",
+      context: "du sprichst → sprechen",
+      addReversed: false,
+      tags: expect.arrayContaining(["mode-verb-sentence", "verb-pronoun-du"]),
+    }))
+  })
+
+  test("runVerbWorkflow honors explicit sentence input instead of creating a package", async () => {
+    mockResolveVerbMorphology.mockResolvedValueOnce({
+      infinitive: "sprechen",
+      classification: "strong",
+      source: "WiktApi",
+      confidence: "high",
+      selectedForms: [
+        { key: "du", pronoun: "du", label: "du", form: "sprichst", displayForm: "sprichst" },
+      ],
+    })
+
+    const added = await runVerbWorkflow("sprechen", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "sprechen",
+        displayForm: "sprechen",
+        ipa: "[ˈʃpʁɛçn̩]",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "говорить", english: "speak" }],
+      },
+      sentence: "Du sprichst mit Maria.",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(true)
+    expect(mockResolveVerbMorphology).not.toHaveBeenCalled()
+    expect(mockChooseVerbSentence).toHaveBeenCalled()
+    expect(mockCreateBasicNote).not.toHaveBeenCalledWith(expect.objectContaining({
+      tags: expect.arrayContaining(["mode-verb-lemma"]),
+    }))
+  })
+
+  test("runVerbWorkflow rejects an existing Basic verb package before creating notes", async () => {
+    mockChooseMeaning.mockResolvedValueOnce({
+      russian: "говорить",
+      english: "speak",
+    })
+    mockResolveVerbMorphology.mockResolvedValueOnce({
+      infinitive: "sprechen",
+      classification: "strong",
+      source: "WiktApi",
+      confidence: "high",
+      selectedForms: [
+        { key: "du", pronoun: "du", label: "du", form: "sprichst", displayForm: "sprichst" },
+      ],
+    })
+    mockFindVerbLemmaDuplicates.mockResolvedValueOnce({
+      exactMatches: [{ noteId: 99, infinitive: "sprechen" }],
+    })
+
+    const added = await runVerbWorkflow("sprechen", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "sprechen",
+        displayForm: "sprechen",
+        ipa: "[ˈʃpʁɛçn̩]",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "говорить", english: "speak" }],
+      },
+      packageSentences: {
+        du: { german: "Du sprichst mit Maria.", russian: "Ты говоришь с Марией.", focusForm: "sprichst" },
+      },
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(false)
+    expect(mockFindVerbLemmaDuplicates).toHaveBeenCalledWith(expect.objectContaining({
+      infinitive: "sprechen",
+    }))
+    expect(mockCreateBasicNote).not.toHaveBeenCalled()
+    expect(mockCreateNote).not.toHaveBeenCalled()
   })
 
   test("runVerbWorkflow omits synthetic fallback context when focus form matches the infinitive", async () => {

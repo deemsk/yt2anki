@@ -34,6 +34,10 @@ const defaults = {
   openaiApiKey: '',
   openaiModel: 'gpt-4o-mini',
 
+  // Wiktionary-derived morphology
+  wiktApiBaseUrl: 'https://api.wiktapi.dev',
+  wiktApiTimeoutMs: 8000,
+
   // IPA generation
   ipaBinary: 'espeak-ng',
   ipaVoice: 'de',

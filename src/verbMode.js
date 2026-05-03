@@ -7,13 +7,16 @@ import { estimateLexicalCEFR } from './cardContent/cefr.js';
 import { getWordFrequencyInfo } from './lib/wordFrequency.js';
 import { toTagSlug } from './cardContent/german.js';
 import { applyChosenSentenceGloss } from './cardContent/wordLexical.js';
+import { buildVerbMorphologyTags, resolveVerbMorphology } from './cardContent/verbMorphology.js';
+import { buildStrongVerbPackagePlan, buildVerbFormContext } from './cardContent/verbPackage.js';
 import { formatPlainWord, formatPronunciationField } from './templates/shared/components.js';
 import { buildWordExtraInfo } from './templates/word/extraInfo.js';
 import { buildVerbDictionaryNote } from './templates/verb/dictionary.js';
-import { enrichVerb, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
+import { buildVerbKeyFormProductionBack, buildVerbKeyFormProductionFront, buildVerbKeyFormRecognitionBack, buildVerbKeyFormRecognitionFront } from './templates/verb/keyForm.js';
+import { enrichVerb, generateVerbFormSentence, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
 import { shouldSuggestVerbInfinitive, suggestVerbInfinitives } from './verbCorrection.js';
 import { chooseImage, chooseMeaning } from './wordConfirm.js';
-import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection, formatVerbPreviewSummary, resolveVerbFocusForm } from './verbConfirm.js';
+import { chooseVerbSentence, confirmPictureVerbSelection, confirmSentenceVerbSelection, confirmStrongVerbPackage, formatVerbPreviewSummary, resolveVerbFocusForm } from './verbConfirm.js';
 import { resolveImageAsset, resolveWordPronunciation, searchVerbImages } from './lib/wordSources.js';
 import {
   checkConnection,
@@ -22,6 +25,7 @@ import {
   createPictureWordNote,
   ensureDeck,
   findSimilarCards,
+  findVerbLemmaDuplicates,
   findWordDuplicates,
   getNoteTypes,
   storeAudio,
@@ -312,6 +316,191 @@ async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, de
   });
 }
 
+/**
+ * Creates the base lexical note for a strong/irregular verb package.
+ */
+async function createVerbLemmaNote(verbData, selectedMeaning, audioFilename, deck, morphology) {
+  return createBasicNote({
+    front: verbData.infinitive,
+    back: [
+      formatPronunciationField(audioFilename, verbData.ipa),
+      selectedMeaning?.russian,
+    ].filter(Boolean).join('<br>'),
+    deck,
+    tags: [
+      'yt2anki',
+      'mode-verb-lemma',
+      `lemma-${toTagSlug(verbData.infinitive)}`,
+      ...buildVerbMorphologyTags(morphology),
+    ],
+  });
+}
+
+/**
+ * Creates production and recognition notes for one selected verb form.
+ */
+async function createVerbKeyFormNotes(verbData, selectedMeaning, morphology, formSpec, deck) {
+  const sharedTags = [
+    'yt2anki',
+    `lemma-${toTagSlug(verbData.infinitive)}`,
+    ...buildVerbMorphologyTags(morphology, formSpec),
+  ];
+
+  await createBasicNote({
+    front: buildVerbKeyFormProductionFront(verbData.infinitive, formSpec),
+    back: buildVerbKeyFormProductionBack(formSpec, selectedMeaning),
+    deck,
+    tags: [
+      ...sharedTags,
+      'mode-verb-keyform-production',
+    ],
+  });
+
+  await createBasicNote({
+    front: buildVerbKeyFormRecognitionFront(formSpec),
+    back: buildVerbKeyFormRecognitionBack(verbData, selectedMeaning),
+    deck,
+    tags: [
+      ...sharedTags,
+      'mode-verb-keyform-recognition',
+    ],
+  });
+}
+
+/**
+ * Creates one sentence card for a selected verb form.
+ */
+async function createVerbFormSentenceNote(verbData, sentence, audioFilename, morphology, deck) {
+  const formSpec = sentence.formSpec;
+  return createNote({
+    german: sentence.german,
+    ipa: sentence.ipa,
+    russian: sentence.russian,
+    audioFilename,
+    context: buildVerbFormContext(verbData.infinitive, formSpec),
+    contextStyle: 'plain',
+    addReversed: false,
+    task: {
+      label: 'Hear the form',
+      instruction: 'Listen for the target verb form',
+    },
+    cefr: sentence.cefr,
+    deck,
+    tags: [
+      'mode-verb-sentence',
+      `lemma-${toTagSlug(verbData.infinitive)}`,
+      ...buildVerbMorphologyTags(morphology, formSpec),
+    ],
+  });
+}
+
+/**
+ * Builds a strong/irregular verb package preview, or returns null for standard fallback.
+ */
+async function prepareStrongVerbPackage({ verbData, selectedMeaning, route, frequencyInfo, options, spinner }) {
+  if (options.disableStrongVerbPackage || options.sentence) {
+    return null;
+  }
+
+  spinner.start('Resolving verb morphology...');
+  const morphology = options.morphologyResult || await resolveVerbMorphology(verbData.infinitive);
+  spinner.stop();
+
+  if (
+    morphology.confidence !== 'high' ||
+    !['strong', 'mixed', 'core-irregular'].includes(morphology.classification) ||
+    !Array.isArray(morphology.selectedForms) ||
+    morphology.selectedForms.length === 0
+  ) {
+    console.log(chalk.dim('Strong-verb package skipped: trusted irregular morphology was not available.'));
+    return null;
+  }
+
+  const sentenceCandidates = [];
+  for (const formSpec of morphology.selectedForms) {
+    spinner.start(`Generating ${formSpec.label} sentence...`);
+    const generated = options.packageSentences?.[formSpec.key] || await generateVerbFormSentence({
+      infinitive: verbData.infinitive,
+      pronounLabel: formSpec.label,
+      pronoun: formSpec.pronoun,
+      form: formSpec.form,
+      particle: morphology.particle,
+      meaning: selectedMeaning.russian || selectedMeaning.english || '',
+    });
+    const sentenceData = applyChosenSentenceGloss(
+      await enrich(generated.german),
+      generated
+    );
+    spinner.succeed(`Sentence ready: ${sentenceData.german}`);
+    sentenceCandidates.push({
+      ...sentenceData,
+      formKey: formSpec.key,
+    });
+  }
+
+  const packagePlan = buildStrongVerbPackagePlan({
+    morphology,
+    sentences: sentenceCandidates,
+  });
+
+  if (!packagePlan) {
+    console.log(chalk.dim('Strong-verb package skipped: generated sentences did not validate against morphology.'));
+    return null;
+  }
+
+  let duplicateInfo = { exactMatches: [], headwordMatches: [] };
+  let lemmaDuplicateInfo = { exactMatches: [] };
+  try {
+    if (!options.dryRun) {
+      spinner.start('Checking duplicates...');
+      [duplicateInfo, lemmaDuplicateInfo] = await Promise.all([
+        findWordDuplicates({
+          canonical: verbData.infinitive,
+          meaning: selectedMeaning.russian,
+          modelName: DEFAULT_WORD_NOTE_TYPE,
+        }),
+        findVerbLemmaDuplicates({
+          infinitive: verbData.infinitive,
+          modelName: config.ankiNoteType,
+        }),
+      ]);
+      spinner.stop();
+    }
+  } catch (err) {
+    spinner.stop();
+    if (!options.dryRun) {
+      console.log(chalk.dim(`Duplicate check skipped: ${err.message}`));
+    }
+  }
+
+  if (duplicateInfo.exactMatches.length > 0) {
+    console.log(chalk.yellow(`Exact duplicate exists for ${verbData.infinitive} (${selectedMeaning.russian})`));
+    return { rejected: true };
+  }
+  if (lemmaDuplicateInfo.exactMatches.length > 0) {
+    console.log(chalk.yellow(`Strong verb package already exists for ${verbData.infinitive}`));
+    return { rejected: true };
+  }
+
+  const audio = await buildVerbAudio(verbData, spinner);
+  const sentenceAudios = [];
+  for (const sentence of packagePlan.sentences) {
+    sentenceAudios.push(await buildVerbSentenceAudio(sentence.german, spinner));
+  }
+
+  return {
+    route: 'strong-verb-package',
+    verbData,
+    selectedMeaning,
+    routeBeforePackage: route,
+    frequencyInfo,
+    morphology,
+    packagePlan,
+    audio,
+    sentenceAudios,
+  };
+}
+
 async function prepareVerb(rawInput, options, spinner) {
   spinner.start('Analyzing verb...');
   const verbData = options.analysisResult || await enrichVerb(rawInput);
@@ -356,6 +545,22 @@ async function prepareVerb(rawInput, options, spinner) {
   const forcedMode = normalizeVerbMode(options.mode);
   const route = forcedMode || verbData.recommendedMode || 'sentence-form';
   const addDictionaryForm = shouldOfferDictionaryFormCard(verbData);
+  const packagePrepared = await prepareStrongVerbPackage({
+    verbData,
+    selectedMeaning,
+    route,
+    frequencyInfo,
+    options,
+    spinner,
+  });
+
+  if (packagePrepared?.rejected) {
+    return { rejected: true };
+  }
+
+  if (packagePrepared) {
+    return packagePrepared;
+  }
 
   if (route === 'picture-word') {
     let duplicateInfo = { exactMatches: [], headwordMatches: [] };
@@ -646,6 +851,67 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
   return true;
 }
 
+/**
+ * Creates all notes in a strong/irregular verb package after one preview confirmation.
+ */
+async function finalizeStrongVerbPackage(prepared, options, spinner) {
+  const {
+    verbData,
+    selectedMeaning,
+    morphology,
+    packagePlan,
+    audio,
+    sentenceAudios,
+  } = prepared;
+
+  const confirmation = options.dryRun
+    ? { confirmed: true }
+    : await confirmStrongVerbPackage({
+      verbData,
+      selectedMeaning,
+      morphology,
+      packagePlan,
+    });
+
+  if (!confirmation.confirmed) {
+    console.log(chalk.yellow('Verb package dismissed'));
+    return false;
+  }
+
+  if (options.dryRun) {
+    console.log();
+    console.log(chalk.bold('Strong verb package preview'));
+    console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, null)}`);
+    console.log(`  ${chalk.cyan('Morphology:')} ${morphology.classification} (${morphology.source})`);
+    console.log(`  ${chalk.cyan('Forms:')} ${packagePlan.forms.map((form) => `${form.label} ${form.form}`).join(', ')}`);
+    console.log(`  ${chalk.cyan('Cards:')} 1 lemma, ${packagePlan.forms.length * 2} key-form, ${packagePlan.sentences.length} sentence`);
+    packagePlan.sentences.forEach((sentence) => {
+      console.log(`  ${chalk.cyan('Sentence:')} ${sentence.german}`);
+    });
+    console.log(chalk.yellow('\n⚡ DRY RUN: Strong verb package previewed'));
+    return true;
+  }
+
+  spinner.start('Creating strong verb package...');
+  const lemmaAudioFilename = await storeAudio(audio.audioPath);
+  await createVerbLemmaNote(verbData, selectedMeaning, lemmaAudioFilename, options.deck, morphology);
+
+  for (const formSpec of packagePlan.forms) {
+    await createVerbKeyFormNotes(verbData, selectedMeaning, morphology, formSpec, options.deck);
+  }
+
+  for (let index = 0; index < packagePlan.sentences.length; index++) {
+    const sentence = packagePlan.sentences[index];
+    const sentenceAudio = sentenceAudios[index];
+    const audioFilename = await storeAudio(sentenceAudio.audioPath);
+    await createVerbFormSentenceNote(verbData, sentence, audioFilename, morphology, options.deck);
+  }
+
+  spinner.succeed(`Created strong verb package for ${verbData.infinitive}`);
+  console.log(chalk.green(`✓ Added strong verb package for ${verbData.infinitive}`));
+  return true;
+}
+
 export async function runVerbWorkflow(rawInput, options = {}) {
   const spinner = ora();
 
@@ -661,6 +927,9 @@ export async function runVerbWorkflow(rawInput, options = {}) {
 
     if (prepared.route === 'picture-word') {
       return finalizePictureVerb(prepared, options, spinner);
+    }
+    if (prepared.route === 'strong-verb-package') {
+      return finalizeStrongVerbPackage(prepared, options, spinner);
     }
     return finalizeSentenceVerb(prepared, options, spinner);
   } catch (err) {

@@ -729,6 +729,33 @@ export async function findWordDuplicates({
   return { exactMatches, headwordMatches };
 }
 
+/**
+ * Find existing Basic-style verb lemma notes created by the strong-verb package workflow.
+ */
+export async function findVerbLemmaDuplicates({
+  infinitive,
+  modelName = config.ankiNoteType,
+}) {
+  const normalizedInfinitive = normalizeGerman(infinitive);
+  const noteIds = await ankiConnect('findNotes', {
+    query: `note:"${modelName}" tag:mode-verb-lemma tag:lemma-${toTagSlug(infinitive)}`,
+  });
+
+  if (noteIds.length === 0) {
+    return { exactMatches: [] };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const exactMatches = notes
+    .filter((note) => normalizeGerman(note.fields?.Front?.value || '') === normalizedInfinitive)
+    .map((note) => ({
+      noteId: note.noteId,
+      infinitive,
+    }));
+
+  return { exactMatches };
+}
+
 export async function findSentenceWordDuplicates({
   canonical,
   meaning = null,

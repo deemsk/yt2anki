@@ -267,3 +267,38 @@ export async function confirmSentenceVerbSelection({
     return { confirmed: false, addDictionaryForm: false };
   }
 }
+
+/**
+ * Confirms a multi-card strong/irregular verb package with one compact preview.
+ */
+export async function confirmStrongVerbPackage({
+  verbData,
+  selectedMeaning,
+  morphology,
+  packagePlan,
+}) {
+  while (true) {
+    console.log();
+    console.log(formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, null));
+    console.log(`${label('Morphology:')} ${morphology.classification} (${morphology.source})`);
+    console.log(`${label('Forms:')} ${packagePlan.forms.map((form) => `${form.label} ${form.form}`).join(', ')}`);
+    console.log(`${label('Cards:')} 1 lemma, ${packagePlan.forms.length * 2} key-form, ${packagePlan.sentences.length} sentence`);
+    console.log();
+    packagePlan.sentences.forEach((sentence) => {
+      console.log(`  - ${sentence.german}`);
+      if (sentence.russian) {
+        console.log(chalk.dim(`    ${sentence.russian}`));
+      }
+    });
+
+    const answer = await ask('[A]dd package or [D]ismiss: ');
+    const normalized = answer.toLowerCase();
+    if (normalized === '' || normalized === 'a' || normalized === 'add') {
+      return { confirmed: true };
+    }
+
+    if (normalized === 'd' || normalized === 'dismiss') {
+      return { confirmed: false };
+    }
+  }
+}
