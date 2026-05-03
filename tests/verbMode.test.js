@@ -37,6 +37,7 @@ const mockStoreMedia = jest.fn(async () => "verb-image.jpg")
 const mockCreateNote = jest.fn(async () => 123)
 const mockCreatePictureWordNote = jest.fn(async () => 789)
 const mockCreateBasicNote = jest.fn(async () => 456)
+const mockCreateClozeNote = jest.fn(async () => 654)
 const mockGenerateSimpleSpeech = jest.fn(async () => {})
 const mockGenerateSpeech = jest.fn(async () => {})
 const mockGenerateVerbFormSentence = jest.fn()
@@ -91,6 +92,7 @@ jest.unstable_mockModule("../src/verbConfirm.js", () => ({
 jest.unstable_mockModule("../src/anki.js", () => ({
   checkConnection: mockCheckConnection,
   createBasicNote: mockCreateBasicNote,
+  createClozeNote: mockCreateClozeNote,
   createNote: mockCreateNote,
   createPictureWordNote: mockCreatePictureWordNote,
   ensureDeck: mockEnsureDeck,
@@ -213,7 +215,7 @@ describe("verb mode sentence flow", () => {
     mockResolveVerbMorphology.mockResolvedValueOnce({
       infinitive: "sprechen",
       classification: "strong",
-      forms: { du: "sprichst", er: "spricht" },
+      forms: { du: "sprichst", er: "spricht", ihr: "sprecht" },
       isSeparable: false,
       particle: null,
       source: "WiktApi",
@@ -221,6 +223,7 @@ describe("verb mode sentence flow", () => {
       selectedForms: [
         { key: "du", pronoun: "du", label: "du", form: "sprichst", displayForm: "sprichst" },
         { key: "er", pronoun: "er", label: "er/sie/es", form: "spricht", displayForm: "spricht" },
+        { key: "ihr", pronoun: "ihr", label: "ihr", form: "sprecht", displayForm: "sprecht" },
       ],
     })
 
@@ -236,6 +239,7 @@ describe("verb mode sentence flow", () => {
       packageSentences: {
         du: { german: "Du sprichst mit Maria.", russian: "Ты говоришь с Марией.", focusForm: "sprichst" },
         er: { german: "Er spricht Deutsch.", russian: "Он говорит по-немецки.", focusForm: "spricht" },
+        ihr: { german: "Ihr sprecht Deutsch.", russian: "Вы говорите по-немецки.", focusForm: "sprecht" },
       },
       deck: "German::Test",
       skipHeader: true,
@@ -243,7 +247,7 @@ describe("verb mode sentence flow", () => {
 
     expect(added).toBe(true)
     expect(mockChooseVerbSentence).not.toHaveBeenCalled()
-    expect(mockCreateBasicNote).toHaveBeenCalledTimes(5)
+    expect(mockCreateBasicNote).toHaveBeenCalledTimes(7)
     expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
       front: "sprechen",
       tags: expect.arrayContaining(["mode-verb-lemma", "verb-morphology-strong"]),
@@ -256,12 +260,21 @@ describe("verb mode sentence flow", () => {
       front: expect.stringContaining("du"),
       tags: expect.arrayContaining(["mode-verb-keyform-recognition", "verb-form-sprichst"]),
     }))
-    expect(mockCreateNote).toHaveBeenCalledTimes(2)
+    expect(mockCreateNote).toHaveBeenCalledTimes(3)
     expect(mockCreateNote).toHaveBeenCalledWith(expect.objectContaining({
       german: "Du sprichst mit Maria.",
       context: "du sprichst → sprechen",
       addReversed: false,
       tags: expect.arrayContaining(["mode-verb-sentence", "verb-pronoun-du"]),
+    }))
+    expect(mockCreateClozeNote).toHaveBeenCalledTimes(3)
+    expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining("{{c1::sprichst::sprechen → du}}"),
+      tags: expect.arrayContaining(["mode-verb-form-cloze", "verb-pronoun-du", "verb-form-sprichst"]),
+    }))
+    expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining("{{c1::sprecht::sprechen → ihr}}"),
+      tags: expect.arrayContaining(["mode-verb-form-cloze", "verb-pronoun-ihr", "verb-form-sprecht"]),
     }))
   })
 

@@ -12,6 +12,7 @@ describe("verb morphology resolution", () => {
         forms: [
           form("fährst", ["second-person", "singular"]),
           form("fährt", ["third-person", "singular"]),
+          form("fahrt", ["second-person", "plural"]),
           form("fahren", ["first-person", "plural"]),
         ],
       },
@@ -25,6 +26,7 @@ describe("verb morphology resolution", () => {
     expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual([
       ["du", "fährst"],
       ["er", "fährt"],
+      ["ihr", "fahrt"],
     ])
   })
 
@@ -93,14 +95,15 @@ describe("verb morphology resolution", () => {
         forms: [
           form("steigst ein", ["second-person", "singular"]),
           form("steigt ein", ["third-person", "singular"]),
+          form("steigt ein", ["second-person", "plural"]),
         ],
       },
     })
 
     expect(morphology.isSeparable).toBe(true)
     expect(morphology.particle).toBe("ein")
-    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["steigst", "steigt"])
-    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["steigst ein", "steigt ein"])
+    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["steigst", "steigt", "steigt"])
+    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["steigst ein", "steigt ein", "steigt ein"])
   })
 
   test("prefers the longest separable prefix match", async () => {
@@ -110,12 +113,13 @@ describe("verb morphology resolution", () => {
         forms: [
           form("fährst zurück", ["second-person", "singular"]),
           form("fährt zurück", ["third-person", "singular"]),
+          form("fahrt zurück", ["second-person", "plural"]),
         ],
       },
     })
 
     expect(morphology.particle).toBe("zurück")
-    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["fährst", "fährt"])
-    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["fährst zurück", "fährt zurück"])
+    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["fährst", "fährt", "fahrt"])
+    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["fährst zurück", "fährt zurück", "fahrt zurück"])
   })
 })

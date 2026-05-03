@@ -25,6 +25,7 @@ const CORE_FORM_SPECS = [
 const NORMAL_STRONG_FORM_SPECS = [
   { key: 'du', pronoun: 'du', label: 'du' },
   { key: 'er', pronoun: 'er', label: 'er/sie/es' },
+  { key: 'ihr', pronoun: 'ihr', label: 'ihr' },
 ];
 
 const REGULAR_PRESENT_ENDINGS = {
@@ -301,6 +302,9 @@ export function selectStrongVerbForms(morphology) {
   if (!morphology) {
     return [];
   }
+  if (!['strong', 'mixed', 'core-irregular'].includes(morphology.classification)) {
+    return [];
+  }
 
   const specs = morphology.classification === 'core-irregular'
     ? CORE_FORM_SPECS
@@ -312,7 +316,10 @@ export function selectStrongVerbForms(morphology) {
       form: stripSeparableParticle(morphology.forms?.[spec.key] || '', morphology.particle),
       displayForm: buildDisplayedSeparableForm(morphology.forms?.[spec.key] || '', morphology.particle),
     }))
-    .filter((entry) => entry.form && isUsefulIrregularForm(morphology.infinitive, entry.key, entry.form));
+    .filter((entry) => entry.form && (
+      entry.key === 'ihr' ||
+      isUsefulIrregularForm(morphology.infinitive, entry.key, entry.form)
+    ));
 }
 
 /**
@@ -362,7 +369,9 @@ export async function resolveVerbMorphology(infinitive, options = {}) {
   };
   const selectedForms = selectStrongVerbForms(morphology);
   const hasRequiredCoreForms = classification !== 'core-irregular' || selectedForms.length === CORE_FORM_SPECS.length;
-  const confidence = classification !== 'unknown' && selectedForms.length > 0 && hasRequiredCoreForms
+  const hasRequiredNormalForms = classification === 'core-irregular' ||
+    NORMAL_STRONG_FORM_SPECS.every((spec) => selectedForms.some((form) => form.key === spec.key));
+  const confidence = classification !== 'unknown' && selectedForms.length > 0 && hasRequiredCoreForms && hasRequiredNormalForms
     ? 'high'
     : 'low';
 

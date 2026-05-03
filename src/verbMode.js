@@ -11,6 +11,7 @@ import { buildVerbMorphologyTags, resolveVerbMorphology } from './cardContent/ve
 import { buildStrongVerbPackagePlan, buildVerbFormContext } from './cardContent/verbPackage.js';
 import { formatPlainWord, formatPronunciationField } from './templates/shared/components.js';
 import { buildWordExtraInfo } from './templates/word/extraInfo.js';
+import { buildVerbFormClozeExtra, buildVerbFormClozeText } from './templates/verb/cloze.js';
 import { buildVerbDictionaryNote } from './templates/verb/dictionary.js';
 import { buildVerbKeyFormProductionBack, buildVerbKeyFormProductionFront, buildVerbKeyFormRecognitionBack, buildVerbKeyFormRecognitionFront } from './templates/verb/keyForm.js';
 import { enrichVerb, generateVerbFormSentence, hasStructuredVerbAnalysis, shouldOfferDictionaryFormCard } from './verbEnricher.js';
@@ -21,6 +22,7 @@ import { resolveImageAsset, resolveWordPronunciation, searchVerbImages } from '.
 import {
   checkConnection,
   createBasicNote,
+  createClozeNote,
   createNote,
   createPictureWordNote,
   ensureDeck,
@@ -388,6 +390,29 @@ async function createVerbFormSentenceNote(verbData, sentence, audioFilename, mor
     deck,
     tags: [
       'mode-verb-sentence',
+      `lemma-${toTagSlug(verbData.infinitive)}`,
+      ...buildVerbMorphologyTags(morphology, formSpec),
+    ],
+  });
+}
+
+/**
+ * Creates one Cloze note that asks for the selected finite verb form in context.
+ */
+async function createVerbFormClozeNote(verbData, sentence, morphology, deck) {
+  const formSpec = sentence.formSpec;
+  const text = buildVerbFormClozeText(sentence, formSpec, verbData.infinitive);
+  if (!text.includes('{{c1::')) {
+    throw new Error(`Could not build verb-form cloze for ${verbData.infinitive} ${formSpec.key}`);
+  }
+
+  return createClozeNote({
+    text,
+    extra: buildVerbFormClozeExtra(sentence, formSpec, verbData.infinitive),
+    deck,
+    tags: [
+      'yt2anki',
+      'mode-verb-form-cloze',
       `lemma-${toTagSlug(verbData.infinitive)}`,
       ...buildVerbMorphologyTags(morphology, formSpec),
     ],
@@ -884,7 +909,7 @@ async function finalizeStrongVerbPackage(prepared, options, spinner) {
     console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, null)}`);
     console.log(`  ${chalk.cyan('Morphology:')} ${morphology.classification} (${morphology.source})`);
     console.log(`  ${chalk.cyan('Forms:')} ${packagePlan.forms.map((form) => `${form.label} ${form.form}`).join(', ')}`);
-    console.log(`  ${chalk.cyan('Cards:')} 1 lemma, ${packagePlan.forms.length * 2} key-form, ${packagePlan.sentences.length} sentence`);
+    console.log(`  ${chalk.cyan('Cards:')} 1 lemma, ${packagePlan.forms.length * 2} key-form, ${packagePlan.sentences.length} sentence, ${packagePlan.sentences.length} cloze`);
     packagePlan.sentences.forEach((sentence) => {
       console.log(`  ${chalk.cyan('Sentence:')} ${sentence.german}`);
     });
@@ -905,6 +930,7 @@ async function finalizeStrongVerbPackage(prepared, options, spinner) {
     const sentenceAudio = sentenceAudios[index];
     const audioFilename = await storeAudio(sentenceAudio.audioPath);
     await createVerbFormSentenceNote(verbData, sentence, audioFilename, morphology, options.deck);
+    await createVerbFormClozeNote(verbData, sentence, morphology, options.deck);
   }
 
   spinner.succeed(`Created strong verb package for ${verbData.infinitive}`);
