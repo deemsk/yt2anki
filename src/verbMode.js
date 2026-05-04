@@ -420,7 +420,7 @@ async function createVerbFormClozeNote(verbData, sentence, morphology, deck) {
 }
 
 /**
- * Builds a strong/irregular verb package preview, or returns null for standard fallback.
+ * Builds an explicit morphology package preview, or returns null for standard fallback.
  */
 async function prepareStrongVerbPackage({ verbData, selectedMeaning, route, frequencyInfo, options, spinner }) {
   if (options.disableStrongVerbPackage || options.sentence) {
@@ -433,11 +433,10 @@ async function prepareStrongVerbPackage({ verbData, selectedMeaning, route, freq
 
   if (
     morphology.confidence !== 'high' ||
-    !['strong', 'mixed', 'core-irregular'].includes(morphology.classification) ||
     !Array.isArray(morphology.selectedForms) ||
     morphology.selectedForms.length === 0
   ) {
-    console.log(chalk.dim('Strong-verb package skipped: trusted irregular morphology was not available.'));
+    console.log(chalk.dim('Verb morphology package skipped: trusted non-regular present forms were not available.'));
     return null;
   }
 
@@ -469,7 +468,7 @@ async function prepareStrongVerbPackage({ verbData, selectedMeaning, route, freq
   });
 
   if (!packagePlan) {
-    console.log(chalk.dim('Strong-verb package skipped: generated sentences did not validate against morphology.'));
+    console.log(chalk.dim('Verb morphology package skipped: generated sentences did not validate against morphology.'));
     return null;
   }
 
@@ -503,7 +502,7 @@ async function prepareStrongVerbPackage({ verbData, selectedMeaning, route, freq
     return { rejected: true };
   }
   if (lemmaDuplicateInfo.exactMatches.length > 0) {
-    console.log(chalk.yellow(`Strong verb package already exists for ${verbData.infinitive}`));
+    console.log(chalk.yellow(`Verb morphology package already exists for ${verbData.infinitive}`));
     return { rejected: true };
   }
 
@@ -877,7 +876,7 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
 }
 
 /**
- * Creates all notes in a strong/irregular verb package after one preview confirmation.
+ * Creates all notes in an explicit morphology package after one preview confirmation.
  */
 async function finalizeStrongVerbPackage(prepared, options, spinner) {
   const {
@@ -905,7 +904,7 @@ async function finalizeStrongVerbPackage(prepared, options, spinner) {
 
   if (options.dryRun) {
     console.log();
-    console.log(chalk.bold('Strong verb package preview'));
+    console.log(chalk.bold('Verb morphology package preview'));
     console.log(`  ${formatVerbPreviewSummary(chalk, verbData, selectedMeaning.russian, null)}`);
     console.log(`  ${chalk.cyan('Morphology:')} ${morphology.classification} (${morphology.source})`);
     console.log(`  ${chalk.cyan('Forms:')} ${packagePlan.forms.map((form) => `${form.label} ${form.form}`).join(', ')}`);
@@ -913,11 +912,11 @@ async function finalizeStrongVerbPackage(prepared, options, spinner) {
     packagePlan.sentences.forEach((sentence) => {
       console.log(`  ${chalk.cyan('Sentence:')} ${sentence.german}`);
     });
-    console.log(chalk.yellow('\n⚡ DRY RUN: Strong verb package previewed'));
+    console.log(chalk.yellow('\n⚡ DRY RUN: Verb morphology package previewed'));
     return true;
   }
 
-  spinner.start('Creating strong verb package...');
+  spinner.start('Creating verb morphology package...');
   const lemmaAudioFilename = await storeAudio(audio.audioPath);
   await createVerbLemmaNote(verbData, selectedMeaning, lemmaAudioFilename, options.deck, morphology);
 
@@ -933,8 +932,8 @@ async function finalizeStrongVerbPackage(prepared, options, spinner) {
     await createVerbFormClozeNote(verbData, sentence, morphology, options.deck);
   }
 
-  spinner.succeed(`Created strong verb package for ${verbData.infinitive}`);
-  console.log(chalk.green(`✓ Added strong verb package for ${verbData.infinitive}`));
+  spinner.succeed(`Created verb morphology package for ${verbData.infinitive}`);
+  console.log(chalk.green(`✓ Added verb morphology package for ${verbData.infinitive}`));
   return true;
 }
 

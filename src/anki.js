@@ -730,7 +730,7 @@ export async function findWordDuplicates({
 }
 
 /**
- * Find existing Basic-style verb lemma notes created by the strong-verb package workflow.
+ * Find existing Basic-style verb lemma notes created by the morphology package workflow.
  */
 export async function findVerbLemmaDuplicates({
   infinitive,

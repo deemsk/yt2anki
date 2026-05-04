@@ -318,7 +318,7 @@ describe("verb mode sentence flow", () => {
     })
     mockResolveVerbMorphology.mockResolvedValueOnce({
       infinitive: "sprechen",
-      classification: "strong",
+      classification: "irregular-present",
       source: "WiktApi",
       confidence: "high",
       selectedForms: [

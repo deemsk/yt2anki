@@ -5,7 +5,7 @@ function form(form, tags) {
 }
 
 describe("verb morphology resolution", () => {
-  test("selects du and er forms for a strong verb with stem change", async () => {
+  test("selects only non-regular target forms for a strong verb with stem change", async () => {
     const morphology = await resolveVerbMorphology("fahren", {
       payload: {
         tags: ["strong"],
@@ -26,7 +26,6 @@ describe("verb morphology resolution", () => {
     expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual([
       ["du", "fährst"],
       ["er", "fährt"],
-      ["ihr", "fahrt"],
     ])
   })
 
@@ -69,6 +68,41 @@ describe("verb morphology resolution", () => {
     expect(reisen.confidence).toBe("low")
   })
 
+  test("selects non-regular present forms even without a strong classification label", async () => {
+    const morphology = await resolveVerbMorphology("geben", {
+      payload: {
+        forms: [
+          form("gibst", ["second-person", "singular"]),
+          form("gibt", ["third-person", "singular"]),
+          form("gebt", ["second-person", "plural"]),
+        ],
+      },
+    })
+
+    expect(morphology.classification).toBe("irregular-present")
+    expect(morphology.confidence).toBe("high")
+    expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual([
+      ["du", "gibst"],
+      ["er", "gibt"],
+    ])
+  })
+
+  test("includes ihr when the ihr form is not safely inferable", async () => {
+    const morphology = await resolveVerbMorphology("exampleln", {
+      payload: {
+        tags: ["mixed"],
+        forms: [
+          form("examplst", ["second-person", "singular"]),
+          form("examplt", ["third-person", "singular"]),
+          form("examplet", ["second-person", "plural"]),
+        ],
+      },
+    })
+
+    expect(morphology.confidence).toBe("high")
+    expect(morphology.selectedForms.map((entry) => entry.key)).toEqual(["du", "er", "ihr"])
+  })
+
   test("selects all essential forms for sein", async () => {
     const morphology = await resolveVerbMorphology("sein", {
       payload: {
@@ -88,7 +122,7 @@ describe("verb morphology resolution", () => {
     expect(morphology.selectedForms.map((entry) => entry.key)).toEqual(["ich", "du", "er", "wir", "ihr", "sie"])
   })
 
-  test("marks separable verbs and keeps irregular selected forms", async () => {
+  test("marks separable verbs without selecting regular present forms", async () => {
     const morphology = await resolveVerbMorphology("einsteigen", {
       payload: {
         tags: ["strong", "separable"],
@@ -102,8 +136,8 @@ describe("verb morphology resolution", () => {
 
     expect(morphology.isSeparable).toBe(true)
     expect(morphology.particle).toBe("ein")
-    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["steigst", "steigt", "steigt"])
-    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["steigst ein", "steigt ein", "steigt ein"])
+    expect(morphology.confidence).toBe("low")
+    expect(morphology.selectedForms).toEqual([])
   })
 
   test("prefers the longest separable prefix match", async () => {
@@ -119,7 +153,7 @@ describe("verb morphology resolution", () => {
     })
 
     expect(morphology.particle).toBe("zurück")
-    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["fährst", "fährt", "fahrt"])
-    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["fährst zurück", "fährt zurück", "fahrt zurück"])
+    expect(morphology.selectedForms.map((entry) => entry.form)).toEqual(["fährst", "fährt"])
+    expect(morphology.selectedForms.map((entry) => entry.displayForm)).toEqual(["fährst zurück", "fährt zurück"])
   })
 })

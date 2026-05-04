@@ -22,7 +22,7 @@ const CORE_FORM_SPECS = [
   { key: 'sie', pronoun: 'sie', label: 'sie/Sie' },
 ];
 
-const NORMAL_STRONG_FORM_SPECS = [
+const TARGET_FORM_SPECS = [
   { key: 'du', pronoun: 'du', label: 'du' },
   { key: 'er', pronoun: 'er', label: 'er/sie/es' },
   { key: 'ihr', pronoun: 'ihr', label: 'ihr' },
@@ -215,7 +215,7 @@ function normalizeFinitePresentForm(form = '', slot = '') {
 /**
  * Classifies a verb from Wiktionary-derived labels and the core irregular override set.
  */
-function classifyVerb(infinitive, payload, forms = {}) {
+function classifyVerb(infinitive, payload, forms = {}, particle = null) {
   const lemma = normalizeGermanForCompare(infinitive);
   if (isCoreIrregularVerb(lemma)) {
     return 'core-irregular';
@@ -228,15 +228,16 @@ function classifyVerb(infinitive, payload, forms = {}) {
   if (/mixed|gemischt/.test(labels)) {
     return 'mixed';
   }
-  if (/weak|schwach|regular|regelmäßig/.test(labels)) {
-    return 'weak';
+  if (
+    isUsefulIrregularForm(lemma, 'du', forms.du, particle) ||
+    isUsefulIrregularForm(lemma, 'er', forms.er, particle) ||
+    isUsefulIrregularForm(lemma, 'ihr', forms.ihr, particle)
+  ) {
+    return 'irregular-present';
   }
 
-  if (
-    isUsefulIrregularForm(lemma, 'du', forms.du) ||
-    isUsefulIrregularForm(lemma, 'er', forms.er)
-  ) {
-    return 'strong';
+  if (/weak|schwach|regular|regelmäßig/.test(labels)) {
+    return 'weak';
   }
 
   return 'unknown';
@@ -245,8 +246,12 @@ function classifyVerb(infinitive, payload, forms = {}) {
 /**
  * Returns the regular present form expected from a safely inferable weak pattern.
  */
-function expectedRegularPresentForm(infinitive, slot) {
-  const normalized = normalizeGermanForCompare(infinitive);
+function expectedRegularPresentForm(infinitive, slot, particle = null) {
+  const normalizedInfinitive = normalizeGermanForCompare(infinitive);
+  const normalizedParticle = normalizeGermanForCompare(particle || '');
+  const normalized = normalizedParticle && normalizedInfinitive.startsWith(normalizedParticle)
+    ? normalizedInfinitive.slice(normalizedParticle.length)
+    : normalizedInfinitive;
   const stem = normalized.endsWith('eln')
     ? normalized.slice(0, -1)
     : normalized.endsWith('ern')
@@ -273,10 +278,10 @@ function expectedRegularPresentForm(infinitive, slot) {
 /**
  * Returns true when a present form carries useful irregular morphology.
  */
-function isUsefulIrregularForm(infinitive, slot, form) {
+function isUsefulIrregularForm(infinitive, slot, form, particle = null) {
   if (!form) return false;
   if (isCoreIrregularVerb(infinitive)) return true;
-  return normalizeGermanForCompare(form) !== expectedRegularPresentForm(infinitive, slot);
+  return normalizeGermanForCompare(form) !== expectedRegularPresentForm(infinitive, slot, particle);
 }
 
 /**
@@ -296,19 +301,16 @@ function detectSeparableParticle(infinitive = '', payload = {}) {
 }
 
 /**
- * Selects high-yield present forms from resolved morphology.
+ * Selects present forms that are not safely inferable from the default weak pattern.
  */
 export function selectStrongVerbForms(morphology) {
   if (!morphology) {
     return [];
   }
-  if (!['strong', 'mixed', 'core-irregular'].includes(morphology.classification)) {
-    return [];
-  }
 
   const specs = morphology.classification === 'core-irregular'
     ? CORE_FORM_SPECS
-    : NORMAL_STRONG_FORM_SPECS;
+    : TARGET_FORM_SPECS;
 
   return specs
     .map((spec) => ({
@@ -316,10 +318,7 @@ export function selectStrongVerbForms(morphology) {
       form: stripSeparableParticle(morphology.forms?.[spec.key] || '', morphology.particle),
       displayForm: buildDisplayedSeparableForm(morphology.forms?.[spec.key] || '', morphology.particle),
     }))
-    .filter((entry) => entry.form && (
-      entry.key === 'ihr' ||
-      isUsefulIrregularForm(morphology.infinitive, entry.key, entry.form)
-    ));
+    .filter((entry) => entry.form && isUsefulIrregularForm(morphology.infinitive, entry.key, entry.form, morphology.particle));
 }
 
 /**
@@ -356,8 +355,8 @@ export async function resolveVerbMorphology(infinitive, options = {}) {
   }
 
   const forms = extractPresentForms(payload);
-  const classification = classifyVerb(lemma, payload, forms);
   const particle = detectSeparableParticle(lemma, payload);
+  const classification = classifyVerb(lemma, payload, forms, particle);
   const morphology = {
     infinitive: lemma,
     classification,
@@ -369,9 +368,8 @@ export async function resolveVerbMorphology(infinitive, options = {}) {
   };
   const selectedForms = selectStrongVerbForms(morphology);
   const hasRequiredCoreForms = classification !== 'core-irregular' || selectedForms.length === CORE_FORM_SPECS.length;
-  const hasRequiredNormalForms = classification === 'core-irregular' ||
-    NORMAL_STRONG_FORM_SPECS.every((spec) => selectedForms.some((form) => form.key === spec.key));
-  const confidence = classification !== 'unknown' && selectedForms.length > 0 && hasRequiredCoreForms && hasRequiredNormalForms
+  const hasUsableClassification = classification !== 'unknown' || selectedForms.length > 0;
+  const confidence = hasUsableClassification && selectedForms.length > 0 && hasRequiredCoreForms
     ? 'high'
     : 'low';
 

@@ -269,7 +269,7 @@ export async function confirmSentenceVerbSelection({
 }
 
 /**
- * Confirms a multi-card strong/irregular verb package with one compact preview.
+ * Confirms a multi-card explicit morphology package with one compact preview.
  */
 export async function confirmStrongVerbPackage({
   verbData,
