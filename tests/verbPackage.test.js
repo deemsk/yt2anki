@@ -76,7 +76,7 @@ describe("strong verb package planning", () => {
     )
 
     const extra = buildVerbFormClozeExtra(sentence, formSpec, "einsteigen")
-    expect(extra).toContain("Du steigst in den Bus ein.")
+    expect(extra).not.toContain("Du steigst in den Bus ein.")
     expect(extra).toContain("Ты садишься в автобус.")
     expect(extra).toContain("du steigst ein → einsteigen")
   })
