@@ -5,12 +5,12 @@ const CORE_IRREGULAR_VERBS = new Set([
   'sein',
   'haben',
   'werden',
-  'können',
-  'müssen',
+  'koennen',
+  'muessen',
   'wollen',
   'sollen',
-  'dürfen',
-  'mögen',
+  'duerfen',
+  'moegen',
 ]);
 
 const CORE_FORM_SPECS = [
@@ -21,6 +21,18 @@ const CORE_FORM_SPECS = [
   { key: 'ihr', pronoun: 'ihr', label: 'ihr' },
   { key: 'sie', pronoun: 'sie', label: 'sie/Sie' },
 ];
+
+const CORE_IRREGULAR_PRESENT_FORMS = {
+  sein: { ich: 'bin', du: 'bist', er: 'ist', wir: 'sind', ihr: 'seid', sie: 'sind' },
+  haben: { ich: 'habe', du: 'hast', er: 'hat', wir: 'haben', ihr: 'habt', sie: 'haben' },
+  werden: { ich: 'werde', du: 'wirst', er: 'wird', wir: 'werden', ihr: 'werdet', sie: 'werden' },
+  koennen: { ich: 'kann', du: 'kannst', er: 'kann', wir: 'können', ihr: 'könnt', sie: 'können' },
+  muessen: { ich: 'muss', du: 'musst', er: 'muss', wir: 'müssen', ihr: 'müsst', sie: 'müssen' },
+  wollen: { ich: 'will', du: 'willst', er: 'will', wir: 'wollen', ihr: 'wollt', sie: 'wollen' },
+  sollen: { ich: 'soll', du: 'sollst', er: 'soll', wir: 'sollen', ihr: 'sollt', sie: 'sollen' },
+  duerfen: { ich: 'darf', du: 'darfst', er: 'darf', wir: 'dürfen', ihr: 'dürft', sie: 'dürfen' },
+  moegen: { ich: 'mag', du: 'magst', er: 'mag', wir: 'mögen', ihr: 'mögt', sie: 'mögen' },
+};
 
 const TARGET_FORM_SPECS = [
   { key: 'du', pronoun: 'du', label: 'du' },
@@ -45,6 +57,13 @@ export function isCoreIrregularVerb(infinitive = '') {
 }
 
 /**
+ * Returns curated present-tense forms for core irregular verbs when WiktApi is incomplete.
+ */
+function getCoreIrregularForms(infinitive = '') {
+  return CORE_IRREGULAR_PRESENT_FORMS[normalizeGermanForCompare(infinitive)] || null;
+}
+
+/**
  * Builds likely WiktApi URLs for runtime morphology lookup.
  */
 function buildWiktApiUrls(infinitive) {
@@ -56,6 +75,17 @@ function buildWiktApiUrls(infinitive) {
 }
 
 /**
+ * Builds WiktApi search URLs used to confirm lemma identity when forms lookup fails.
+ */
+function buildWiktApiSearchUrls(infinitive) {
+  const baseUrl = String(config.wiktApiBaseUrl || config.kaikkiApiBaseUrl || 'https://api.wiktapi.dev').replace(/\/$/, '');
+  const encoded = encodeURIComponent(infinitive);
+  return [
+    `${baseUrl}/v1/de/search?q=${encoded}&lang=de`,
+  ];
+}
+
+/**
  * Fetches the first successful JSON response from WiktApi candidate endpoints.
  */
 async function fetchWiktApiJson(infinitive, options = {}) {
@@ -63,11 +93,11 @@ async function fetchWiktApiJson(infinitive, options = {}) {
   const timeoutMs = options.timeoutMs || config.wiktApiTimeoutMs || 8000;
 
   for (const url of urls) {
+    let timeout = null;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      timeout = setTimeout(() => controller.abort(), timeoutMs);
       const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
 
       if (!response.ok) {
         continue;
@@ -76,10 +106,41 @@ async function fetchWiktApiJson(infinitive, options = {}) {
       return await response.json();
     } catch {
       // Try the next endpoint shape; package generation will fail closed if none work.
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
     }
   }
 
   return null;
+}
+
+/**
+ * Resolves an exact German verb lemma from WiktApi search results.
+ */
+function resolveSearchLemma(payload, infinitive) {
+  const results = Array.isArray(payload?.results) ? payload.results : [];
+  const normalizedInfinitive = normalizeGermanForCompare(infinitive);
+  const match = results.find((result) =>
+    normalizeGermanForCompare(result?.word) === normalizedInfinitive &&
+    String(result?.lang_code || '').toLowerCase() === 'de' &&
+    String(result?.pos || '').toLowerCase() === 'verb'
+  );
+
+  return match?.word || null;
+}
+
+/**
+ * Confirms lemma identity via WiktApi search after direct forms lookup fails.
+ */
+async function resolveWiktApiLemmaFromSearch(infinitive, options = {}) {
+  const payload = options.searchPayload || await fetchWiktApiJson(infinitive, {
+    ...options,
+    urls: options.searchUrls || buildWiktApiSearchUrls(infinitive),
+  });
+
+  return resolveSearchLemma(payload, infinitive);
 }
 
 /**
@@ -344,26 +405,49 @@ function buildDisplayedSeparableForm(form = '', particle = null) {
  * Resolves trusted present-tense morphology from WiktApi-derived Wiktionary data.
  */
 export async function resolveVerbMorphology(infinitive, options = {}) {
-  const lemma = normalizeGermanForCompare(infinitive);
-  if (!lemma) {
+  const surfaceInfinitive = String(infinitive || '').trim().toLowerCase();
+  const normalizedLemma = normalizeGermanForCompare(surfaceInfinitive);
+  if (!normalizedLemma) {
     return { confidence: 'low', reason: 'missing-infinitive', selectedForms: [] };
   }
 
-  const payload = options.payload || await fetchWiktApiJson(lemma, options);
+  const payload = options.payload || await fetchWiktApiJson(surfaceInfinitive, options);
   if (!payload) {
-    return { infinitive: lemma, confidence: 'low', reason: 'wiktapi-unavailable', selectedForms: [] };
+    const resolvedLemma = await resolveWiktApiLemmaFromSearch(surfaceInfinitive, options);
+    const fallbackForms = resolvedLemma ? getCoreIrregularForms(resolvedLemma) : null;
+    if (resolvedLemma && fallbackForms) {
+      const morphology = {
+        infinitive: resolvedLemma,
+        classification: 'core-irregular',
+        forms: fallbackForms,
+        isSeparable: false,
+        particle: null,
+        source: 'curated-core-fallback',
+        confidence: 'low',
+      };
+      return {
+        ...morphology,
+        confidence: 'high',
+        selectedForms: selectStrongVerbForms(morphology),
+      };
+    }
+
+    return { infinitive: surfaceInfinitive, confidence: 'low', reason: 'wiktapi-unavailable', selectedForms: [] };
   }
 
-  const forms = extractPresentForms(payload);
-  const particle = detectSeparableParticle(lemma, payload);
-  const classification = classifyVerb(lemma, payload, forms, particle);
+  const extractedForms = extractPresentForms(payload);
+  const particle = detectSeparableParticle(surfaceInfinitive, payload);
+  const classification = classifyVerb(surfaceInfinitive, payload, extractedForms, particle);
+  const forms = classification === 'core-irregular'
+    ? { ...getCoreIrregularForms(surfaceInfinitive), ...extractedForms }
+    : extractedForms;
   const morphology = {
-    infinitive: lemma,
+    infinitive: surfaceInfinitive,
     classification,
     forms,
     isSeparable: Boolean(particle),
     particle,
-    source: 'WiktApi',
+    source: 'wiktapi',
     confidence: 'low',
   };
   const selectedForms = selectStrongVerbForms(morphology);

@@ -21,7 +21,7 @@ describe("verb morphology resolution", () => {
     expect(morphology).toEqual(expect.objectContaining({
       classification: "strong",
       confidence: "high",
-      source: "WiktApi",
+      source: "wiktapi",
     }))
     expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual([
       ["du", "fährst"],
@@ -120,6 +120,135 @@ describe("verb morphology resolution", () => {
 
     expect(morphology.classification).toBe("core-irregular")
     expect(morphology.selectedForms.map((entry) => entry.key)).toEqual(["ich", "du", "er", "wir", "ihr", "sie"])
+  })
+
+  test("keeps umlaut core irregulars eligible for morphology packages", async () => {
+    const morphology = await resolveVerbMorphology("dürfen", {
+      payload: {
+        tags: ["modal"],
+        forms: [
+          form("darf", ["first-person", "singular"]),
+          form("darfst", ["second-person", "singular"]),
+          form("darf", ["third-person", "singular"]),
+          form("dürfen", ["first-person", "plural"]),
+          form("dürft", ["second-person", "plural"]),
+          form("dürfen", ["third-person", "plural"]),
+        ],
+      },
+    })
+
+    expect(morphology.infinitive).toBe("dürfen")
+    expect(morphology.classification).toBe("core-irregular")
+    expect(morphology.confidence).toBe("high")
+    expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual([
+      ["ich", "darf"],
+      ["du", "darfst"],
+      ["er", "darf"],
+      ["wir", "dürfen"],
+      ["ihr", "dürft"],
+      ["sie", "dürfen"],
+    ])
+  })
+
+  test.each([
+    ["dürfen", [["ich", "darf"], ["du", "darfst"], ["er", "darf"], ["wir", "dürfen"], ["ihr", "dürft"], ["sie", "dürfen"]]],
+    ["mögen", [["ich", "mag"], ["du", "magst"], ["er", "mag"], ["wir", "mögen"], ["ihr", "mögt"], ["sie", "mögen"]]],
+    ["können", [["ich", "kann"], ["du", "kannst"], ["er", "kann"], ["wir", "können"], ["ihr", "könnt"], ["sie", "können"]]],
+  ])("uses curated core fallback for %s after forms lookup fails and search resolves the lemma", async (lemma, expectedForms) => {
+    const originalFetch = global.fetch
+    global.fetch = async (url) => {
+      if (String(url).includes("/forms/")) {
+        return { ok: false, async json() { return {} } }
+      }
+
+      return {
+        ok: true,
+        async json() {
+          return {
+            results: [{ word: lemma, lang_code: "de", pos: "verb" }],
+          }
+        },
+      }
+    }
+
+    let morphology
+    try {
+      morphology = await resolveVerbMorphology(lemma, {
+        urls: [`https://example.test/forms/${lemma}`],
+        searchUrls: [`https://example.test/search/${lemma}`],
+        timeoutMs: 100,
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+
+    expect(morphology).toEqual(expect.objectContaining({
+      infinitive: lemma,
+      classification: "core-irregular",
+      confidence: "high",
+      source: "curated-core-fallback",
+    }))
+    expect(morphology.selectedForms.map((entry) => [entry.key, entry.form])).toEqual(expectedForms)
+  })
+
+  test("uses the real umlaut infinitive for WiktApi lookup before core fallback", async () => {
+    const originalFetch = global.fetch
+    const urls = []
+    global.fetch = async (url) => {
+      urls.push(url)
+      if (String(url).includes("/search/")) {
+        return {
+          ok: true,
+          async json() {
+            return {
+              results: [{ word: "dürfen", lang_code: "de", pos: "verb" }],
+            }
+          },
+        }
+      }
+
+      return { ok: false, async json() { return {} } }
+    }
+
+    try {
+      await resolveVerbMorphology("dürfen", {
+        timeoutMs: 100,
+        urls: ["https://example.test/forms/dürfen"],
+        searchUrls: ["https://example.test/search/dürfen"],
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+
+    expect(urls).toEqual([
+      "https://example.test/forms/dürfen",
+      "https://example.test/search/dürfen",
+    ])
+  })
+
+  test("does not use curated fallback for non-core verbs even when search resolves the lemma", async () => {
+    const originalFetch = global.fetch
+    global.fetch = async () => ({ ok: false, async json() { return {} } })
+
+    let morphology
+    try {
+      morphology = await resolveVerbMorphology("geben", {
+        urls: ["https://example.test/forms/geben"],
+        searchPayload: {
+          results: [{ word: "geben", lang_code: "de", pos: "verb" }],
+        },
+        timeoutMs: 100,
+      })
+    } finally {
+      global.fetch = originalFetch
+    }
+
+    expect(morphology).toEqual({
+      infinitive: "geben",
+      confidence: "low",
+      reason: "wiktapi-unavailable",
+      selectedForms: [],
+    })
   })
 
   test("marks separable verbs without selecting regular present forms", async () => {
