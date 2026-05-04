@@ -756,6 +756,21 @@ export async function findVerbLemmaDuplicates({
   return { exactMatches };
 }
 
+export async function findVerbSentenceDuplicates({
+  infinitive,
+}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: `tag:mode-verb-sentence tag:lemma-${toTagSlug(infinitive)}`,
+  });
+
+  return {
+    exactMatches: noteIds.map((noteId) => ({
+      noteId,
+      infinitive,
+    })),
+  };
+}
+
 export async function findSentenceWordDuplicates({
   canonical,
   meaning = null,

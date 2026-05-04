@@ -31,6 +31,7 @@ const mockGetNoteTypes = jest.fn(async () => ["2. Picture Words", "Basic (option
 const mockEnsureDeck = jest.fn(async () => {})
 const mockFindSimilarCards = jest.fn(async () => [])
 const mockFindVerbLemmaDuplicates = jest.fn(async () => ({ exactMatches: [] }))
+const mockFindVerbSentenceDuplicates = jest.fn(async () => ({ exactMatches: [] }))
 const mockFindWordDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
 const mockStoreAudio = jest.fn(async () => "verb-sentence.mp3")
 const mockStoreMedia = jest.fn(async () => "verb-image.jpg")
@@ -98,6 +99,7 @@ jest.unstable_mockModule("../src/anki.js", () => ({
   ensureDeck: mockEnsureDeck,
   findSimilarCards: mockFindSimilarCards,
   findVerbLemmaDuplicates: mockFindVerbLemmaDuplicates,
+  findVerbSentenceDuplicates: mockFindVerbSentenceDuplicates,
   findWordDuplicates: mockFindWordDuplicates,
   getNoteTypes: mockGetNoteTypes,
   storeAudio: mockStoreAudio,
@@ -150,6 +152,7 @@ describe("verb mode sentence flow", () => {
     })
     mockResolveVerbMorphology.mockReset()
     mockFindVerbLemmaDuplicates.mockReset()
+    mockFindVerbSentenceDuplicates.mockReset()
     mockFindWordDuplicates.mockReset()
     mockGenerateVerbFormSentence.mockReset()
     mockEnrich.mockReset()
@@ -165,6 +168,7 @@ describe("verb mode sentence flow", () => {
       selectedForms: [],
     })
     mockFindVerbLemmaDuplicates.mockResolvedValue({ exactMatches: [] })
+    mockFindVerbSentenceDuplicates.mockResolvedValue({ exactMatches: [] })
     mockFindWordDuplicates.mockResolvedValue({ exactMatches: [], headwordMatches: [] })
     mockGenerateVerbFormSentence.mockImplementation(async ({ pronoun, form }) => ({
       german: `${pronoun.charAt(0).toUpperCase()}${pronoun.slice(1)} ${form}.`,
@@ -350,6 +354,34 @@ describe("verb mode sentence flow", () => {
       infinitive: "sprechen",
     }))
     expect(mockCreateBasicNote).not.toHaveBeenCalled()
+    expect(mockCreateNote).not.toHaveBeenCalled()
+  })
+
+  test("runVerbWorkflow skips existing sentence-mode verbs before sentence selection", async () => {
+    mockFindVerbSentenceDuplicates.mockResolvedValueOnce({
+      exactMatches: [{ noteId: 77, infinitive: "bleiben" }],
+    })
+
+    const added = await runVerbWorkflow("bleiben", {
+      analysisResult: {
+        shouldCreateVerbCard: true,
+        infinitive: "bleiben",
+        displayForm: "bleiben",
+        ipa: "[ˈblaɪ̯bn̩]",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "оставаться", english: "stay" }],
+      },
+      meaning: "оставаться",
+      deck: "German::Test",
+      skipHeader: true,
+    })
+
+    expect(added).toBe(false)
+    expect(mockFindVerbSentenceDuplicates).toHaveBeenCalledWith({
+      infinitive: "bleiben",
+    })
+    expect(mockChooseVerbSentence).not.toHaveBeenCalled()
+    expect(mockGenerateVerbFormSentence).not.toHaveBeenCalled()
     expect(mockCreateNote).not.toHaveBeenCalled()
   })
 

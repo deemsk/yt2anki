@@ -1,4 +1,4 @@
-import { createNote, ensureDerDieDeckStyling, findSimilarCards, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceVerbReverseCards, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
+import { createNote, ensureDerDieDeckStyling, findSimilarCards, findVerbSentenceDuplicates, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceVerbReverseCards, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -721,5 +721,29 @@ describe("anki helpers", () => {
         }),
       ])
     )
+  })
+
+  test("findVerbSentenceDuplicates checks existing sentence-mode verbs by lemma tag", async () => {
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+
+      if (body.action === "findNotes") {
+        expect(body.params.query).toBe("tag:mode-verb-sentence tag:lemma-bleiben")
+        return {
+          async json() {
+            return { result: [91, 92], error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    await expect(findVerbSentenceDuplicates({ infinitive: "bleiben" })).resolves.toEqual({
+      exactMatches: [
+        { noteId: 91, infinitive: "bleiben" },
+        { noteId: 92, infinitive: "bleiben" },
+      ],
+    })
   })
 })

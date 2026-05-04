@@ -28,6 +28,7 @@ import {
   ensureDeck,
   findSimilarCards,
   findVerbLemmaDuplicates,
+  findVerbSentenceDuplicates,
   findWordDuplicates,
   getNoteTypes,
   storeAudio,
@@ -565,6 +566,42 @@ async function prepareVerb(rawInput, options, spinner) {
     console.log(chalk.yellow('Skipped: no meaning selected'));
     return { rejected: true };
   }
+
+  if (!options.dryRun) {
+    spinner.start('Checking verb duplicates...');
+    try {
+      const [wordDuplicateInfo, lemmaDuplicateInfo, sentenceDuplicateInfo] = await Promise.all([
+        findWordDuplicates({
+          canonical: verbData.infinitive,
+          meaning: selectedMeaning.russian,
+          lexicalType: 'verb',
+          modelName: DEFAULT_WORD_NOTE_TYPE,
+        }),
+        findVerbLemmaDuplicates({
+          infinitive: verbData.infinitive,
+          modelName: config.ankiNoteType,
+        }),
+        findVerbSentenceDuplicates({
+          infinitive: verbData.infinitive,
+        }),
+      ]);
+      spinner.stop();
+
+      if (
+        wordDuplicateInfo.exactMatches.length > 0 ||
+        wordDuplicateInfo.headwordMatches.length > 0 ||
+        lemmaDuplicateInfo.exactMatches.length > 0 ||
+        sentenceDuplicateInfo.exactMatches.length > 0
+      ) {
+        console.log(chalk.yellow(`Verb already exists for ${verbData.infinitive}`));
+        return { rejected: true };
+      }
+    } catch (err) {
+      spinner.stop();
+      console.log(chalk.dim(`Early duplicate check skipped: ${err.message}`));
+    }
+  }
+
   const frequencyInfo = getWordFrequencyInfo(verbData.infinitive);
   const forcedMode = normalizeVerbMode(options.mode);
   const route = forcedMode || verbData.recommendedMode || 'sentence-form';
