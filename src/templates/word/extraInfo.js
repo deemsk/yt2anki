@@ -36,9 +36,9 @@ export function buildWordExtraInfo({
   }
 
   if (exampleSentence) {
-    lines.push(`<div class="yt2anki-extra-example" style="margin:14px auto 0;max-width:520px;padding:10px 12px;border-radius:14px;background:var(--ddd-panel, rgba(148, 163, 184, 0.12));color:var(--ddd-text, #111827);"><span class="yt2anki-extra-label" style="display:block;font-size:0.68em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--ddd-focus-label, #64748b);">Example</span><span class="yt2anki-extra-value" style="display:block;margin-top:4px;font-size:0.88em;line-height:1.24;">${escapeHtml(exampleSentence)}</span></div>`);
+    lines.push(`<div class="yt2anki-extra-example" style="margin:22px auto 0;max-width:520px;padding:13px 14px 12px;border-top:1px solid var(--ddd-divider, rgba(15, 23, 42, 0.42));border-radius:14px;background:var(--ddd-panel, rgba(148, 163, 184, 0.12));color:var(--ddd-text, #111827);"><span class="yt2anki-extra-label" style="display:block;font-size:0.68em;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--ddd-focus-label, #64748b);">Example</span><span class="yt2anki-extra-value" style="display:block;margin-top:6px;font-size:0.88em;font-weight:650;line-height:1.24;">${escapeHtml(exampleSentence)}</span></div>`);
     if (exampleSentenceTranslation) {
-      lines.push(`<div class="yt2anki-extra-example-translation" style="margin-top:6px;font-size:0.76em;line-height:1.2;color:var(--ddd-muted, #475569);">${escapeHtml(exampleSentenceTranslation)}</div>`);
+      lines.push(`<div class="yt2anki-extra-example-translation" style="margin:7px auto 0;max-width:520px;font-size:0.76em;line-height:1.2;color:var(--ddd-muted, #475569);">${escapeHtml(exampleSentenceTranslation)}</div>`);
     }
   }
 

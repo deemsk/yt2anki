@@ -97,6 +97,10 @@ describe("word helpers", () => {
 
     expect(extra).toContain("yt2anki-extra-meaning")
     expect(extra).not.toContain("Meaning:")
+    expect(extra).toContain("yt2anki-extra-example")
+    expect(extra).toContain("margin:22px auto 0")
+    expect(extra).toContain("border-top:1px solid")
+    expect(extra).toContain("font-weight:650")
     expect(extra).toContain("Das Wasser ist kalt.")
     expect(extra).toContain("Вода холодная.")
     expect(extractWordMeaning(extra)).toBe("вода")

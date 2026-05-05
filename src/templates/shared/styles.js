@@ -102,6 +102,7 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
 
 .yt2anki-extra-example {
   background: var(--ddd-panel);
+  border-top: 1px solid var(--ddd-divider);
   color: var(--ddd-text);
 }
 

@@ -28,6 +28,7 @@ describe("verb note helpers", () => {
       extraInfoField: buildWordExtraInfo({
         meaning: "бежать",
         exampleSentence: "Er läuft im Park.",
+        exampleSentenceTranslation: "Он бегает в парке.",
         metadata: {
           canonical: "laufen",
           meaning: "бежать",
@@ -44,6 +45,9 @@ describe("verb note helpers", () => {
     const note = requests[0].params.note
     expect(note.tags).toContain("word-verb")
     expect(note.tags.some((tag) => tag.startsWith("gender-"))).toBe(false)
+    expect(note.fields["Gender, Personal Connection, Extra Info (Back side)"]).toContain("yt2anki-extra-example")
+    expect(note.fields["Gender, Personal Connection, Extra Info (Back side)"]).toContain("margin:22px auto 0")
+    expect(note.fields["Gender, Personal Connection, Extra Info (Back side)"]).toContain("Он бегает в парке.")
   })
 
   test("createBasicNote writes Front/Back and optional reverse field", async () => {
