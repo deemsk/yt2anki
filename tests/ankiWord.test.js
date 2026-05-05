@@ -1,4 +1,4 @@
-import { createPictureWordNote, findSentenceWordDuplicates, findWordDuplicates } from "../src/anki.js"
+import { createPictureWordNote, findSentenceWordDuplicates, findWordDuplicates, migratePictureWordExtraInfo } from "../src/anki.js"
 import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
 
 describe("word note helpers", () => {
@@ -363,5 +363,62 @@ describe("word note helpers", () => {
         lexicalType: "adverb",
       }),
     ])
+  })
+
+  test("migratePictureWordExtraInfo updates legacy inline example spacing", async () => {
+    const requests = []
+    const legacyExtra = '<div class="yt2anki-extra-example" style="margin:14px auto 0;max-width:520px;padding:10px 12px;border-radius:14px;background:var(--ddd-panel, rgba(148, 163, 184, 0.12));color:var(--ddd-text, #111827);"><span class="yt2anki-extra-label">Example</span><span class="yt2anki-extra-value" style="display:block;margin-top:4px;font-size:0.88em;line-height:1.24;">Der Unfall war sehr schlimm.</span></div><div class="yt2anki-extra-example-translation" style="margin-top:6px;font-size:0.76em;line-height:1.2;color:var(--ddd-muted, #475569);">Авария была очень серьезной.</div>'
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [44], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 44,
+                  fields: {
+                    "Gender, Personal Connection, Extra Info (Back side)": { value: legacyExtra },
+                  },
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migratePictureWordExtraInfo()
+
+    expect(result.updated).toBe(1)
+    const update = requests.find((request) => request.action === "updateNoteFields")
+    const nextExtra = update.params.note.fields["Gender, Personal Connection, Extra Info (Back side)"]
+    expect(nextExtra).toContain("margin:22px auto 0")
+    expect(nextExtra).toContain("padding:13px 14px 12px")
+    expect(nextExtra).toContain("border-top:1px solid")
+    expect(nextExtra).toContain("font-weight:650")
+    expect(nextExtra).toContain("margin:7px auto 0")
   })
 })

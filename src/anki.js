@@ -1243,3 +1243,67 @@ export async function migrateVerbDictionaryIpaBacks({ dryRun = false } = {}) {
     notes: migrated,
   };
 }
+
+/**
+ * Rewrites legacy inline extra-info example styles to the current separated layout.
+ */
+function modernizePictureWordExtraInfo(extra = '') {
+  return String(extra || '')
+    .replace(/(<div class="yt2anki-extra-example" style="[^"]*)margin:14px auto 0;([^"]*")/g, '$1margin:22px auto 0;$2')
+    .replace(/(<div class="yt2anki-extra-example" style="[^"]*padding:)10px 12px;([^"]*")/g, '$113px 14px 12px;$2')
+    .replace(/(<div class="yt2anki-extra-example" style="(?![^"]*border-top:)[^"]*?)(border-radius:14px;)/g, '$1border-top:1px solid var(--ddd-divider, rgba(15, 23, 42, 0.42));$3')
+    .replace(/(<span class="yt2anki-extra-value" style="[^"]*)margin-top:4px;([^"]*")/g, '$1margin-top:6px;$2')
+    .replace(/(<span class="yt2anki-extra-value" style="(?![^"]*font-weight:)[^"]*?)(line-height:1\.24;)/g, '$1font-weight:650;$2')
+    .replace(/(<div class="yt2anki-extra-example-translation" style=")margin-top:6px;([^"]*")/g, '$1margin:7px auto 0;max-width:520px;$2');
+}
+
+/**
+ * Updates existing Picture Words extra-info fields to the separated example layout.
+ */
+export async function migratePictureWordExtraInfo({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: `note:"${config.wordNoteType || PICTURE_WORD_MODEL}"`,
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const extra = note.fields?.[PICTURE_WORD_FIELDS.extra]?.value || '';
+    if (!extra.includes('yt2anki-extra-example')) {
+      skipped++;
+      continue;
+    }
+
+    const nextExtra = modernizePictureWordExtraInfo(extra);
+    if (extra === nextExtra) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, { [PICTURE_WORD_FIELDS.extra]: nextExtra });
+    }
+
+    migrated.push({ noteId: note.noteId });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}

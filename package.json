@@ -22,6 +22,8 @@
     "init": "node src/index.js init",
     "styles": "node src/index.js styles",
     "styles:dry-run": "node src/index.js styles --dry-run",
+    "migrate-picture-word-extra-info": "node src/index.js migrate-picture-word-extra-info",
+    "migrate-picture-word-extra-info:dry-run": "node src/index.js migrate-picture-word-extra-info --dry-run",
     "bookmarklet": "node scripts/build-bookmarklet.js && cat bookmarklet/bookmarklet.txt | pbcopy && echo 'Video bookmarklet copied to clipboard'",
     "bookmarklet:text": "node scripts/build-text-bookmarklet.js && cat bookmarklet/text-bookmarklet.txt | pbcopy && echo 'Text bookmarklet copied to clipboard'"
   },

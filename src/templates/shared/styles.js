@@ -104,6 +104,7 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   background: var(--ddd-panel);
   border-top: 1px solid var(--ddd-divider);
   color: var(--ddd-text);
+  margin-top: 22px !important;
 }
 
 .yt2anki-extra-example-translation,
