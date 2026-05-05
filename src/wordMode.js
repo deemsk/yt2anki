@@ -556,7 +556,6 @@ async function finalizePictureWord(prepared, options, spinner) {
     exampleSentence: nounExample.german || wordData.anchorPhrase,
     exampleSentenceTranslation: nounExample.russian,
     contrast: wordData.opposite,
-    personalConnection: confirmation.personalConnection,
     metadata,
   });
 
@@ -602,6 +601,7 @@ async function finalizePictureWord(prepared, options, spinner) {
     canonical: wordData.canonical,
     coloredWord: formatWordDisplay(wordData),
     imageFilename,
+    personalConnection: confirmation.personalConnection,
     pronunciationField,
     extraInfoField,
     gender: isNounWord(wordData) ? wordData.gender : null,

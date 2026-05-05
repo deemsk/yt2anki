@@ -1,5 +1,6 @@
 import { toTagSlug } from '../../cardContent/german.js';
-import { formatGenderColoredWord, formatPlainWord, imageTag } from '../shared/components.js';
+import { formatGenderColoredWord, formatPlainWord, imageTag, personalConnectionCue } from '../shared/components.js';
+import { joinHtml } from '../shared/html.js';
 
 export const PICTURE_WORD_MODEL = '2. Picture Words';
 
@@ -24,12 +25,18 @@ export function formatWordDisplay(wordData = {}) {
 export function buildPictureWordFields({
   coloredWord,
   imageFilename,
+  personalConnection = null,
   pronunciationField,
   extraInfoField,
 }) {
+  const cue = personalConnectionCue(personalConnection);
+
   return {
-    [PICTURE_WORD_FIELDS.word]: coloredWord,
-    [PICTURE_WORD_FIELDS.picture]: imageTag(imageFilename),
+    [PICTURE_WORD_FIELDS.word]: joinHtml([coloredWord, cue]),
+    [PICTURE_WORD_FIELDS.picture]: joinHtml([
+      imageTag(imageFilename),
+      cue,
+    ]),
     [PICTURE_WORD_FIELDS.extra]: extraInfoField,
     [PICTURE_WORD_FIELDS.pronunciation]: pronunciationField,
     [PICTURE_WORD_FIELDS.spelling]: '',

@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './lib/downloader.js';
 import { cutClip, parseTimestamp } from './lib/clipper.js';
 import { transcribe } from './lib/transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migratePictureWordExtraInfo, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateSentenceVerbReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migratePictureWordExtraInfo, migratePictureWordPersonalConnections, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateSentenceVerbReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './lib/config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -239,6 +239,12 @@ program
   .description('Rewrite existing Picture Words extra-info examples to the separated layout')
   .option('-n, --dry-run', 'Preview matching notes without changing them')
   .action(runPictureWordExtraInfoMigration);
+
+program
+  .command('migrate-picture-word-personal-connections')
+  .description('Move existing Picture Words personal connections from back-side extra info to front cues')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runPictureWordPersonalConnectionMigration);
 
 program.parse();
 
@@ -1265,6 +1271,54 @@ async function runPictureWordExtraInfoMigration(options) {
       console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
     } else {
       console.log(chalk.green(`✓ Migrated ${result.updated} Picture Words extra-info fields`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
+}
+
+async function runPictureWordPersonalConnectionMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning Picture Words personal connections...'
+      : 'Migrating Picture Words personal connections...');
+    const result = await migratePictureWordPersonalConnections({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Picture Words personal-connection migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId}`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Migrated ${result.updated} Picture Words personal connections`));
     }
   } catch (err) {
     spinner.fail(err.message);

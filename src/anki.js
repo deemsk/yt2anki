@@ -12,7 +12,7 @@ import { buildClozeNoteFields } from './templates/grammar/clozeNote.js';
 import { escapeHtml, stripHtml } from './cardContent/html.js';
 import { normalizeGermanForCompare, toTagSlug } from './cardContent/german.js';
 import { extractCanonicalWord, extractWordLexicalType, extractWordMeaning, parseWordMetadataComment } from './cardContent/wordMetadata.js';
-import { buildWordSentenceContrastFooter, formatIpaHtml } from './templates/shared/components.js';
+import { buildWordSentenceContrastFooter, formatIpaHtml, personalConnectionCue } from './templates/shared/components.js';
 import { hasCurrentDerDieDeckStyles, mergeDerDieDeckStyles } from './templates/shared/styles.js';
 import { parseGrammarMetadataComment } from './grammar/utils.js';
 
@@ -211,6 +211,7 @@ export async function createPictureWordNote({
   canonical,
   coloredWord,
   imageFilename,
+  personalConnection = null,
   pronunciationField,
   extraInfoField,
   gender = null,
@@ -227,6 +228,7 @@ export async function createPictureWordNote({
   const fields = buildPictureWordFields({
     coloredWord,
     imageFilename,
+    personalConnection,
     pronunciationField,
     extraInfoField,
   });
@@ -1258,6 +1260,73 @@ function modernizePictureWordExtraInfo(extra = '') {
 }
 
 /**
+ * Extracts a legacy back-side personal connection value from Picture Words extra info.
+ */
+function extractPictureWordPersonalConnection(extra = '') {
+  const html = String(extra || '');
+  const rowMatch = html.match(/<div\b[^>]*class="[^"]*\byt2anki-extra-personal\b[^"]*"[^>]*>[\s\S]*?<\/div>/i);
+  if (rowMatch) {
+    const valueMatch = rowMatch[0].match(/<span\b[^>]*class="[^"]*\byt2anki-extra-value\b[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+    const value = stripHtml(valueMatch?.[1] || rowMatch[0]).trim();
+    return value || null;
+  }
+
+  const legacyMatch = html.match(/(?:<div[^>]*>\s*)?Personal Connection:\s*([\s\S]*?)(?=<br\s*\/?>|<\/div>|<!--|$)/i);
+  const value = stripHtml(legacyMatch?.[1] || '').trim();
+  return value || null;
+}
+
+/**
+ * Extracts the value from an existing front-side personal connection cue.
+ */
+function extractPersonalConnectionCueValue(field = '') {
+  const html = String(field || '');
+  const cueMatch = html.match(/<div\b[^>]*class="[^"]*\byt2anki-personal-cue\b[^"]*"[^>]*>[\s\S]*?<\/div>/i);
+  if (!cueMatch) {
+    return null;
+  }
+
+  const spans = [...cueMatch[0].matchAll(/<span\b[^>]*>([\s\S]*?)<\/span>/gi)]
+    .map((match) => stripHtml(match[1]).trim())
+    .filter(Boolean);
+  return spans.find((value) => !/^personal connection$/i.test(value)) || null;
+}
+
+/**
+ * Removes legacy back-side personal connection markup from Picture Words extra info.
+ */
+function removePictureWordPersonalConnection(extra = '') {
+  return String(extra || '')
+    .replace(/<div\b[^>]*class="[^"]*\byt2anki-extra-personal\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+    .replace(/(?:<br\s*\/?>\s*)?(?:<div[^>]*>\s*)?Personal Connection:\s*[\s\S]*?(?=<br\s*\/?>|<\/div>|<!--|$)(?:\s*<\/div>)?/gi, '')
+    .trim();
+}
+
+/**
+ * Adds a front recall cue to the Picture field without duplicating existing cues.
+ */
+function addPersonalConnectionCueToPictureField(picture = '', personalConnection = '') {
+  const current = String(picture || '').trim();
+  if (!personalConnection || current.includes('yt2anki-personal-cue')) {
+    return current;
+  }
+
+  return [current, personalConnectionCue(personalConnection)].filter(Boolean).join('<br>');
+}
+
+/**
+ * Adds a front recall cue to the Word field without changing canonical extraction.
+ */
+function addPersonalConnectionCueToWordField(word = '', personalConnection = '') {
+  const current = String(word || '').trim();
+  if (!personalConnection || current.includes('yt2anki-personal-cue')) {
+    return current;
+  }
+
+  return [current, personalConnectionCue(personalConnection)].filter(Boolean).join('<br>');
+}
+
+/**
  * Updates existing Picture Words extra-info fields to the separated example layout.
  */
 export async function migratePictureWordExtraInfo({ dryRun = false } = {}) {
@@ -1297,6 +1366,69 @@ export async function migratePictureWordExtraInfo({ dryRun = false } = {}) {
     }
 
     migrated.push({ noteId: note.noteId });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
+}
+
+/**
+ * Moves existing Picture Words personal connections from back-side extra info to the front cue.
+ */
+export async function migratePictureWordPersonalConnections({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: `note:"${config.wordNoteType || PICTURE_WORD_MODEL}"`,
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const word = note.fields?.[PICTURE_WORD_FIELDS.word]?.value || '';
+    const picture = note.fields?.[PICTURE_WORD_FIELDS.picture]?.value || '';
+    const extra = note.fields?.[PICTURE_WORD_FIELDS.extra]?.value || '';
+    const personalConnection = extractPictureWordPersonalConnection(extra)
+      || extractPersonalConnectionCueValue(word)
+      || extractPersonalConnectionCueValue(picture);
+
+    if (!personalConnection) {
+      skipped++;
+      continue;
+    }
+
+    const nextWord = addPersonalConnectionCueToWordField(word, personalConnection);
+    const nextPicture = addPersonalConnectionCueToPictureField(picture, personalConnection);
+    const nextExtra = removePictureWordPersonalConnection(extra);
+    if (word === nextWord && picture === nextPicture && extra === nextExtra) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, {
+        [PICTURE_WORD_FIELDS.word]: nextWord,
+        [PICTURE_WORD_FIELDS.picture]: nextPicture,
+        [PICTURE_WORD_FIELDS.extra]: nextExtra,
+      });
+    }
+
+    migrated.push({ noteId: note.noteId, personalConnection });
     updated++;
   }
 

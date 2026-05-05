@@ -79,6 +79,8 @@ describe("word helpers", () => {
     expect(extractCanonicalWord("", extra)).toBe("das Wasser")
     expect(extractWordMeaning(extra)).toBe("вода")
     expect(extractWordLexicalType(extra)).toBe("noun")
+    expect(extra).not.toContain("yt2anki-extra-personal")
+    expect(extra).not.toContain("glass on the kitchen table")
   })
 
   test("buildWordExtraInfo can render noun meaning without the visible label and include sentence translation", () => {
@@ -109,6 +111,12 @@ describe("word helpers", () => {
   test("normalization and tag slug keep canonical noun comparisons stable", () => {
     expect(normalizeGermanForCompare("<span>das Wasser</span>")).toBe("das wasser")
     expect(toTagSlug("das Wasser")).toBe("das-wasser")
+  })
+
+  test("extractCanonicalWord ignores front-side personal connection cues", () => {
+    const wordField = '<span>das Wasser</span><br><div class="yt2anki-personal-cue"><span>Personal connection</span><span>glass on the kitchen table</span></div>'
+
+    expect(extractCanonicalWord(wordField, "")).toBe("das Wasser")
   })
 
   test("article helpers detect and report corrected articles", () => {

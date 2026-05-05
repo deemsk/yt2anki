@@ -754,7 +754,6 @@ async function finalizePictureVerb(prepared, options, spinner) {
     meaning: selectedMeaning.russian,
     exampleSentence: verbData.exampleSentences?.[0]?.german || null,
     dictionaryForm: buildDictionaryFormContext(verbData),
-    personalConnection: confirmation.personalConnection,
     metadata,
   });
 
@@ -789,6 +788,7 @@ async function finalizePictureVerb(prepared, options, spinner) {
     canonical: verbData.infinitive,
     coloredWord: formatPlainWord(verbData.infinitive),
     imageFilename,
+    personalConnection: confirmation.personalConnection,
     pronunciationField,
     extraInfoField,
     frequencyBand: frequencyInfo.bandKey,

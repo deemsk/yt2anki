@@ -112,6 +112,17 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   color: var(--ddd-muted);
 }
 
+.yt2anki-personal-cue {
+  background: rgba(245, 158, 11, 0.13);
+  border: 1px solid rgba(217, 119, 6, 0.34);
+  color: #78350f;
+}
+
+.card:has(#answer) .yt2anki-personal-cue,
+.card:has(span[style*="font-size:1.5em"]) .yt2anki-personal-cue {
+  display: none !important;
+}
+
 .nightMode,
 .night_mode {
   --ddd-text: #f8fafc;
@@ -119,6 +130,13 @@ export const DERDIEDECK_SHARED_CSS = `${STYLE_START}
   --ddd-divider: rgba(226, 232, 240, 0.48);
   --ddd-panel: rgba(148, 163, 184, 0.16);
   --ddd-ipa: #cbd5e1;
+}
+
+.nightMode .yt2anki-personal-cue,
+.night_mode .yt2anki-personal-cue {
+  background: rgba(245, 158, 11, 0.17);
+  border-color: rgba(251, 191, 36, 0.42);
+  color: #fde68a;
 }
 
 .mobile .yt2anki-ipa,

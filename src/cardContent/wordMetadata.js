@@ -33,7 +33,7 @@ export function extractCanonicalWord(wordField = '', extraInfo = '') {
     return metadata.canonical;
   }
 
-  return stripHtml(wordField);
+  return stripHtml(String(wordField || '').replace(/<div\b[^>]*class="[^"]*\byt2anki-personal-cue\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, ''));
 }
 
 export function extractWordLexicalType(extraInfo = '') {

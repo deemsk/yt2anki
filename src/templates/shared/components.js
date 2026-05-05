@@ -29,6 +29,23 @@ export function imageTag(imageFilename) {
   return filename ? `<img src="${escapeHtml(filename)}" />` : '';
 }
 
+/**
+ * Builds a front-side recall cue from a user's personal connection.
+ */
+export function personalConnectionCue(text = '') {
+  const value = String(text || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  return html`
+    <div class="yt2anki-personal-cue" style="margin:12px auto 0;max-width:520px;padding:10px 12px;border-radius:14px;background:rgba(245, 158, 11, 0.13);border:1px solid rgba(217, 119, 6, 0.34);color:#78350f;text-align:center;">
+      <span style="display:block;font-size:10px;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;opacity:0.72;">Personal connection</span>
+      <span style="display:block;margin-top:4px;font-size:14px;font-weight:650;line-height:1.25;">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
 export function imageBlock(imageFilename) {
   const image = imageTag(imageFilename);
   if (!image) {

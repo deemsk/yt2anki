@@ -20,7 +20,6 @@ export function buildWordExtraInfo({
   exampleSentenceTranslation = null,
   dictionaryForm = null,
   contrast = null,
-  personalConnection = null,
   metadata,
 }) {
   const lines = [];
@@ -48,10 +47,6 @@ export function buildWordExtraInfo({
 
   if (contrast) {
     lines.push(infoRow('Contrast', contrast));
-  }
-
-  if (personalConnection) {
-    lines.push(infoRow('Personal connection', personalConnection, 'yt2anki-extra-personal'));
   }
 
   lines.push(buildWordMetadataComment(metadata));

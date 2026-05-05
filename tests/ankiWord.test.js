@@ -1,4 +1,4 @@
-import { createPictureWordNote, findSentenceWordDuplicates, findWordDuplicates, migratePictureWordExtraInfo } from "../src/anki.js"
+import { createPictureWordNote, findSentenceWordDuplicates, findWordDuplicates, migratePictureWordExtraInfo, migratePictureWordPersonalConnections } from "../src/anki.js"
 import { buildWordExtraInfo } from "../src/templates/word/extraInfo.js"
 
 describe("word note helpers", () => {
@@ -24,6 +24,7 @@ describe("word note helpers", () => {
       canonical: "das Wasser",
       coloredWord: "<span>das Wasser</span>",
       imageFilename: "wasser.jpg",
+      personalConnection: "glass on the kitchen table",
       pronunciationField: "[sound:wasser.mp3]<br>[ˈvasɐ]",
       extraInfoField: buildWordExtraInfo({
         meaning: "вода",
@@ -45,8 +46,12 @@ describe("word note helpers", () => {
     expect(requests).toHaveLength(1)
     expect(requests[0].action).toBe("addNote")
     expect(requests[0].params.note.modelName).toBe("2. Picture Words")
-    expect(requests[0].params.note.fields.Word).toBe("<span>das Wasser</span>")
+    expect(requests[0].params.note.fields.Word).toContain("<span>das Wasser</span>")
+    expect(requests[0].params.note.fields.Word).toContain("yt2anki-personal-cue")
     expect(requests[0].params.note.fields.Picture).toContain("wasser.jpg")
+    expect(requests[0].params.note.fields.Picture).toContain("yt2anki-personal-cue")
+    expect(requests[0].params.note.fields.Picture).toContain("glass on the kitchen table")
+    expect(requests[0].params.note.fields["Gender, Personal Connection, Extra Info (Back side)"]).not.toContain("Personal connection")
   })
 
   test("createPictureWordNote can leave the picture field blank when no image is chosen", async () => {
@@ -420,5 +425,64 @@ describe("word note helpers", () => {
     expect(nextExtra).toContain("border-top:1px solid")
     expect(nextExtra).toContain("font-weight:650")
     expect(nextExtra).toContain("margin:7px auto 0")
+  })
+
+  test("migratePictureWordPersonalConnections moves old back-side personal connection to picture front cue", async () => {
+    const requests = []
+    const legacyExtra = '<div class="yt2anki-extra-meaning">возможность</div><div class="yt2anki-extra-row yt2anki-extra-personal" style="margin-top:8px;"><span class="yt2anki-extra-label">Personal connection</span><span class="yt2anki-extra-value">Important life cue</span></div>'
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [45], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 45,
+                  fields: {
+                    Picture: { value: '<img src="moeglichkeit.jpg" />' },
+                    "Gender, Personal Connection, Extra Info (Back side)": { value: legacyExtra },
+                  },
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migratePictureWordPersonalConnections()
+
+    expect(result.updated).toBe(1)
+    const update = requests.find((request) => request.action === "updateNoteFields")
+    expect(update.params.note.fields.Word).toContain("yt2anki-personal-cue")
+    expect(update.params.note.fields.Word).toContain("Important life cue")
+    expect(update.params.note.fields.Picture).toContain("moeglichkeit.jpg")
+    expect(update.params.note.fields.Picture).toContain("yt2anki-personal-cue")
+    expect(update.params.note.fields.Picture).toContain("Important life cue")
+    expect(update.params.note.fields["Gender, Personal Connection, Extra Info (Back side)"]).not.toContain("yt2anki-extra-personal")
+    expect(update.params.note.fields["Gender, Personal Connection, Extra Info (Back side)"]).not.toContain("Important life cue")
   })
 })
