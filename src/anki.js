@@ -1301,16 +1301,225 @@ export async function migrateVerbDictionaryIpaBacks({ dryRun = false } = {}) {
 }
 
 /**
- * Rewrites legacy inline extra-info example styles to the current separated layout.
+ * Escapes a string so it can be used as a literal RegExp fragment.
+ */
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Returns a class attribute value with duplicate classes removed.
+ */
+function mergeClassList(current = '', additions = []) {
+  return Array.from(new Set([
+    ...String(current || '').split(/\s+/).filter(Boolean),
+    ...additions.filter(Boolean),
+  ])).join(' ');
+}
+
+/**
+ * Adds classes to elements that already contain a known source class.
+ */
+function addClassesForExistingClass(html = '', sourceClass = '', additions = []) {
+  const sourcePattern = new RegExp(`(^|\\s)${escapeRegExp(sourceClass)}(\\s|$)`);
+  return String(html || '').replace(/\bclass=(["'])(.*?)\1/gi, (match, quote, classValue) => {
+    if (!sourcePattern.test(classValue)) {
+      return match;
+    }
+
+    return `class=${quote}${mergeClassList(classValue, additions)}${quote}`;
+  });
+}
+
+/**
+ * Adds the current .ddd-* class aliases to legacy yt2anki template elements.
+ */
+function addKnownTemplateClasses(html = '') {
+  const additions = [
+    ['yt2anki-ipa', ['ddd-ipa']],
+    ['yt2anki-word-display', ['ddd-word-display']],
+    ['yt2anki-personal-cue', ['ddd-personal-cue']],
+    ['yt2anki-front-context', ['ddd-focus']],
+    ['yt2anki-word-contrast', ['ddd-word-contrast']],
+    ['yt2anki-extra-row', ['ddd-extra-row']],
+    ['yt2anki-extra-label', ['ddd-extra-label']],
+    ['yt2anki-extra-value', ['ddd-extra-value']],
+    ['yt2anki-extra-meaning', ['ddd-extra-meaning']],
+    ['yt2anki-extra-example', ['ddd-extra-example']],
+    ['yt2anki-extra-example-translation', ['ddd-extra-example-translation']],
+    ['yt2anki-task', ['ddd-task-panel']],
+    ['yt2anki-task-dialogue', ['ddd-task-panel-dialogue']],
+    ['yt2anki-task-kicker', ['ddd-task-kicker']],
+    ['yt2anki-task-main', ['ddd-task-main']],
+    ['yt2anki-task-sub', ['ddd-task-sub']],
+    ['yt2anki-reply-slot', ['ddd-reply-slot']],
+    ['yt2anki-production-source', ['ddd-production-source']],
+    ['yt2anki-production-hint', ['ddd-production-hint']],
+  ];
+
+  return additions.reduce(
+    (nextHtml, [sourceClass, classes]) => addClassesForExistingClass(nextHtml, sourceClass, classes),
+    String(html || '')
+  );
+}
+
+/**
+ * Adds structural span classes inside an existing two-span template block.
+ */
+function modernizeTwoSpanBlock(html = '', containerClass = '', firstClass = '', secondClass = '') {
+  const containerPattern = escapeRegExp(containerClass);
+  return String(html || '').replace(
+    new RegExp(`(<\\w+\\b(?=[^>]*\\bclass=["'][^"']*\\b${containerPattern}\\b)[^>]*>\\s*)<span\\b[^>]*>([\\s\\S]*?)<\\/span>\\s*<span\\b[^>]*>([\\s\\S]*?)<\\/span>`, 'gi'),
+    (_match, open, first, second) => `${open}<span class="${firstClass}">${first}</span><span class="${secondClass}">${second}</span>`
+  );
+}
+
+/**
+ * Adds structural div classes inside an existing two-div template block.
+ */
+function modernizeTwoDivBlock(html = '', containerClass = '', firstClass = '', secondClass = '') {
+  const containerPattern = escapeRegExp(containerClass);
+  return String(html || '').replace(
+    new RegExp(`(<div\\b(?=[^>]*\\bclass=["'][^"']*\\b${containerPattern}\\b)[^>]*>\\s*)<div\\b[^>]*>([\\s\\S]*?)<\\/div>(\\s*<div\\b[^>]*>([\\s\\S]*?)<\\/div>)?`, 'gi'),
+    (_match, open, first, secondBlock, second) => {
+      const detail = secondBlock ? `<div class="${secondClass}">${second}</div>` : '';
+      return `${open}<div class="${firstClass}">${first}</div>${detail}`;
+    }
+  );
+}
+
+/**
+ * Converts legacy "Context:" front pills to the current Focus markup.
+ */
+function modernizeLegacyFocusContext(html = '') {
+  return String(html || '').replace(
+    /<div\b(?=[^>]*\bclass=["'][^"']*\byt2anki-front-context\b)[^>]*>\s*Context:\s*([\s\S]*?)<\/div>/gi,
+    (_match, context) => focusPill(normalizeContextArrow(stripHtml(context)))
+  );
+}
+
+/**
+ * Converts classless legacy Picture Words word spans into class-driven word display markup.
+ */
+function modernizeLegacyPictureWordSpan(html = '', note = {}, fieldName = '') {
+  if (fieldName !== PICTURE_WORD_FIELDS.word) {
+    return String(html || '');
+  }
+
+  const genderTag = (Array.isArray(note.tags) ? note.tags : [])
+    .find((tag) => /^gender-(masculine|feminine|neuter)$/i.test(tag));
+  const gender = genderTag ? genderTag.replace(/^gender-/i, '').toLowerCase() : null;
+  const genderClasses = gender ? ` yt2anki-gender yt2anki-gender-${gender}` : '';
+
+  return String(html || '').replace(
+    /<span\b(?![^>]*\bclass=)[^>]*\bstyle=(["'])[\s\S]*?\1[^>]*>([\s\S]*?)<\/span>/gi,
+    (_match, _quote, value) => `<span class="yt2anki-word-display ddd-word-display${genderClasses}">${value}</span>`
+  );
+}
+
+/**
+ * Adds the specific example-value class inside legacy extra example blocks.
+ */
+function modernizeExtraExampleValueClass(html = '') {
+  return String(html || '').replace(
+    /(<div\b(?=[^>]*\bclass=["'][^"']*\byt2anki-extra-example\b)[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["']))([^"']*\byt2anki-extra-value\b[^"']*)(\2)/gi,
+    (_match, open, quote, classValue, closeQuote) => `${open}${mergeClassList(classValue, ['ddd-extra-example-value'])}${closeQuote}`
+  );
+}
+
+/**
+ * Removes inline style attributes from saved template field HTML.
+ */
+function removeInlineStyleAttributes(html = '') {
+  return String(html || '').replace(/\s+style=(["'])[\s\S]*?\1/gi, '');
+}
+
+/**
+ * Rewrites one saved field from legacy inline template styles to current .ddd-* classes.
+ */
+function modernizeTemplateInlineStylesInField(value = '', { note = {}, fieldName = '' } = {}) {
+  let next = String(value || '');
+  next = modernizeLegacyPictureWordSpan(next, note, fieldName);
+  next = modernizeLegacyFocusContext(next);
+  next = modernizeTwoSpanBlock(next, 'yt2anki-personal-cue', 'ddd-personal-cue-label', 'ddd-personal-cue-value');
+  next = modernizeTwoSpanBlock(next, 'ddd-focus', 'ddd-focus-label', 'ddd-focus-value');
+  next = modernizeTwoSpanBlock(next, 'yt2anki-word-contrast', 'ddd-word-contrast-label', 'ddd-word-contrast-value');
+  next = modernizeTwoDivBlock(next, 'ddd-task-header', 'ddd-task-title', 'ddd-task-detail');
+  next = modernizeTwoDivBlock(next, 'ddd-keyform-prompt', 'ddd-keyform-kicker', 'ddd-keyform-main');
+  next = modernizeTwoDivBlock(next, 'ddd-keyform-recognition', 'ddd-keyform-kicker', 'ddd-keyform-main');
+  next = addKnownTemplateClasses(next);
+  next = modernizeExtraExampleValueClass(next);
+  return removeInlineStyleAttributes(next);
+}
+
+/**
+ * Rewrites legacy inline extra-info example styles to the current class-driven layout.
  */
 function modernizePictureWordExtraInfo(extra = '') {
-  return String(extra || '')
-    .replace(/(<div class="yt2anki-extra-example" style="[^"]*)margin:14px auto 0;([^"]*")/g, '$1margin:22px auto 0;$2')
-    .replace(/(<div class="yt2anki-extra-example" style="[^"]*padding:)10px 12px;([^"]*")/g, '$113px 14px 12px;$2')
-    .replace(/(<div class="yt2anki-extra-example" style="(?![^"]*border-top:)[^"]*?)(border-radius:14px;)/g, '$1border-top:1px solid var(--ddd-divider, rgba(15, 23, 42, 0.42));$3')
-    .replace(/(<span class="yt2anki-extra-value" style="[^"]*)margin-top:4px;([^"]*")/g, '$1margin-top:6px;$2')
-    .replace(/(<span class="yt2anki-extra-value" style="(?![^"]*font-weight:)[^"]*?)(line-height:1\.24;)/g, '$1font-weight:650;$2')
-    .replace(/(<div class="yt2anki-extra-example-translation" style=")margin-top:6px;([^"]*")/g, '$1margin:7px auto 0;max-width:520px;$2');
+  return modernizeTemplateInlineStylesInField(extra, {
+    fieldName: PICTURE_WORD_FIELDS.extra,
+  });
+}
+
+/**
+ * Removes legacy inline template styles from all DerDieDeck notes.
+ */
+export async function migrateTemplateInlineStyles({ dryRun = false } = {}) {
+  const noteIds = await ankiConnect('findNotes', {
+    query: 'tag:yt2anki',
+  });
+
+  if (noteIds.length === 0) {
+    return {
+      matched: 0,
+      updated: 0,
+      skipped: 0,
+      notes: [],
+    };
+  }
+
+  const notes = await ankiConnect('notesInfo', { notes: noteIds });
+  const migrated = [];
+  let updated = 0;
+  let skipped = 0;
+
+  for (const note of notes) {
+    const nextFields = {};
+    const changedFields = [];
+
+    for (const [fieldName, field] of Object.entries(note.fields || {})) {
+      const value = field?.value || '';
+      const nextValue = modernizeTemplateInlineStylesInField(value, { note, fieldName });
+      if (nextValue === value) {
+        continue;
+      }
+
+      nextFields[fieldName] = nextValue;
+      changedFields.push(fieldName);
+    }
+
+    if (changedFields.length === 0) {
+      skipped++;
+      continue;
+    }
+
+    if (!dryRun) {
+      await updateNoteFields(note.noteId, nextFields);
+    }
+
+    migrated.push({
+      noteId: note.noteId,
+      fields: changedFields,
+    });
+    updated++;
+  }
+
+  return {
+    matched: notes.length,
+    updated,
+    skipped,
+    notes: migrated,
+  };
 }
 
 /**

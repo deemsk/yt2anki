@@ -423,7 +423,7 @@ describe("word note helpers", () => {
     ])
   })
 
-  test("migratePictureWordExtraInfo updates legacy inline example spacing", async () => {
+  test("migratePictureWordExtraInfo rewrites legacy inline example styles to classes", async () => {
     const requests = []
     const legacyExtra = '<div class="yt2anki-extra-example" style="margin:14px auto 0;max-width:520px;padding:10px 12px;border-radius:14px;background:var(--ddd-panel, rgba(148, 163, 184, 0.12));color:var(--ddd-text, #111827);"><span class="yt2anki-extra-label">Example</span><span class="yt2anki-extra-value" style="display:block;margin-top:4px;font-size:0.88em;line-height:1.24;">Der Unfall war sehr schlimm.</span></div><div class="yt2anki-extra-example-translation" style="margin-top:6px;font-size:0.76em;line-height:1.2;color:var(--ddd-muted, #475569);">Авария была очень серьезной.</div>'
 
@@ -473,11 +473,11 @@ describe("word note helpers", () => {
     expect(result.updated).toBe(1)
     const update = requests.find((request) => request.action === "updateNoteFields")
     const nextExtra = update.params.note.fields["Gender, Personal Connection, Extra Info (Back side)"]
-    expect(nextExtra).toContain("margin:22px auto 0")
-    expect(nextExtra).toContain("padding:13px 14px 12px")
-    expect(nextExtra).toContain("border-top:1px solid")
-    expect(nextExtra).toContain("font-weight:650")
-    expect(nextExtra).toContain("margin:7px auto 0")
+    expect(nextExtra).toContain("yt2anki-extra-example ddd-extra-example")
+    expect(nextExtra).toContain("yt2anki-extra-label ddd-extra-label")
+    expect(nextExtra).toContain("yt2anki-extra-value ddd-extra-value ddd-extra-example-value")
+    expect(nextExtra).toContain("yt2anki-extra-example-translation ddd-extra-example-translation")
+    expect(nextExtra).not.toContain("style=")
   })
 
   test("migratePictureWordPersonalConnections moves old back-side personal connection to picture front cue", async () => {

@@ -10,7 +10,7 @@ import { downloadAudio, extractVideoId } from './lib/downloader.js';
 import { cutClip, parseTimestamp } from './lib/clipper.js';
 import { transcribe } from './lib/transcriber.js';
 import { enrich, reviewEnrichedText } from './enricher.js';
-import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migratePictureWordExtraInfo, migratePictureWordPersonalConnections, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateSentenceVerbReverseCards, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
+import { checkConnection, ensureDeck, storeAudio, createNote, createNotes, getNoteTypes, getNoteFields, findSimilarCards, migrateAdjectiveSentenceFronts, migrateComprehensionCardFronts, migratePictureWordExtraInfo, migratePictureWordPersonalConnections, migrateProductionCardFronts, migrateSentenceWordReverseCards, migrateSentenceVerbReverseCards, migrateTemplateInlineStyles, migrateVerbSentenceFronts, migrateVerbDictionaryIpaBacks, ensureDerDieDeckStyling } from './anki.js';
 import { config, CONFIG_PATH_DISPLAY, ACTIVE_CONFIG_PATH_DISPLAY, LEGACY_CONFIG_PATH_DISPLAY } from './lib/config.js';
 import { confirmCard, confirmCardSet } from './confirm.js';
 import { analyzeSentence, selectCards } from './analyzer.js';
@@ -245,6 +245,12 @@ program
   .description('Move existing Picture Words personal connections from back-side extra info to front cues')
   .option('-n, --dry-run', 'Preview matching notes without changing them')
   .action(runPictureWordPersonalConnectionMigration);
+
+program
+  .command('migrate-template-inline-styles')
+  .description('Remove legacy inline template styles from existing DerDieDeck notes')
+  .option('-n, --dry-run', 'Preview matching notes without changing them')
+  .action(runTemplateInlineStyleMigration);
 
 program.parse();
 
@@ -1319,6 +1325,57 @@ async function runPictureWordPersonalConnectionMigration(options) {
       console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
     } else {
       console.log(chalk.green(`✓ Migrated ${result.updated} Picture Words personal connections`));
+    }
+  } catch (err) {
+    spinner.fail(err.message);
+    process.exit(1);
+  }
+}
+
+/**
+ * Runs the migration that removes saved inline styles from DerDieDeck template fields.
+ */
+async function runTemplateInlineStyleMigration(options) {
+  const spinner = ora();
+
+  try {
+    spinner.start('Checking AnkiConnect...');
+    if (!await checkConnection()) {
+      spinner.fail('AnkiConnect not available. Make sure Anki is running.');
+      process.exit(1);
+    }
+    spinner.succeed('AnkiConnect ready');
+
+    spinner.start(options.dryRun
+      ? 'Scanning DerDieDeck note fields for inline template styles...'
+      : 'Migrating inline template styles...');
+    const result = await migrateTemplateInlineStyles({
+      dryRun: Boolean(options.dryRun),
+    });
+    spinner.stop();
+
+    console.log();
+    console.log(chalk.bold('Template inline-style migration'));
+    console.log(`  Matched: ${result.matched}`);
+    console.log(`  Updated: ${result.updated}`);
+    console.log(`  Skipped: ${result.skipped}`);
+
+    if (result.notes.length > 0) {
+      console.log();
+      console.log(chalk.dim('Updated note IDs:'));
+      result.notes.slice(0, 20).forEach((entry) => {
+        console.log(chalk.dim(`  ${entry.noteId} (${entry.fields.join(', ')})`));
+      });
+      if (result.notes.length > 20) {
+        console.log(chalk.dim(`  ...and ${result.notes.length - 20} more`));
+      }
+    }
+
+    console.log();
+    if (options.dryRun) {
+      console.log(chalk.yellow('⚡ DRY RUN: No notes were changed'));
+    } else {
+      console.log(chalk.green(`✓ Migrated inline styles on ${result.updated} notes`));
     }
   } catch (err) {
     spinner.fail(err.message);

@@ -1,4 +1,4 @@
-import { createNote, createNotes, ensureDerDieDeckStyling, findSimilarCards, findVerbSentenceDuplicates, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceVerbReverseCards, migrateSentenceWordReverseCards, migrateVerbSentenceFronts } from "../src/anki.js"
+import { createNote, createNotes, ensureDerDieDeckStyling, findSimilarCards, findVerbSentenceDuplicates, migrateAdjectiveSentenceFronts, migrateProductionCardFronts, migrateSentenceVerbReverseCards, migrateSentenceWordReverseCards, migrateTemplateInlineStyles, migrateVerbSentenceFronts } from "../src/anki.js"
 
 describe("anki helpers", () => {
   const originalFetch = global.fetch
@@ -716,6 +716,88 @@ describe("anki helpers", () => {
     expect(updateRequest.params.note.fields.Front).toContain("Hear the form")
     expect(updateRequest.params.note.fields.Front).toContain("[sound:erreichen.mp3]")
     expect(updateRequest.params.note.fields.Front).not.toContain("Context:")
+  })
+
+  test("migrateTemplateInlineStyles removes legacy style attributes and adds ddd classes", async () => {
+    const requests = []
+    const legacyFront = [
+      '[sound:kaffee.mp3]',
+      '<div class="ddd-task-header" style="margin:0 auto 12px;max-width:520px;text-align:center;"><div style="font-size:11px;font-weight:800;">Say in German</div><div style="margin-top:4px;font-size:14px;">Produce the sentence</div></div>',
+      '<div class="yt2anki-production-source" style="font-size:20px;font-weight:700;text-align:center;">Я хочу кофе.</div>',
+    ].join("")
+    const legacyBack = [
+      '<div class="ddd-answer-stack" style="margin:0 auto;max-width:720px;text-align:center;">',
+      '<div class="ddd-answer-german" style="font-size:1.28em;font-weight:500;">Ich will Kaffee.</div>',
+      '<div class="ddd-answer-ipa" style="margin-top:7px;"><span class="yt2anki-ipa" style="color:#475569;font-size:0.92em;">[ɪç vɪl ˈkafe]</span></div>',
+      '<div class="ddd-answer-translation" style="margin-top:9px;font-weight:700;">Я хочу кофе.</div>',
+      '</div>',
+    ].join("")
+    const legacyWord = '<span style="color:#111111">das Wasser</span><br><div class="yt2anki-personal-cue" style="margin:12px auto 0;"><span style="display:block;">Personal connection</span><span style="display:block;">glass cue</span></div>'
+
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body)
+      requests.push(body)
+
+      if (body.action === "findNotes") {
+        return {
+          async json() {
+            return { result: [71], error: null }
+          },
+        }
+      }
+
+      if (body.action === "notesInfo") {
+        return {
+          async json() {
+            return {
+              result: [
+                {
+                  noteId: 71,
+                  fields: {
+                    Front: { value: legacyFront },
+                    Back: { value: legacyBack },
+                    Word: { value: legacyWord },
+                  },
+                  tags: ["yt2anki", "gender-neuter"],
+                },
+              ],
+              error: null,
+            }
+          },
+        }
+      }
+
+      if (body.action === "updateNoteFields") {
+        return {
+          async json() {
+            return { result: null, error: null }
+          },
+        }
+      }
+
+      throw new Error(`Unexpected action: ${body.action}`)
+    }
+
+    const result = await migrateTemplateInlineStyles()
+
+    expect(result).toEqual(expect.objectContaining({
+      matched: 1,
+      updated: 1,
+      skipped: 0,
+    }))
+
+    const updateRequest = requests.find((entry) => entry.action === "updateNoteFields")
+    expect(updateRequest.params.note.id).toBe(71)
+    const nextFields = updateRequest.params.note.fields
+    expect(nextFields.Front).toContain('class="ddd-task-header"')
+    expect(nextFields.Front).toContain('class="ddd-task-title"')
+    expect(nextFields.Front).toContain('class="ddd-task-detail"')
+    expect(nextFields.Front).toContain("ddd-production-source")
+    expect(nextFields.Back).toContain("ddd-ipa")
+    expect(nextFields.Back).toContain("ddd-answer-translation")
+    expect(nextFields.Word).toContain("yt2anki-word-display ddd-word-display yt2anki-gender yt2anki-gender-neuter")
+    expect(nextFields.Word).toContain("ddd-personal-cue-label")
+    expect(Object.values(nextFields).join(" ")).not.toContain("style=")
   })
 
   test("findSimilarCards matches current audio-first cards using back-side German text", async () => {
