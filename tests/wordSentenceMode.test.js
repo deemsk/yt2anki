@@ -27,11 +27,20 @@ const mockEnsureDeck = jest.fn(async () => {})
 const mockFindSentenceWordDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
 const mockFindLexicalClozeDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
 const mockFindSimilarCards = jest.fn(async () => [])
-const mockStoreAudio = jest.fn(async () => "word-sentence.mp3")
+const mockStoreAudio = jest.fn(async (path = "") =>
+  String(path).includes("word_sentence") ? "word-sentence.mp3" : "word-target.mp3"
+)
 const mockStoreMedia = jest.fn(async () => "word-sentence-image.jpg")
+const mockCreateBasicNote = jest.fn(async () => 789)
 const mockCreateClozeNote = jest.fn(async () => 456)
 const mockCreateNote = jest.fn(async () => 123)
+const mockGenerateSimpleSpeech = jest.fn(async () => {})
 const mockGenerateSpeech = jest.fn(async () => {})
+const mockResolveWordPronunciation = jest.fn(async () => ({
+  ipa: "[ɡʁoːs]",
+  audioPath: "/tmp/gross-human.mp3",
+  source: "Wiktionary/Wikimedia",
+}))
 const mockResolveImageAsset = jest.fn(async () => "/tmp/gross.jpg")
 const mockSearchWordImages = jest.fn(async () => ([{
   source: "Brave Images",
@@ -67,6 +76,7 @@ jest.unstable_mockModule("../src/wordConfirm.js", () => ({
 
 jest.unstable_mockModule("../src/anki.js", () => ({
   checkConnection: mockCheckConnection,
+  createBasicNote: mockCreateBasicNote,
   createClozeNote: mockCreateClozeNote,
   createNote: mockCreateNote,
   createPictureWordNote: jest.fn(),
@@ -81,13 +91,13 @@ jest.unstable_mockModule("../src/anki.js", () => ({
 }))
 
 jest.unstable_mockModule("../src/lib/tts.js", () => ({
-  generateSimpleSpeech: jest.fn(),
+  generateSimpleSpeech: mockGenerateSimpleSpeech,
   generateSpeech: mockGenerateSpeech,
 }))
 
 jest.unstable_mockModule("../src/lib/wordSources.js", () => ({
   resolveImageAsset: mockResolveImageAsset,
-  resolveWordPronunciation: jest.fn(),
+  resolveWordPronunciation: mockResolveWordPronunciation,
   searchWordImages: mockSearchWordImages,
 }))
 
@@ -117,6 +127,11 @@ describe("word mode sentence flow", () => {
     })
     mockFindLexicalClozeDuplicates.mockResolvedValue({ exactMatches: [], headwordMatches: [] })
     mockCreateClozeNote.mockResolvedValue(456)
+    mockResolveWordPronunciation.mockResolvedValue({
+      ipa: "[ɡʁoːs]",
+      audioPath: "/tmp/gross-human.mp3",
+      source: "Wiktionary/Wikimedia",
+    })
     mockChooseWordSentence.mockResolvedValue({
       german: "Das Haus ist groß.",
       russian: "Дом большой.",
@@ -177,6 +192,27 @@ describe("word mode sentence flow", () => {
       addReversed: false,
       deck: "German::Test",
     }))
+    expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
+      front: expect.stringContaining("[sound:word-target.mp3]"),
+      back: expect.stringContaining("большой"),
+      addReversed: true,
+      deck: "German::Test",
+      tags: expect.arrayContaining([
+        "mode-word-main",
+        "word-adjective",
+        "lemma-gross",
+        "canonical-gross",
+        "intent-word-main",
+        "trains-meaning-recall",
+        "trains-active-production",
+      ]),
+    }))
+    expect(mockCreateBasicNote.mock.calls[0][0].front).toContain("groß")
+    expect(mockResolveWordPronunciation).toHaveBeenCalledWith(expect.objectContaining({
+      canonical: "groß",
+      lexicalType: "adjective",
+    }))
+    expect(mockGenerateSimpleSpeech).not.toHaveBeenCalled()
 
     const payload = mockCreateNote.mock.calls[0][0]
     expect(payload.context).toBeUndefined()
@@ -225,6 +261,7 @@ describe("word mode sentence flow", () => {
     expect(payload.metadata.lexicalType).toBe("adverb")
     expect(payload.tags).toContain("word-adverb")
     expect(payload.frontFooterHtml).toBe(null)
+    expect(mockCreateBasicNote).not.toHaveBeenCalled()
   })
 
   test("runWordWorkflow creates cloze notes for lexical function words", async () => {
@@ -266,6 +303,7 @@ describe("word mode sentence flow", () => {
     expect(added).toBe(true)
     expect(mockCreateNote).not.toHaveBeenCalled()
     expect(mockSearchWordImages).not.toHaveBeenCalled()
+    expect(mockCreateBasicNote).not.toHaveBeenCalled()
     expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
       text: "Ich bin müde, {{c1::aber::contrast connector}} ich komme.",
       deck: "German::Test",

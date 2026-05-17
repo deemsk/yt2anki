@@ -12,7 +12,9 @@ import { validateLexicalClozeSentence } from './cardContent/lexicalClozeValidati
 import { buildContrastHint, buildContrastTags } from './cardContent/interference.js';
 import { buildLearningIntentTags } from './cardContent/learningDesign.js';
 import { getFunctionWordPatternFamily } from './cardContent/functionWordPatterns.js';
-import { formatPronunciationField } from './templates/shared/components.js';
+import { escapeHtml } from './cardContent/html.js';
+import { buildWordMetadataComment } from './cardContent/wordMetadata.js';
+import { formatPlainWord, formatPronunciationField, soundTag } from './templates/shared/components.js';
 import { buildWordExtraInfo } from './templates/word/extraInfo.js';
 import { buildLexicalClozeExtra, buildLexicalClozeText } from './templates/word/lexicalCloze.js';
 import { formatWordDisplay, isNounWord } from './templates/word/pictureWord.js';
@@ -22,6 +24,7 @@ import { chooseImage, chooseMeaning, chooseWordSentence, confirmSentenceWordSele
 import { resolveImageAsset, resolveWordPronunciation, searchWordImages } from './lib/wordSources.js';
 import {
   checkConnection,
+  createBasicNote,
   createClozeNote,
   createNote,
   createPictureWordNote,
@@ -765,6 +768,47 @@ async function finalizeLexicalCloze(prepared, options, spinner) {
   return true;
 }
 
+function shouldCreateSentenceAdjectiveMainNote(wordData = {}, selectedMeaning = {}) {
+  const lexicalType = wordData.lexicalType || 'adjective';
+  return lexicalType === 'adjective' && Boolean(String(selectedMeaning?.russian || '').trim());
+}
+
+async function createSentenceAdjectiveMainNote({
+  wordData,
+  selectedMeaning,
+  frequencyInfo,
+  audioFilename = null,
+  deck,
+}) {
+  const metadata = buildWordMetadataComment({
+    canonical: wordData.canonical,
+    meaning: selectedMeaning.russian,
+    lemma: getWordLemma(wordData),
+    lexicalType: wordData.lexicalType || 'adjective',
+    contrast: wordData.opposite || buildContrastHint(wordData.canonical || getWordLemma(wordData)),
+  });
+
+  return createBasicNote({
+    front: [soundTag(audioFilename), formatPlainWord(wordData.canonical)].filter(Boolean).join('<br>'),
+    back: `${escapeHtml(selectedMeaning.russian)}${metadata}`,
+    deck,
+    addReversed: true,
+    tags: [
+      'yt2anki',
+      'mode-word-main',
+      `word-${wordData.lexicalType || 'adjective'}`,
+      `lemma-${toTagSlug(getWordLemma(wordData))}`,
+      `canonical-${toTagSlug(wordData.canonical)}`,
+      `freq-${frequencyInfo.bandKey}`,
+      ...buildLearningIntentTags({
+        id: 'word-main',
+        trains: ['meaning-recall', 'active-production'],
+      }),
+      ...buildContrastTags(wordData.canonical || getWordLemma(wordData)),
+    ],
+  });
+}
+
 async function finalizeSentenceWord(prepared, options, spinner) {
   let current = prepared;
   let autoPlay = true;
@@ -804,6 +848,7 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     console.log();
     console.log(chalk.bold('Word sentence preview'));
     console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning?.russian, sentenceData.cefr?.level || null)}`);
+    console.log(`  ${chalk.cyan('Main card:')} ${shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning) ? 'yes' : 'no'}`);
     console.log(`  ${chalk.cyan('Sentence:')} ${sentenceData.german}`);
     if (sentenceData.ipa) {
       console.log(`  ${chalk.cyan('IPA:')} ${sentenceData.ipa}`);
@@ -829,8 +874,26 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     imageFilename = await storeMedia(imagePath);
   }
 
-  spinner.start('Creating sentence note...');
+  let mainAudioFilename = null;
+  if (shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)) {
+    const mainAudio = await buildWordAudio(wordData, spinner);
+    mainAudioFilename = await storeAudio(mainAudio.audioPath);
+  }
+
+  spinner.start(shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)
+    ? 'Creating adjective notes...'
+    : 'Creating sentence note...');
   const audioFilename = await storeAudio(audio.audioPath);
+  if (shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)) {
+    await createSentenceAdjectiveMainNote({
+      wordData,
+      selectedMeaning,
+      frequencyInfo: current.frequencyInfo,
+      audioFilename: mainAudioFilename,
+      deck: options.deck,
+    });
+  }
+
   await createNote({
     german: sentenceData.german,
     ipa: sentenceData.ipa,

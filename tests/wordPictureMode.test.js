@@ -48,6 +48,7 @@ jest.unstable_mockModule("../src/wordConfirm.js", () => ({
 
 jest.unstable_mockModule("../src/anki.js", () => ({
   checkConnection: mockCheckConnection,
+  createBasicNote: jest.fn(),
   createClozeNote: jest.fn(),
   createNote: jest.fn(),
   createPictureWordNote: mockCreatePictureWordNote,

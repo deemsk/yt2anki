@@ -87,6 +87,7 @@ describe("verb note helpers", () => {
       },
       selectedMeaning: { russian: "прибывать" },
       focusForm: "kommt an",
+      pronunciationField: "[sound:ankommen.mp3]<br><span class=\"yt2anki-ipa ddd-ipa\">[ˈankɔmən]</span>",
     })
 
     expect(note.front).toContain("yt2anki-word-display")
@@ -94,6 +95,7 @@ describe("verb note helpers", () => {
     expect(note.front).toContain("kommt an")
     expect(note.back).toContain("yt2anki-word-display")
     expect(note.back).toContain("ankommen")
+    expect(note.back).toContain("[sound:ankommen.mp3]")
   })
 
   test("migrateVerbDictionaryIpaBacks rewrites plain IPA lines with shared styling", async () => {

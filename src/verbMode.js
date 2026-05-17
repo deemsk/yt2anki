@@ -305,8 +305,13 @@ function buildDictionaryFormContext(verbData, focusForm = null) {
   return `${form} → ${verbData.infinitive}`;
 }
 
-async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, deck) {
-  const note = buildVerbDictionaryNote({ verbData, selectedMeaning, focusForm });
+async function createDictionaryFormNote(verbData, selectedMeaning, focusForm, deck, audioFilename = null) {
+  const note = buildVerbDictionaryNote({
+    verbData,
+    selectedMeaning,
+    focusForm,
+    pronunciationField: formatPronunciationField(audioFilename, verbData.ipa),
+  });
 
   return createBasicNote({
     front: note.front,
@@ -845,7 +850,7 @@ async function finalizePictureVerb(prepared, options, spinner) {
   });
 
   if (confirmation.addDictionaryForm) {
-    await createDictionaryFormNote(verbData, selectedMeaning, verbData.displayForm, options.deck);
+    await createDictionaryFormNote(verbData, selectedMeaning, verbData.displayForm, options.deck, audioFilename);
   }
 
   spinner.succeed(`Created ${verbData.infinitive}`);
@@ -948,11 +953,14 @@ async function finalizeSentenceVerb(prepared, options, spinner) {
   });
 
   if (addDictionaryForm) {
+    const dictionaryAudio = await buildVerbAudio(verbData, spinner);
+    const dictionaryAudioFilename = await storeAudio(dictionaryAudio.audioPath);
     await createDictionaryFormNote(
       verbData,
       selectedMeaning,
       chosenSentence.focusForm || verbData.displayForm,
-      options.deck
+      options.deck,
+      dictionaryAudioFilename
     );
   }
 

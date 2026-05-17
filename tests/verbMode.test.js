@@ -33,7 +33,9 @@ const mockFindSimilarCards = jest.fn(async () => [])
 const mockFindVerbLemmaDuplicates = jest.fn(async () => ({ exactMatches: [] }))
 const mockFindVerbSentenceDuplicates = jest.fn(async () => ({ exactMatches: [] }))
 const mockFindWordDuplicates = jest.fn(async () => ({ exactMatches: [], headwordMatches: [] }))
-const mockStoreAudio = jest.fn(async () => "verb-sentence.mp3")
+const mockStoreAudio = jest.fn(async (path = "") =>
+  String(path).includes("verb_sentence") ? "verb-sentence.mp3" : "verb-target.mp3"
+)
 const mockStoreMedia = jest.fn(async () => "verb-image.jpg")
 const mockCreateNote = jest.fn(async () => 123)
 const mockCreatePictureWordNote = jest.fn(async () => 789)
@@ -54,6 +56,11 @@ const mockResolveVerbMorphology = jest.fn(async () => ({
   selectedForms: [],
 }))
 const mockResolveImageAsset = jest.fn(async () => "/tmp/laufen.jpg")
+const mockResolveWordPronunciation = jest.fn(async () => ({
+  ipa: "[ɡəˈhøːʁən]",
+  audioPath: "/tmp/gehoeren-human.mp3",
+  source: "Wiktionary/Wikimedia",
+}))
 const mockSearchVerbImages = jest.fn(async () => ([{
   source: "Brave Images",
   downloadUrl: "https://example.com/laufen.jpg",
@@ -137,7 +144,7 @@ jest.unstable_mockModule("../src/cardContent/verbMorphology.js", () => ({
 
 jest.unstable_mockModule("../src/lib/wordSources.js", () => ({
   resolveImageAsset: mockResolveImageAsset,
-  resolveWordPronunciation: jest.fn(),
+  resolveWordPronunciation: mockResolveWordPronunciation,
   searchVerbImages: mockSearchVerbImages,
 }))
 
@@ -155,6 +162,11 @@ describe("verb mode sentence flow", () => {
     mockFindVerbSentenceDuplicates.mockReset()
     mockFindWordDuplicates.mockReset()
     mockGenerateVerbFormSentence.mockReset()
+    mockResolveWordPronunciation.mockResolvedValue({
+      ipa: "[ɡəˈhøːʁən]",
+      audioPath: "/tmp/gehoeren-human.mp3",
+      source: "Wiktionary/Wikimedia",
+    })
     mockEnrich.mockReset()
     mockEnrich.mockImplementation(async (german) => ({
       german,
@@ -208,6 +220,13 @@ describe("verb mode sentence flow", () => {
       back: expect.stringContaining("yt2anki-ipa"),
       deck: "German::Test",
       tags: expect.arrayContaining(["mode-verb-dictionary"]),
+    }))
+    const dictionaryNote = mockCreateBasicNote.mock.calls.find((call) =>
+      call[0].tags.includes("mode-verb-dictionary")
+    )[0]
+    expect(dictionaryNote.back).toContain("[sound:verb-target.mp3]")
+    expect(mockResolveWordPronunciation).toHaveBeenCalledWith(expect.objectContaining({
+      canonical: "gehören",
     }))
     expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
       front: expect.stringContaining("yt2anki-word-display"),

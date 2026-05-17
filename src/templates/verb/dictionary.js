@@ -5,11 +5,12 @@ export function buildVerbDictionaryNote({
   verbData,
   selectedMeaning,
   focusForm = null,
+  pronunciationField = null,
 }) {
   const displayForm = focusForm || verbData.displayForm || verbData.infinitive;
   const back = joinHtml([
     formatPlainWord(verbData.infinitive),
-    formatIpaHtml(verbData.ipa),
+    pronunciationField || formatIpaHtml(verbData.ipa),
     formatPrimaryTranslation(selectedMeaning?.russian),
   ]);
 
