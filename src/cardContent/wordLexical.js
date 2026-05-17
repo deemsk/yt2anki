@@ -1,46 +1,5 @@
 import { normalizeGermanForCompare } from './german.js';
-
-const DETERMINER_FORM_FAMILIES = new Map([
-  ['der', ['der', 'die', 'das', 'den', 'dem', 'des']],
-  ['die', ['der', 'die', 'das', 'den', 'dem', 'des']],
-  ['das', ['der', 'die', 'das', 'den', 'dem', 'des']],
-  ['ein', ['ein', 'eine', 'einen', 'einem', 'einer', 'eines']],
-  ['eine', ['ein', 'eine', 'einen', 'einem', 'einer', 'eines']],
-  ['kein', ['kein', 'keine', 'keinen', 'keinem', 'keiner', 'keines']],
-  ['dies', ['dies', 'diese', 'dieser', 'dieses', 'diesen', 'diesem']],
-  ['diese', ['dies', 'diese', 'dieser', 'dieses', 'diesen', 'diesem']],
-  ['welch', ['welch', 'welche', 'welcher', 'welches', 'welchen', 'welchem']],
-  ['jede', ['jed', 'jede', 'jeder', 'jedes', 'jeden', 'jedem']],
-  ['jeder', ['jed', 'jede', 'jeder', 'jedes', 'jeden', 'jedem']],
-  ['alle', ['alle', 'aller', 'alles', 'allen', 'allem']],
-]);
-
-const POSSESSIVE_STEMS = new Set(['mein', 'dein', 'sein', 'ihr', 'unser', 'euer']);
-
-const PRONOUN_FORM_FAMILIES = new Map([
-  ['ich', ['ich', 'mich', 'mir']],
-  ['mich', ['ich', 'mich', 'mir']],
-  ['mir', ['ich', 'mich', 'mir']],
-  ['du', ['du', 'dich', 'dir']],
-  ['dich', ['du', 'dich', 'dir']],
-  ['dir', ['du', 'dich', 'dir']],
-  ['er', ['er', 'ihn', 'ihm']],
-  ['ihn', ['er', 'ihn', 'ihm']],
-  ['ihm', ['er', 'ihn', 'ihm']],
-  ['sie', ['sie', 'ihr', 'ihnen']],
-  ['ihr', ['sie', 'ihr', 'ihnen', 'euch']],
-  ['ihnen', ['sie', 'ihr', 'ihnen']],
-  ['wir', ['wir', 'uns']],
-  ['uns', ['wir', 'uns']],
-  ['euch', ['ihr', 'euch']],
-  ['es', ['es']],
-  ['sich', ['sich']],
-  ['man', ['man', 'einen', 'einem']],
-  ['wer', ['wer', 'wen', 'wem', 'wessen']],
-  ['wen', ['wer', 'wen', 'wem', 'wessen']],
-  ['wem', ['wer', 'wen', 'wem', 'wessen']],
-  ['was', ['was']],
-]);
+import { DETERMINER_FORM_FAMILIES, POSSESSIVE_STEMS, PRONOUN_FORM_FAMILIES } from '../data/wordForms.js';
 
 export function getWordLemma(wordData = {}) {
   const raw = String(wordData.lemma || wordData.bareNoun || wordData.canonical || '').trim();

@@ -1,52 +1,6 @@
 import { normalizeGermanForCompare } from './german.js';
 import { resolveSentenceFocusForm } from './wordLexical.js';
-
-const PRONOUNS = new Set([
-  'ich',
-  'du',
-  'er',
-  'sie',
-  'es',
-  'wir',
-  'ihr',
-  'man',
-]);
-
-const COMMON_EARLY_FINITE_FORMS = new Set([
-  'bin',
-  'bist',
-  'ist',
-  'sind',
-  'seid',
-  'habe',
-  'hast',
-  'hat',
-  'haben',
-  'habt',
-  'werde',
-  'wirst',
-  'wird',
-  'werden',
-  'werdet',
-  'kann',
-  'kannst',
-  'koennen',
-  'können',
-  'muss',
-  'musst',
-  'muessen',
-  'müssen',
-  'will',
-  'willst',
-  'wollen',
-  'soll',
-  'sollst',
-  'sollen',
-  'darf',
-  'darfst',
-  'duerfen',
-  'dürfen',
-]);
+import { COMMON_EARLY_FINITE_FORMS, SUBJUNCTION_VALIDATION_PRONOUNS } from '../data/wordForms.js';
 
 /**
  * Splits German text into normalized word tokens for structural checks.
@@ -94,7 +48,7 @@ function clauseAfterTarget(sentenceText = '', target = '') {
  */
 function hasLikelyVerbSecondAfterSubjunction(clauseTokens = []) {
   return clauseTokens.length > 2 &&
-    PRONOUNS.has(clauseTokens[0]) &&
+    SUBJUNCTION_VALIDATION_PRONOUNS.has(clauseTokens[0]) &&
     COMMON_EARLY_FINITE_FORMS.has(clauseTokens[1]);
 }
 
