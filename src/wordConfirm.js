@@ -10,7 +10,7 @@ import { config } from './lib/config.js';
 import { escapeHtml } from './cardContent/html.js';
 import { normalizeGermanForCompare } from './cardContent/german.js';
 import { formatLexicalTypeLabel } from './cardContent/lexicalTypes.js';
-import { formatPluralLabel, getPrimaryExampleSentence, getWordLemma } from './cardContent/wordLexical.js';
+import { formatPluralLabel, getPrimaryExampleSentence, getWordLemma, inferFocusFormFromSentence } from './cardContent/wordLexical.js';
 import { askReviewFeedback, playAudio } from './confirm.js';
 import { cachePreviewImages, manualLocalSelection, manualRemoteSelection } from './lib/wordSources.js';
 
@@ -420,17 +420,19 @@ export async function chooseImage(wordData, meaning, candidates) {
 }
 
 export async function chooseWordSentence(wordData, preferredSentence = null) {
+  const buildSentenceChoice = (german, russian = wordData.meanings?.[0]?.russian || '') => ({
+    german,
+    russian,
+    focusForm: inferFocusFormFromSentence(german, wordData) || wordData.canonical,
+  });
+
   if (preferredSentence) {
     const existing = wordData.exampleSentences?.find((sentence) => sentence.german === preferredSentence);
     if (existing) {
       return existing;
     }
 
-    return {
-      german: preferredSentence,
-      russian: wordData.meanings?.[0]?.russian || '',
-      focusForm: wordData.canonical,
-    };
+    return buildSentenceChoice(preferredSentence);
   }
 
   const sentences = Array.isArray(wordData.exampleSentences) ? wordData.exampleSentences.slice(0, 3) : [];
@@ -445,11 +447,7 @@ export async function chooseWordSentence(wordData, preferredSentence = null) {
 
     const manual = await ask('Enter an example sentence for this word, or press Enter to skip: ');
     if (!manual) return null;
-    return {
-      german: manual,
-      russian: wordData.meanings?.[0]?.russian || '',
-      focusForm: wordData.canonical,
-    };
+    return buildSentenceChoice(manual);
   }
 
   if (sentences.length === 1) {
@@ -476,11 +474,7 @@ export async function chooseWordSentence(wordData, preferredSentence = null) {
     if (normalized === 'e' || normalized === 'edit') {
       const manual = await ask('Enter an example sentence: ');
       if (!manual) continue;
-      return {
-        german: manual,
-        russian: wordData.meanings?.[0]?.russian || '',
-        focusForm: wordData.canonical,
-      };
+      return buildSentenceChoice(manual);
     }
 
     const index = parseInt(normalized, 10);

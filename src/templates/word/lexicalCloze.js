@@ -2,6 +2,7 @@ import { escapeHtml } from '../../cardContent/html.js';
 import { buildContrastHint } from '../../cardContent/interference.js';
 import { buildFunctionWordPatternHint, getFunctionWordPatternFamily } from '../../cardContent/functionWordPatterns.js';
 import { buildWordMetadataComment } from '../../cardContent/wordMetadata.js';
+import { resolveSentenceFocusForm } from '../../cardContent/wordLexical.js';
 import { answerStack } from '../shared/components.js';
 
 /**
@@ -16,7 +17,7 @@ function escapeRegex(value = '') {
  */
 export function buildLexicalClozeText(sentence = {}, wordData = {}) {
   const german = String(sentence?.german || '').trim();
-  const target = String(sentence?.focusForm || wordData.canonical || '').trim();
+  const target = resolveSentenceFocusForm(sentence, wordData);
   if (!german || !target) {
     return '';
   }

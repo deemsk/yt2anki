@@ -52,17 +52,25 @@ const NON_ADJECTIVE_BARE_ADVERBS = new Set([
   'gern',
   'bald',
   'sehr',
+  'so',
+  'wie',
+  'wo',
+  'wann',
+  'wieso',
   'hier',
   'dort',
+  'da',
   'heute',
   'gestern',
   'morgen',
   'damals',
+  'jetzt',
   'schon',
   'noch',
   'immer',
   'nie',
   'wieder',
+  'auch',
   'vielleicht',
   'sofort',
   'zusammen',
@@ -71,10 +79,165 @@ const NON_ADJECTIVE_BARE_ADVERBS = new Set([
   'deswegen',
   'also',
   'dann',
+  'sehr',
+  'wirklich',
+  'nun',
+  'gerade',
+  'wohl',
+  'gar',
   'oben',
   'unten',
   'links',
   'rechts',
+  'hin',
+  'her',
+  'raus',
+  'rein',
+  'weg',
+  'zurück',
+  'zurueck',
+  'erst',
+  'sonst',
+]);
+
+const COMMON_FUNCTION_WORD_TYPES = new Map([
+  ['und', 'conjunction'],
+  ['oder', 'conjunction'],
+  ['aber', 'conjunction'],
+  ['denn', 'conjunction'],
+  ['weil', 'subjunction'],
+  ['dass', 'subjunction'],
+  ['das', 'determiner'],
+  ['ob', 'subjunction'],
+  ['wenn', 'subjunction'],
+  ['als', 'subjunction'],
+  ['damit', 'subjunction'],
+  ['so', 'adverb'],
+  ['wie', 'adverb'],
+  ['wo', 'adverb'],
+  ['wann', 'adverb'],
+  ['warum', 'adverb'],
+  ['wieso', 'adverb'],
+  ['auch', 'adverb'],
+  ['da', 'adverb'],
+  ['hier', 'adverb'],
+  ['dort', 'adverb'],
+  ['jetzt', 'adverb'],
+  ['immer', 'adverb'],
+  ['wieder', 'adverb'],
+  ['nie', 'adverb'],
+  ['vielleicht', 'adverb'],
+  ['also', 'adverb'],
+  ['dann', 'adverb'],
+  ['sehr', 'adverb'],
+  ['wirklich', 'adverb'],
+  ['nun', 'adverb'],
+  ['gerade', 'adverb'],
+  ['gar', 'adverb'],
+  ['in', 'preposition'],
+  ['an', 'preposition'],
+  ['auf', 'preposition'],
+  ['zu', 'preposition'],
+  ['mit', 'preposition'],
+  ['von', 'preposition'],
+  ['fuer', 'preposition'],
+  ['bei', 'preposition'],
+  ['aus', 'preposition'],
+  ['um', 'preposition'],
+  ['ueber', 'preposition'],
+  ['vor', 'preposition'],
+  ['nach', 'preposition'],
+  ['durch', 'preposition'],
+  ['ohne', 'preposition'],
+  ['gegen', 'preposition'],
+  ['unter', 'preposition'],
+  ['seit', 'preposition'],
+  ['wegen', 'preposition'],
+  ['bis', 'preposition'],
+  ['ab', 'preposition'],
+  ['ich', 'pronoun'],
+  ['du', 'pronoun'],
+  ['er', 'pronoun'],
+  ['sie', 'pronoun'],
+  ['es', 'pronoun'],
+  ['wir', 'pronoun'],
+  ['ihr', 'pronoun'],
+  ['man', 'pronoun'],
+  ['mir', 'pronoun'],
+  ['mich', 'pronoun'],
+  ['dir', 'pronoun'],
+  ['dich', 'pronoun'],
+  ['sich', 'pronoun'],
+  ['uns', 'pronoun'],
+  ['euch', 'pronoun'],
+  ['ihn', 'pronoun'],
+  ['ihm', 'pronoun'],
+  ['ihnen', 'pronoun'],
+  ['was', 'pronoun'],
+  ['wer', 'pronoun'],
+  ['wen', 'pronoun'],
+  ['wem', 'pronoun'],
+  ['jemand', 'pronoun'],
+  ['etwas', 'pronoun'],
+  ['alles', 'pronoun'],
+  ['der', 'determiner'],
+  ['die', 'determiner'],
+  ['den', 'determiner'],
+  ['dem', 'determiner'],
+  ['des', 'determiner'],
+  ['ein', 'determiner'],
+  ['eine', 'determiner'],
+  ['einen', 'determiner'],
+  ['einem', 'determiner'],
+  ['einer', 'determiner'],
+  ['eines', 'determiner'],
+  ['kein', 'determiner'],
+  ['keine', 'determiner'],
+  ['keinen', 'determiner'],
+  ['keinem', 'determiner'],
+  ['keiner', 'determiner'],
+  ['keines', 'determiner'],
+  ['mein', 'determiner'],
+  ['meine', 'determiner'],
+  ['meinen', 'determiner'],
+  ['meinem', 'determiner'],
+  ['meiner', 'determiner'],
+  ['dein', 'determiner'],
+  ['deine', 'determiner'],
+  ['deinen', 'determiner'],
+  ['sein', 'determiner'],
+  ['seine', 'determiner'],
+  ['ihr', 'pronoun'],
+  ['ihre', 'determiner'],
+  ['ihren', 'determiner'],
+  ['unser', 'determiner'],
+  ['unsere', 'determiner'],
+  ['euer', 'determiner'],
+  ['diese', 'determiner'],
+  ['dieser', 'determiner'],
+  ['dieses', 'determiner'],
+  ['diesen', 'determiner'],
+  ['diesem', 'determiner'],
+  ['alle', 'determiner'],
+  ['nicht', 'particle'],
+  ['nur', 'particle'],
+  ['doch', 'particle'],
+  ['ja', 'particle'],
+  ['mal', 'particle'],
+  ['schon', 'particle'],
+  ['noch', 'particle'],
+  ['halt', 'particle'],
+  ['eben', 'particle'],
+  ['wohl', 'particle'],
+  ['bitte', 'interjection'],
+  ['danke', 'interjection'],
+  ['hallo', 'interjection'],
+  ['hey', 'interjection'],
+  ['oh', 'interjection'],
+  ['ach', 'interjection'],
+  ['nein', 'interjection'],
+  ['okay', 'interjection'],
+  ['ok', 'interjection'],
 ]);
 
 const EVERYDAY_FAMILY_NOUN_FALLBACKS = {
@@ -171,7 +334,12 @@ async function getClient() {
   return openai;
 }
 
-function buildWordSystemPrompt({ forceVisibleNoun = false, forceBareLexicalCandidate = false } = {}) {
+function buildWordSystemPrompt({
+  forceVisibleNoun = false,
+  forceBareLexicalCandidate = false,
+  forceGermanInputIdentity = false,
+  forceFunctionWordCandidate = false,
+} = {}) {
   const retryInstructions = forceVisibleNoun ? `
 - The user explicitly wants a picture-word card for a visible noun that may depict a scene rather than a handheld object.
 - Visible scene nouns like "der Himmel", "die Sonne", "der Mond", "die Wolke", "das Meer", "der Wald" are imageable and should be accepted.
@@ -182,12 +350,26 @@ function buildWordSystemPrompt({ forceVisibleNoun = false, forceBareLexicalCandi
 - Short adjectives like "eng", "breit", "weich", "froh", and "leer" are valid adjective inputs and should not be treated as fragments or abbreviations.
 - If the bare word can function as both adjective and adverb in German, prefer the adjective analysis for word mode.
 - If the input is plausibly a noun, adjective, or common adverb, return the best lexical analysis instead of rejecting it.` : '';
+  const germanInputIdentityInstructions = forceGermanInputIdentity ? `
+- The previous analysis appears to have replaced the typed German input with a different German word.
+- Do not substitute synonyms, translations, or English false-friend meanings.
+- Preserve the user's German lexical item. Normalize only by German article, case, gender, number, or inflection when that is truly a direct German lemma.
+- Example: German input "also" means "so/therefore/well"; canonical must be "also", never "auch".` : '';
+  const functionWordRetryInstructions = forceFunctionWordCandidate ? `
+- The user entered a high-frequency German function word or short adverb.
+- Do not reject it just because it is abstract, grammatical, or not imageable.
+- Return a cloze-form lexical analysis with clear short examples that contain the exact typed surface form where possible.
+- For personal pronoun case forms like "mich", "mir", "dich", "dir", "ihn", "ihm", "uns", "euch", and "ihnen", keep the typed case form as canonical instead of replacing it with nominative "ich", "du", "er", or "sie".
+- For article/determiner forms like "den", "dem", "einen", or "keine", prefer the typed surface form as canonical when the learner likely needs that form.` : '';
 
   return `You are a German language expert and Fluent Forever consultant.
 
 Analyze a single German lexical input for flashcards in word mode.
 
 Rules:
+- The user input is always German. Never interpret it as English, Russian, or another language.
+- Do not translate the input into German. Analyze the German lexical item the user typed.
+- Be careful with false friends and homographs: German "also" means "so/therefore/well", not English "also" (= German "auch").
 - Accept nouns, adjectives, common adverbs, prepositions, conjunctions, subjunctions, pronouns, determiners, particles, numerals, and interjections that can work as strong learner cards.
 - Reject verbs and unrelated full phrases that are not suitable lexical cards.
 - Do not reject a noun solely because it is colloquial if it is common everyday family vocabulary.
@@ -212,6 +394,7 @@ Rules:
 - For place or institution nouns in German culture, prefer target-language visual anchors and German search terms.
 - Example: for "die Apotheke", prefer "Apotheke Schild", "Apotheke Eingang", "Apotheke innen", or "deutsche Apotheke" over generic English "pharmacy" images.
 - For nouns with multiple meanings, provide up to 3 short meaning options.
+- Every accepted lexical analysis must include at least one meaning option with a non-empty Russian lexical gloss.
 - For accepted nouns, provide 1 short natural example sentence in German with a Russian translation that uses the noun in a common everyday context.
 - Keep noun example sentences simple, concrete, and short.
 - For adjectives with multiple meanings, keep only the concrete visual sense that matches the intended picture card.
@@ -228,6 +411,9 @@ Rules:
 - Use recommendedMode="sentence-form" for accepted adverbs when the sentence itself is the learning target.
 - Use recommendedMode="cloze-form" for function words where the learner should recall the word from sentence context.
 - Use recommendedMode="cloze-form" for short scope, polarity, frequency, or connector-like adverbs when recalling the exact lexical item from context is the learning target.
+- Treat German question words such as "warum", "wann", "wo", and "wie" as interrogative adverbs for lexical cards, not as conjunctions.
+- Treat German personal pronoun case forms such as "mich", "mir", "dich", "dir", "ihn", "ihm", "uns", "euch", and "ihnen" as pronoun cards in their typed surface form.
+- Treat German articles and determiners such as "der", "den", "dem", "ein", "eine", "kein", and "keine" as cloze-form determiner cards when the user enters them directly.
 - Common adverbs like "sofort", "oft", "später", "früher", "dort", "hier", "oben", "unten", "zusammen", and "allein" should usually be accepted when they can be taught through short concrete example sentences.
 - Function words such as "aber", "wenn", "nichts", "mit", "für", "weil", "dass", "doch", "ja", "mal", and "halt" should usually be accepted only when they can be taught with clear cloze sentences.
 - For sentence-form adjectives, provide exactly 3 short natural example sentences in German with Russian translations.
@@ -251,6 +437,8 @@ Rules:
 - If you reject an identifiable lexical item, still return best-effort values for canonical, lemma, meanings, and imageability fields.
 ${retryInstructions}
 ${lexicalRetryInstructions}
+${germanInputIdentityInstructions}
+${functionWordRetryInstructions}
 
 Respond in JSON only:
 {
@@ -348,6 +536,35 @@ function mergeExampleSentences(existing = [], additions = []) {
   return merged;
 }
 
+function sanitizeMeaning(meaning = {}) {
+  const imageSearchTerms = Array.isArray(meaning.imageSearchTerms)
+    ? meaning.imageSearchTerms.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 8)
+    : [];
+
+  return {
+    ...meaning,
+    russian: String(meaning.russian || '').trim(),
+    english: String(meaning.english || '').trim(),
+    imageSearchTerms,
+  };
+}
+
+function mergeMeanings(existing = [], additions = []) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const meaning of [...existing, ...additions].map(sanitizeMeaning)) {
+    if (!meaning.russian && !meaning.english && meaning.imageSearchTerms.length === 0) continue;
+    const key = normalizeGermanForCompare(`${meaning.russian} ${meaning.english}`) || meaning.imageSearchTerms.join('|').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(meaning);
+    if (merged.length === 3) break;
+  }
+
+  return merged;
+}
+
 export function shouldSuppressAdjectiveContrast(result = {}) {
   if (result.lexicalType !== 'adjective') {
     return false;
@@ -420,7 +637,7 @@ function sanitizeWordAnalysis(result = {}) {
   }
 
   sanitized.meanings = Array.isArray(sanitized.meanings)
-    ? sanitized.meanings.filter(Boolean).slice(0, 3)
+    ? mergeMeanings(sanitized.meanings, [])
     : [];
 
   sanitized.exampleSentences = Array.isArray(result.exampleSentences)
@@ -461,6 +678,112 @@ function looksLikeBareLexicalInput(input = '') {
     rawInput === rawInput.toLowerCase() &&
     /^[\p{L}-]+$/u.test(rawInput)
   );
+}
+
+function getLikelyFunctionWordType(input = '') {
+  return COMMON_FUNCTION_WORD_TYPES.get(normalizeGermanForCompare(input));
+}
+
+function analysisContainsGermanInputSurface(input = '', result = {}) {
+  const normalizedInput = normalizeGermanForCompare(input);
+  if (!normalizedInput) {
+    return true;
+  }
+
+  const candidates = [
+    result.canonical,
+    result.lemma,
+    result.bareNoun,
+    ...(Array.isArray(result.exampleSentences)
+      ? result.exampleSentences.flatMap((sentence) => [sentence?.german, sentence?.focusForm])
+      : []),
+  ];
+
+  return candidates.some((candidate) => {
+    const normalizedCandidate = normalizeGermanForCompare(candidate || '');
+    return normalizedCandidate === normalizedInput ||
+      normalizedCandidate.startsWith(`${normalizedInput} `) ||
+      normalizedCandidate.endsWith(` ${normalizedInput}`) ||
+      normalizedCandidate.includes(` ${normalizedInput} `);
+  });
+}
+
+export function shouldRetryGermanInputPreservation(input, result = {}) {
+  if (!looksLikeBareLexicalInput(input)) {
+    return false;
+  }
+
+  if (!result || result.shouldCreateWordCard === false) {
+    return false;
+  }
+
+  return !analysisContainsGermanInputSurface(input, result);
+}
+
+export function shouldRetryFunctionWordRejection(input, result = {}) {
+  if (!looksLikeBareLexicalInput(input)) {
+    return false;
+  }
+
+  if (!getLikelyFunctionWordType(input)) {
+    return false;
+  }
+
+  return !result || result.shouldCreateWordCard === false;
+}
+
+export function buildFunctionWordFallback(input, result = {}) {
+  const rawInput = String(input || '').trim();
+  const lexicalType = getLikelyFunctionWordType(rawInput) || normalizeLexicalType(result.lexicalType);
+  const fallbackType = lexicalType === 'noun' ? 'particle' : lexicalType;
+  const fallbackMeanings = Array.isArray(result.meanings)
+    ? result.meanings.filter(Boolean).slice(0, 3)
+    : [];
+  const fallbackSentences = Array.isArray(result.exampleSentences)
+    ? result.exampleSentences.filter((sentence) => sentence?.german).slice(0, 3)
+    : [];
+
+  return sanitizeWordAnalysis({
+    ...result,
+    shouldCreateWordCard: true,
+    rejectionReason: null,
+    lexicalType: fallbackType,
+    canonical: rawInput || result.canonical || result.lemma || '',
+    lemma: rawInput || result.lemma || result.canonical || '',
+    article: null,
+    gender: null,
+    recommendedMode: 'cloze-form',
+    isImageable: false,
+    imageabilityReason: 'function word; learned through sentence context',
+    plural: null,
+    noPlural: false,
+    bareNoun: null,
+    anchorPhrase: null,
+    opposite: null,
+    clozeHint: result.clozeHint || `${fallbackType} in context`,
+    patternHint: result.patternHint || null,
+    meanings: fallbackMeanings,
+    exampleSentences: fallbackSentences,
+  });
+}
+
+function hasRussianMeaning(result = {}) {
+  return Array.isArray(result.meanings) &&
+    result.meanings.some((meaning) => String(meaning?.russian || '').trim());
+}
+
+export function shouldCompleteMissingMeanings(result = {}) {
+  if (!result?.canonical || result.lexicalType === 'verb') {
+    return false;
+  }
+
+  if (hasRussianMeaning(result)) {
+    return false;
+  }
+
+  return result.shouldCreateWordCard !== false ||
+    ['sentence-form', 'cloze-form'].includes(result.recommendedMode) ||
+    Boolean(result.lemma || result.bareNoun);
 }
 
 export function hasStructuredWordAnalysis(result = {}) {
@@ -654,7 +977,10 @@ async function requestWordAnalysis(client, input, options = {}) {
     model: config.openaiModel,
     messages: [
       { role: 'system', content: buildWordSystemPrompt(options) },
-      { role: 'user', content: input },
+      {
+        role: 'user',
+        content: `German lexical input: ${JSON.stringify(String(input || '').trim())}\nTreat the quoted input as German. Analyze that German word; do not translate it into another German word.`,
+      },
     ],
     response_format: { type: 'json_object' },
     temperature: 0.2,
@@ -666,11 +992,49 @@ async function requestWordAnalysis(client, input, options = {}) {
   );
 }
 
+async function requestCompletedWordAnalysis(client, input, options = {}) {
+  const result = await requestWordAnalysis(client, input, options);
+  return completeWordAnalysisIfNeeded(client, result);
+}
+
+async function completeWordAnalysisIfNeeded(client, result) {
+  const withMeanings = await completeMeaningsIfNeeded(client, result);
+  return completeSentenceExamplesIfNeeded(client, withMeanings);
+}
+
+async function completeMeaningsIfNeeded(client, result) {
+  if (!shouldCompleteMissingMeanings(result)) {
+    return result;
+  }
+
+  const completion = await client.chat.completions.create({
+    model: config.openaiModel,
+    messages: [
+      {
+        role: 'system',
+        content: 'Return JSON only. Provide concise meaning options for a German lexical flashcard. The target is German; do not replace it with another German word. Every meaning must have a non-empty Russian lexical gloss.',
+      },
+      {
+        role: 'user',
+        content: `German target word: ${result.canonical}\nLexical type: ${result.lexicalType}\nEnglish hint, if any: ${result.meanings?.map((meaning) => meaning?.english).filter(Boolean).join('; ') || 'none'}\nExample sentences:\n${result.exampleSentences?.map((sentence) => `- ${sentence.german}${sentence.russian ? ` = ${sentence.russian}` : ''}`).join('\n') || '- none'}\nReturn 1-3 options as {"meanings":[{"russian":"","english":"","imageSearchTerms":[]}]}.`,
+      },
+    ],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+  const extra = JSON.parse(completion.choices[0].message.content);
+
+  return {
+    ...result,
+    meanings: mergeMeanings(extra.meanings, result.meanings),
+  };
+}
+
 async function completeSentenceExamplesIfNeeded(client, result) {
   if (
-    result.shouldCreateWordCard === false ||
     !['sentence-form', 'cloze-form'].includes(result.recommendedMode) ||
-    result.exampleSentences.length >= 3
+    result.exampleSentences.length >= 3 ||
+    !result.canonical
   ) {
     return result;
   }
@@ -680,11 +1044,11 @@ async function completeSentenceExamplesIfNeeded(client, result) {
     messages: [
       {
         role: 'system',
-        content: 'Return JSON only. Generate short natural German example sentences with Russian translations for a German lexical flashcard.',
+        content: 'Return JSON only. Generate short natural German example sentences with Russian translations for a German lexical flashcard. Treat the target word as German; do not translate it into a different German synonym.',
       },
       {
         role: 'user',
-        content: `Word: ${result.canonical}\nLexical type: ${result.lexicalType}\nExisting examples to avoid:\n${result.exampleSentences.map((sentence) => `- ${sentence.german}`).join('\n') || '- none'}\nReturn exactly ${3 - result.exampleSentences.length} additional examples as {"exampleSentences":[{"german":"","russian":"","focusForm":"","imageBrief":{"searchQuery":"","queryVariants":[],"sceneSummary":"","focusRole":"","mustShow":[],"avoid":[],"imagePrompt":""}}]}.`,
+        content: `German target word: ${result.canonical}\nLexical type: ${result.lexicalType}\nEvery German example must contain this target word or a direct German inflected/surface form of it. Do not substitute a synonym or translation.\nExisting examples to avoid:\n${result.exampleSentences.map((sentence) => `- ${sentence.german}`).join('\n') || '- none'}\nReturn exactly ${3 - result.exampleSentences.length} additional examples as {"exampleSentences":[{"german":"","russian":"","focusForm":"","imageBrief":{"searchQuery":"","queryVariants":[],"sceneSummary":"","focusRole":"","mustShow":[],"avoid":[],"imagePrompt":""}}]}.`,
       },
     ],
     response_format: { type: 'json_object' },
@@ -705,17 +1069,28 @@ export async function enrichWord(input) {
   }
 
   const client = await getClient();
-  const result = await requestWordAnalysis(client, input);
-  const completed = await completeSentenceExamplesIfNeeded(client, result);
+  let completed = await requestCompletedWordAnalysis(client, input);
+
+  if (shouldRetryGermanInputPreservation(input, completed)) {
+    completed = await requestCompletedWordAnalysis(client, input, { forceGermanInputIdentity: true });
+  }
+
+  if (shouldRetryFunctionWordRejection(input, completed)) {
+    const retried = await requestCompletedWordAnalysis(client, input, { forceFunctionWordCandidate: true });
+    if (retried.shouldCreateWordCard !== false || hasStructuredWordAnalysis(retried)) {
+      return retried;
+    }
+    return completeWordAnalysisIfNeeded(client, buildFunctionWordFallback(input, retried));
+  }
 
   if (shouldRetryImageableNounRejection(input, completed)) {
-    return requestWordAnalysis(client, input, { forceVisibleNoun: true });
+    return requestCompletedWordAnalysis(client, input, { forceVisibleNoun: true });
   }
 
   if (shouldRetryBareLexicalRejection(input, completed)) {
-    const retried = await requestWordAnalysis(client, input, { forceBareLexicalCandidate: true });
+    const retried = await requestCompletedWordAnalysis(client, input, { forceBareLexicalCandidate: true });
     if (shouldFallbackBareAdverbRejection(input, retried)) {
-      return buildBareLexicalAdverbFallback(input, retried);
+      return completeWordAnalysisIfNeeded(client, buildBareLexicalAdverbFallback(input, retried));
     }
     if (retried.shouldCreateWordCard === false) {
       const familyFallback = buildEverydayFamilyNounFallback(input, retried);
@@ -724,14 +1099,14 @@ export async function enrichWord(input) {
       }
     }
     if (shouldRetryBareLexicalRejection(input, retried)) {
-      return buildBareLexicalAdjectiveFallback(input, retried);
+      return completeWordAnalysisIfNeeded(client, buildBareLexicalAdjectiveFallback(input, retried));
     }
     return retried;
   }
 
   if (completed.shouldCreateWordCard === false) {
     if (shouldFallbackBareAdverbRejection(input, completed)) {
-      return buildBareLexicalAdverbFallback(input, completed);
+      return completeWordAnalysisIfNeeded(client, buildBareLexicalAdverbFallback(input, completed));
     }
     const familyFallback = buildEverydayFamilyNounFallback(input, completed);
     if (familyFallback !== completed) {

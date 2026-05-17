@@ -1,4 +1,5 @@
 import { normalizeGermanForCompare } from './german.js';
+import { resolveSentenceFocusForm } from './wordLexical.js';
 
 const PRONOUNS = new Set([
   'ich',
@@ -47,8 +48,6 @@ const COMMON_EARLY_FINITE_FORMS = new Set([
   'dürfen',
 ]);
 
-const PARTICLES = new Set(['doch', 'ja', 'mal']);
-
 /**
  * Splits German text into normalized word tokens for structural checks.
  */
@@ -61,6 +60,7 @@ function tokenizeGerman(text = '') {
  */
 function findTargetIndex(tokens = [], sentence = {}, wordData = {}) {
   const candidates = [
+    resolveSentenceFocusForm(sentence, wordData),
     sentence.focusForm,
     wordData.canonical,
     wordData.lemma,
@@ -118,7 +118,7 @@ function validateSubjunction(sentence = {}, wordData = {}) {
 function validateConjunction(sentence = {}, wordData = {}) {
   const tokens = tokenizeGerman(sentence.german);
   const targetIndex = findTargetIndex(tokens, sentence, wordData);
-  return targetIndex > 0 && targetIndex < tokens.length - 1;
+  return targetIndex >= 0 && targetIndex < tokens.length - 1;
 }
 
 /**
@@ -154,7 +154,7 @@ function validateDeterminer(sentence = {}, wordData = {}) {
 function validateParticle(sentence = {}, wordData = {}) {
   const tokens = tokenizeGerman(sentence.german);
   const targetIndex = findTargetIndex(tokens, sentence, wordData);
-  return targetIndex > 0 && targetIndex < tokens.length - 1 && PARTICLES.has(tokens[targetIndex]);
+  return targetIndex >= 0 && tokens.length > 1;
 }
 
 /**

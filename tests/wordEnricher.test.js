@@ -1,4 +1,4 @@
-import { buildBareLexicalAdjectiveFallback, buildBareLexicalAdverbFallback, buildEverydayFamilyNounFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldFallbackBareAdverbRejection, shouldRetryBareLexicalRejection, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
+import { buildBareLexicalAdjectiveFallback, buildBareLexicalAdverbFallback, buildEverydayFamilyNounFallback, buildFunctionWordFallback, canProceedWithWeakWordCard, hasStructuredWordAnalysis, shouldCompleteMissingMeanings, shouldFallbackBareAdverbRejection, shouldRetryBareLexicalRejection, shouldRetryFunctionWordRejection, shouldRetryGermanInputPreservation, shouldRetryImageableNounRejection, shouldSuppressAdjectiveContrast } from "../src/wordEnricher.js"
 
 describe("word enricher retries", () => {
   test("retries false abstract rejection for visible scene nouns like Himmel", () => {
@@ -67,6 +67,16 @@ describe("word enricher retries", () => {
     ).toBe(false)
   })
 
+  test("retries rejected common function words through cloze-form analysis", () => {
+    expect(
+      shouldRetryFunctionWordRejection("und", {
+        shouldCreateWordCard: false,
+        lexicalType: "conjunction",
+        rejectionReason: "Function word, not imageable.",
+      })
+    ).toBe(true)
+  })
+
   test("marks common bare adverb rejections for sentence-form adverb fallback", () => {
     expect(
       shouldFallbackBareAdverbRejection("sofort", {
@@ -130,6 +140,77 @@ describe("word enricher retries", () => {
         isImageable: false,
       })
     )
+  })
+
+  test("builds a cloze-form fallback for common function words", () => {
+    expect(
+      buildFunctionWordFallback("den", {
+        shouldCreateWordCard: false,
+        lexicalType: "definite article",
+        rejectionReason: "Article, not imageable.",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        shouldCreateWordCard: true,
+        lexicalType: "determiner",
+        canonical: "den",
+        lemma: "den",
+        recommendedMode: "cloze-form",
+        isImageable: false,
+      })
+    )
+  })
+
+  test("marks accepted lexical analyses with missing Russian glosses for meaning repair", () => {
+    expect(
+      shouldCompleteMissingMeanings({
+        shouldCreateWordCard: true,
+        lexicalType: "adjective",
+        canonical: "sicher",
+        lemma: "sicher",
+        recommendedMode: "sentence-form",
+        meanings: [],
+      })
+    ).toBe(true)
+
+    expect(
+      shouldCompleteMissingMeanings({
+        shouldCreateWordCard: true,
+        lexicalType: "adjective",
+        canonical: "sicher",
+        lemma: "sicher",
+        recommendedMode: "sentence-form",
+        meanings: [{ russian: "уверенный", english: "sure" }],
+      })
+    ).toBe(false)
+  })
+
+  test("retries when a bare German input was translated into a different German word", () => {
+    expect(
+      shouldRetryGermanInputPreservation("also", {
+        shouldCreateWordCard: true,
+        lexicalType: "adverb",
+        canonical: "auch",
+        lemma: "auch",
+        exampleSentences: [
+          { german: "Ich komme auch.", focusForm: "auch" },
+        ],
+      })
+    ).toBe(true)
+  })
+
+  test("does not retry when examples preserve a German surface form", () => {
+    expect(
+      shouldRetryGermanInputPreservation("keine", {
+        shouldCreateWordCard: true,
+        lexicalType: "determiner",
+        canonical: "kein",
+        lemma: "kein",
+        exampleSentences: [
+          { german: "Ich habe keine Zeit.", focusForm: "keine" },
+        ],
+      })
+    ).toBe(false)
   })
 
   test("suppresses contrast words for color adjectives", () => {

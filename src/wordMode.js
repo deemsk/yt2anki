@@ -517,6 +517,8 @@ async function prepareWord(rawInput, options, spinner) {
     );
     spinner.succeed(`Cloze sentence ready: ${sentenceData.german}`);
 
+    const audio = await buildWordSentenceAudio(sentenceData.german, spinner);
+
     return {
       route,
       wordData,
@@ -525,6 +527,7 @@ async function prepareWord(rawInput, options, spinner) {
       duplicateInfo,
       chosenSentence,
       sentenceData,
+      audio,
     };
   }
 
@@ -711,7 +714,7 @@ async function finalizePictureWord(prepared, options, spinner) {
  * Creates a Cloze note for function words that are best learned from context.
  */
 async function finalizeLexicalCloze(prepared, options, spinner) {
-  const { wordData, selectedMeaning, chosenSentence, sentenceData } = prepared;
+  const { wordData, selectedMeaning, chosenSentence, sentenceData, audio } = prepared;
   const text = buildLexicalClozeText({
     ...sentenceData,
     focusForm: chosenSentence?.focusForm,
@@ -738,13 +741,15 @@ async function finalizeLexicalCloze(prepared, options, spinner) {
     if (sentenceData.russian) {
       console.log(`  ${chalk.cyan('Russian:')} ${sentenceData.russian}`);
     }
+    console.log(`  ${chalk.cyan('Audio:')} sentence`);
     console.log(chalk.yellow('\n⚡ DRY RUN: Lexical cloze previewed'));
     return true;
   }
 
   spinner.start('Creating lexical cloze note...');
+  const audioFilename = await storeAudio(audio.audioPath);
   await createClozeNote({
-    text,
+    text: [soundTag(audioFilename), text].filter(Boolean).join('<br>'),
     extra,
     deck: options.deck,
     tags: [
@@ -755,7 +760,7 @@ async function finalizeLexicalCloze(prepared, options, spinner) {
       `canonical-${toTagSlug(wordData.canonical)}`,
       ...buildLearningIntentTags({
         id: 'lexical-cloze',
-        trains: ['function-word-recall', 'grammar-pattern'],
+        trains: ['function-word-recall', 'grammar-pattern', 'sound-map'],
         patternFamily: getFunctionWordPatternFamily(wordData),
       }),
       ...buildContrastTags(wordData.canonical || getWordLemma(wordData)),
@@ -768,12 +773,12 @@ async function finalizeLexicalCloze(prepared, options, spinner) {
   return true;
 }
 
-function shouldCreateSentenceAdjectiveMainNote(wordData = {}, selectedMeaning = {}) {
+function shouldCreateSentenceWordMainNote(wordData = {}, selectedMeaning = {}) {
   const lexicalType = wordData.lexicalType || 'adjective';
-  return lexicalType === 'adjective' && Boolean(String(selectedMeaning?.russian || '').trim());
+  return ['adjective', 'adverb'].includes(lexicalType) && Boolean(String(selectedMeaning?.russian || '').trim());
 }
 
-async function createSentenceAdjectiveMainNote({
+async function createSentenceWordMainNote({
   wordData,
   selectedMeaning,
   frequencyInfo,
@@ -848,7 +853,7 @@ async function finalizeSentenceWord(prepared, options, spinner) {
     console.log();
     console.log(chalk.bold('Word sentence preview'));
     console.log(`  ${formatWordPreviewSummary(chalk, wordData, selectedMeaning?.russian, sentenceData.cefr?.level || null)}`);
-    console.log(`  ${chalk.cyan('Main card:')} ${shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning) ? 'yes' : 'no'}`);
+    console.log(`  ${chalk.cyan('Main card:')} ${shouldCreateSentenceWordMainNote(wordData, selectedMeaning) ? 'yes' : 'no'}`);
     console.log(`  ${chalk.cyan('Sentence:')} ${sentenceData.german}`);
     if (sentenceData.ipa) {
       console.log(`  ${chalk.cyan('IPA:')} ${sentenceData.ipa}`);
@@ -875,17 +880,17 @@ async function finalizeSentenceWord(prepared, options, spinner) {
   }
 
   let mainAudioFilename = null;
-  if (shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)) {
+  if (shouldCreateSentenceWordMainNote(wordData, selectedMeaning)) {
     const mainAudio = await buildWordAudio(wordData, spinner);
     mainAudioFilename = await storeAudio(mainAudio.audioPath);
   }
 
-  spinner.start(shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)
-    ? 'Creating adjective notes...'
+  spinner.start(shouldCreateSentenceWordMainNote(wordData, selectedMeaning)
+    ? 'Creating word notes...'
     : 'Creating sentence note...');
   const audioFilename = await storeAudio(audio.audioPath);
-  if (shouldCreateSentenceAdjectiveMainNote(wordData, selectedMeaning)) {
-    await createSentenceAdjectiveMainNote({
+  if (shouldCreateSentenceWordMainNote(wordData, selectedMeaning)) {
+    await createSentenceWordMainNote({
       wordData,
       selectedMeaning,
       frequencyInfo: current.frequencyInfo,

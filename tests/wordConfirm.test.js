@@ -36,6 +36,26 @@ describe("word confirmation helpers", () => {
     )
   })
 
+  test("chooseWordSentence infers the surface focus form for preferred determiner examples", async () => {
+    const sentence = await chooseWordSentence(
+      {
+        canonical: "kein",
+        lemma: "kein",
+        lexicalType: "determiner",
+        meanings: [{ russian: "никакой", english: "no" }],
+        exampleSentences: [],
+      },
+      "Ich habe keine Zeit."
+    )
+
+    expect(sentence).toEqual(
+      expect.objectContaining({
+        german: "Ich habe keine Zeit.",
+        focusForm: "keine",
+      })
+    )
+  })
+
   test("chooseMeaning can return a blank gloss for sentence-form fallback without prompting", async () => {
     const meaning = await chooseMeaning(
       {

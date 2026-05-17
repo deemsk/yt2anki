@@ -220,7 +220,7 @@ describe("word mode sentence flow", () => {
     expect(payload.frontFooterHtml).toContain("klein")
   })
 
-  test("runWordWorkflow creates sentence-form adverb notes without adjective contrast UI", async () => {
+  test("runWordWorkflow creates sentence-form adverb notes with a main word card", async () => {
     mockChooseMeaning.mockResolvedValue({
       russian: "сразу",
       english: "immediately",
@@ -261,7 +261,19 @@ describe("word mode sentence flow", () => {
     expect(payload.metadata.lexicalType).toBe("adverb")
     expect(payload.tags).toContain("word-adverb")
     expect(payload.frontFooterHtml).toBe(null)
-    expect(mockCreateBasicNote).not.toHaveBeenCalled()
+    expect(mockCreateBasicNote).toHaveBeenCalledWith(expect.objectContaining({
+      front: expect.stringContaining("[sound:word-target.mp3]"),
+      back: expect.stringContaining("сразу"),
+      addReversed: true,
+      deck: "German::Test",
+      tags: expect.arrayContaining([
+        "mode-word-main",
+        "word-adverb",
+        "lemma-sofort",
+        "canonical-sofort",
+        "intent-word-main",
+      ]),
+    }))
   })
 
   test("runWordWorkflow creates cloze notes for lexical function words", async () => {
@@ -305,7 +317,7 @@ describe("word mode sentence flow", () => {
     expect(mockSearchWordImages).not.toHaveBeenCalled()
     expect(mockCreateBasicNote).not.toHaveBeenCalled()
     expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
-      text: "Ich bin müde, {{c1::aber::contrast connector}} ich komme.",
+      text: "[sound:word-sentence.mp3]<br>Ich bin müde, {{c1::aber::contrast connector}} ich komme.",
       deck: "German::Test",
       tags: expect.arrayContaining([
         "mode-lexical-cloze",
@@ -315,6 +327,7 @@ describe("word mode sentence flow", () => {
         "intent-lexical-cloze",
         "trains-function-word-recall",
         "trains-grammar-pattern",
+        "trains-sound-map",
       ]),
     }))
     expect(mockCreateClozeNote.mock.calls[0][0].extra).toContain("yt2anki-word")
@@ -360,7 +373,7 @@ describe("word mode sentence flow", () => {
 
     expect(added).toBe(true)
     expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
-      text: "Ich lerne, {{c1::damit::so that + subordinate clause}} ich die Prüfung bestehe.",
+      text: "[sound:word-sentence.mp3]<br>Ich lerne, {{c1::damit::so that + subordinate clause}} ich die Prüfung bestehe.",
       tags: expect.arrayContaining([
         "mode-lexical-cloze",
         "word-subjunction",
@@ -407,7 +420,7 @@ describe("word mode sentence flow", () => {
 
     expect(added).toBe(true)
     expect(mockCreateClozeNote).toHaveBeenCalledWith(expect.objectContaining({
-      text: "Ich trinke {{c1::nie::frequency adverb}} Kaffee.",
+      text: "[sound:word-sentence.mp3]<br>Ich trinke {{c1::nie::frequency adverb}} Kaffee.",
       tags: expect.arrayContaining([
         "mode-lexical-cloze",
         "word-adverb",

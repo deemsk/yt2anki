@@ -91,6 +91,37 @@ const FUNCTION_WORDS = {
       },
     ],
   },
+  ihm: {
+    lexicalType: 'pronoun',
+    canonical: 'ihm',
+    lemma: 'ihm',
+    clozeHint: 'dative pronoun',
+    patternHint: 'Dative pronoun: often means “to him” or “him” after dative verbs/prepositions.',
+    meanings: [
+      {
+        russian: 'ему',
+        english: 'him, to him',
+        imageSearchTerms: ['ihm Beispielsatz'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Ich helfe ihm.',
+        russian: 'Я помогаю ему.',
+        focusForm: 'ihm',
+      },
+      {
+        german: 'Ich gebe ihm das Buch.',
+        russian: 'Я даю ему книгу.',
+        focusForm: 'ihm',
+      },
+      {
+        german: 'Das gehört ihm.',
+        russian: 'Это принадлежит ему.',
+        focusForm: 'ihm',
+      },
+    ],
+  },
   weil: {
     lexicalType: 'subjunction',
     canonical: 'weil',
@@ -238,6 +269,68 @@ const FUNCTION_WORDS = {
         german: 'Wir gehen jetzt, denn es ist spät.',
         russian: 'Мы идем сейчас, потому что поздно.',
         focusForm: 'denn',
+      },
+    ],
+  },
+  also: {
+    lexicalType: 'adverb',
+    canonical: 'also',
+    lemma: 'also',
+    clozeHint: 'so/therefore discourse adverb',
+    patternHint: 'German also means “so/therefore/well”; it is not English also (= auch).',
+    meanings: [
+      {
+        russian: 'значит, итак',
+        english: 'so, therefore, well',
+        imageSearchTerms: ['also Beispielsatz'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Also bleibe ich zu Hause.',
+        russian: 'Значит, я остаюсь дома.',
+        focusForm: 'Also',
+      },
+      {
+        german: 'Ich habe morgen frei, also komme ich mit.',
+        russian: 'Завтра я свободен, так что я пойду с вами.',
+        focusForm: 'also',
+      },
+      {
+        german: 'Du bist müde, also mach eine Pause.',
+        russian: 'Ты устал, значит, сделай перерыв.',
+        focusForm: 'also',
+      },
+    ],
+  },
+  warum: {
+    lexicalType: 'adverb',
+    canonical: 'warum',
+    lemma: 'warum',
+    clozeHint: 'question adverb',
+    patternHint: 'Question adverb: it asks for a reason and can start a direct question.',
+    meanings: [
+      {
+        russian: 'почему',
+        english: 'why',
+        imageSearchTerms: ['warum Frage Beispielsatz'],
+      },
+    ],
+    exampleSentences: [
+      {
+        german: 'Warum ist er heute nicht gekommen?',
+        russian: 'Почему он сегодня не пришел?',
+        focusForm: 'Warum',
+      },
+      {
+        german: 'Warum lernst du Deutsch?',
+        russian: 'Почему ты учишь немецкий?',
+        focusForm: 'Warum',
+      },
+      {
+        german: 'Ich weiß nicht, warum sie lacht.',
+        russian: 'Я не знаю, почему она смеется.',
+        focusForm: 'warum',
       },
     ],
   },
@@ -511,6 +604,8 @@ export function getCuratedFunctionWordAnalysis(input = '') {
     anchorPhrase: null,
     opposite: null,
     clozeHint: entry.clozeHint,
+    patternHint: entry.patternHint || null,
+    patternFamily: entry.patternFamily || entry.lexicalType,
     meanings: entry.meanings,
     exampleSentences: entry.exampleSentences,
   };
